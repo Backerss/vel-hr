@@ -1,0 +1,20 @@
+<!-- ========== LOGOUT CONFIRM MODAL ========== -->
+<div class="modal-overlay" id="logoutModal">
+  <div class="modal-card" style="width:380px;">
+    <div class="modal-body">
+      <div class="confirm-content">
+        <div class="confirm-icon" style="background:var(--primary-light);">
+          <i class="bi bi-box-arrow-right" style="color:var(--primary);font-size:26px;"></i>
+        </div>
+        <div class="confirm-title">ออกจากระบบ</div>
+        <div class="confirm-text">คุณต้องการออกจากระบบใช่หรือไม่?</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline-custom" onclick="closeModal('logoutModal')">ยกเลิก</button>
+      <button class="btn-primary-custom" onclick="doLogout()">
+        <i class="bi bi-box-arrow-right"></i> ออกจากระบบ
+      </button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,20 @@
+<!-- ========== CONFIRM DELETE EMPLOYEE MODAL ========== -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal-card" style="width:400px;">
+    <div class="modal-body">
+      <div class="confirm-content">
+        <div class="confirm-icon">
+          <i class="bi bi-trash3-fill"></i>
+        </div>
+        <div class="confirm-title">ยืนยันการลบ</div>
+        <div class="confirm-text" id="confirmText">คุณต้องการลบข้อมูลพนักงานนี้ใช่หรือไม่?<br/>การดำเนินการนี้ไม่สามารถย้อนกลับได้</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline-custom" onclick="closeConfirmModal()">ยกเลิก</button>
+      <button class="btn-primary-custom" style="background:var(--danger);" id="btnConfirmDelete" onclick="executeDelete()">
+        <i class="bi bi-trash3"></i> ลบข้อมูล
+      </button>
+    </div>
+  </div>
+</div>

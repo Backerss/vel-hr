@@ -1,0 +1,30 @@
+<div id="loginOverlay">
+  <div class="login-card">
+    <div class="login-logo">
+      <i class="bi bi-people-fill"></i>
+    </div>
+    <div class="login-title">HR Management</div>
+    <div class="login-subtitle">ระบบบริหารจัดการทรัพยากรบุคคล</div>
+
+    <div class="input-group-custom">
+      <i class="bi bi-person input-prefix"></i>
+      <input type="text" id="loginUsername" class="form-control-custom" placeholder="รหัสพนักงาน / Username"
+        autocomplete="off" />
+    </div>
+
+    <div class="input-group-custom" style="position:relative;">
+      <i class="bi bi-lock input-prefix"></i>
+      <input type="password" id="loginPassword" class="form-control-custom" placeholder="รหัสผ่าน (ถ้ามี)"
+        autocomplete="off" />
+    </div>
+
+    <button class="btn-login" id="btnLogin">
+      <i class="bi bi-box-arrow-in-right me-1"></i> เข้าสู่ระบบ
+    </button>
+
+    <div id="loginAlert" class="login-alert alert-danger" style="display:none;">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <span id="loginAlertMsg"></span>
+    </div>
+  </div>
+</div>

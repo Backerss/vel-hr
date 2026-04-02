@@ -1,0 +1,104 @@
+<!-- ========== EMPLOYEE ADD/EDIT MODAL ========== -->
+<div class="modal-overlay" id="empModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="bi bi-person-lines-fill"></i>
+        <span id="empModalTitle">เพิ่มพนักงาน</span>
+      </div>
+      <button class="modal-close" onclick="closeEmpModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-section-title">ข้อมูลส่วนตัว</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>รหัสพนักงาน <span class="required">*</span></label>
+          <input type="text" id="fEmpID" class="form-control-m" placeholder="เช่น 0001" />
+        </div>
+        <div class="form-group">
+          <label>คำนำหน้า</label>
+          <select id="fEmpSname" class="form-control-m">
+            <option value="นาย">นาย</option>
+            <option value="นาง">นาง</option>
+            <option value="นางสาว">นางสาว</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>ชื่อ <span class="required">*</span></label>
+          <input type="text" id="fEmpFirstname" class="form-control-m" placeholder="ชื่อ" />
+        </div>
+        <div class="form-group">
+          <label>นามสกุล <span class="required">*</span></label>
+          <input type="text" id="fEmpLastname" class="form-control-m" placeholder="นามสกุล" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>เลขบัตรประชาชน</label>
+          <input type="text" id="fEmpIDCard" class="form-control-m" placeholder="13 หลัก" maxlength="13" />
+        </div>
+        <div class="form-group">
+          <label>ระดับ (Level)</label>
+          <input type="text" id="fEmpLevel" class="form-control-m" placeholder="เช่น L1, L2" />
+        </div>
+      </div>
+
+      <div class="form-divider"></div>
+      <div class="form-section-title">ข้อมูลการทำงาน</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>แผนกย่อย <span class="required">*</span></label>
+          <select id="fSubID" class="form-control-m">
+            <option value="">-- เลือกแผนก --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>ตำแหน่ง <span class="required">*</span></label>
+          <select id="fPositionID" class="form-control-m">
+            <option value="">-- เลือกตำแหน่ง --</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>วันที่เริ่มงาน</label>
+          <input type="date" id="fEmpStartDate" class="form-control-m" />
+        </div>
+        <div class="form-group">
+          <label>วันที่บรรจุ</label>
+          <input type="date" id="fEmpPackingDate" class="form-control-m" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>สถานะ</label>
+          <select id="fEmpStatus" class="form-control-m">
+            <option value="Activated">Activated (ทำงานอยู่)</option>
+            <option value="Resigned">Resigned (ลาออก)</option>
+            <option value="Terminated">Terminated (ถูกเลิกจ้าง)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>ประเภทพนักงาน (Vsth)</label>
+          <select id="fEmpVsth" class="form-control-m">
+            <option value="Vel">Vel</option>
+            <option value="SK">SK</option>
+            <option value="TBS">TBS</option>
+            <option value="CWS">CWS</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline-custom" onclick="closeEmpModal()">ยกเลิก</button>
+      <button class="btn-primary-custom" id="btnSaveEmp" onclick="saveEmployee()">
+        <i class="bi bi-check2-circle"></i> บันทึก
+      </button>
+    </div>
+  </div>
+</div>

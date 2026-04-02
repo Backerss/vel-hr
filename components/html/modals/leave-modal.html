@@ -1,0 +1,116 @@
+<!-- ========== LEAVE FORM MODAL ========== -->
+<div class="modal-overlay" id="leaveModal">
+  <div class="modal-card-lg">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="bi bi-calendar-plus"></i>
+        <span id="leaveModalTitle">บันทึกลางาน</span>
+      </div>
+      <button class="modal-close" onclick="closeLeaveModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Section 1: ข้อมูลพนักงาน -->
+      <div class="form-section-title">ข้อมูลพนักงาน</div>
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12.5px;font-weight:600;color:var(--gray-700);display:block;margin-bottom:6px;">รหัสพนักงาน <span class="required">*</span></label>
+        <div class="lookup-group">
+          <input type="text" id="fLeaveEmpID" class="form-control-m" placeholder="กรอกรหัสพนักงาน เช่น 0001" />
+          <button class="btn-lookup" id="btnLookupEmp" onclick="lookupEmployee()">
+            <i class="bi bi-search"></i> ค้นหา
+          </button>
+        </div>
+        <div id="empEditNotice" style="display:none;align-items:center;gap:6px;margin-top:7px;
+          padding:7px 12px;background:#fef3c7;border-radius:8px;border-left:3px solid #f59e0b;">
+          <i class="bi bi-lock-fill" style="color:#92400e;font-size:13px;"></i>
+          <span style="font-size:12px;color:#92400e;font-weight:500;">ไม่สามารถเปลี่ยนรหัสพนักงานในโหมดแก้ไขได้</span>
+        </div>
+      </div>
+
+      <div class="form-row three">
+        <div class="form-group">
+          <label>คำนำหน้า</label>
+          <select id="fLeaveSname" class="form-control-m leave-readonly" disabled>
+            <option value="นาย">นาย</option>
+            <option value="นาง">นาง</option>
+            <option value="นางสาว">นางสาว</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>ชื่อจริง</label>
+          <input type="text" id="fLeaveFirstname" class="form-control-m leave-readonly" placeholder="(auto)" readonly />
+        </div>
+        <div class="form-group">
+          <label>นามสกุล</label>
+          <input type="text" id="fLeaveLastname" class="form-control-m leave-readonly" placeholder="(auto)" readonly />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>แผนก</label>
+          <input type="text" id="fLeaveDept" class="form-control-m leave-readonly" placeholder="(auto)" readonly />
+        </div>
+        <div class="form-group">
+          <label>สังกัด</label>
+          <input type="text" id="fLeaveSub" class="form-control-m leave-readonly" placeholder="(auto)" readonly />
+        </div>
+      </div>
+
+      <div class="form-divider"></div>
+      <div class="form-section-title">รายละเอียดการลา</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>ประเภทการลา <span class="required">*</span></label>
+          <select id="fLeaveType" class="form-control-m">
+            <option value="">-- เลือกประเภทการลา --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>การสื่อสาร <span class="required">*</span></label>
+          <select id="fLeaveComm" class="form-control-m">
+            <option value="โทร">📞 โทร</option>
+            <option value="แจ้งล่วงหน้า">🔔 แจ้งล่วงหน้า</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>วันที่ลา (วันและเวลาเริ่มต้น) <span class="required">*</span></label>
+          <input type="datetime-local" id="fLeaveStartDT" class="form-control-m" />
+        </div>
+        <div class="form-group">
+          <label>ถึงวันที่ (วันและเวลาสิ้นสุด) <span class="required">*</span></label>
+          <input type="datetime-local" id="fLeaveEndDT" class="form-control-m" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>วันที่บันทึก</label>
+          <input type="date" id="fLeaveRecordDate" class="form-control-m leave-readonly" readonly />
+        </div>
+        <div class="form-group"></div>
+      </div>
+
+      <div class="form-row full">
+        <div class="form-group">
+          <label>เหตุผลการลา</label>
+          <textarea id="fLeaveRemark" class="form-control-m" rows="3"
+            placeholder="ระบุเหตุผลการลา..."
+            style="resize:vertical;min-height:72px;"></textarea>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline-custom" onclick="closeLeaveModal()">ยกเลิก</button>
+      <button class="btn-primary-custom" id="btnSaveLeave" onclick="saveLeaveRecord()">
+        <i class="bi bi-check2-circle"></i> บันทึก
+      </button>
+    </div>
+  </div>
+</div>

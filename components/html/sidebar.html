@@ -1,0 +1,101 @@
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon">
+        <i class="bi bi-people-fill"></i>
+      </div>
+      <div class="sidebar-brand-text">
+        <div class="brand-name">HR System</div>
+        <div class="brand-sub">v1.0.0</div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+
+    <!-- ── กลุ่ม: ข้อมูลพนักงาน ── -->
+    <div class="nav-section-label">จัดการพนักงาน</div>
+
+    <button class="nav-item-custom active" id="navEmployees" onclick="switchPage('employees')">
+      <i class="bi bi-people"></i>
+      <span>ข้อมูลพนักงาน</span>
+      <span class="nav-badge" id="sidebarCount">0</span>
+    </button>
+
+    <!-- ── กลุ่ม: การอบรม ── -->
+    <div class="nav-section-label" style="margin-top:12px;">การอบรม</div>
+
+    <div class="nav-group" id="groupTraining">
+      <button class="nav-group-header" onclick="toggleGroup('groupTraining')">
+        <i class="bi bi-mortarboard group-icon"></i>
+        <span class="group-label">การอบรม</span>
+        <i class="bi bi-chevron-down chevron"></i>
+      </button>
+      <div class="nav-submenu" id="subTraining">
+        <button class="nav-subitem" id="navTrainingList"
+          onclick="switchPage('trainingList')">
+          แจ้งรายชื่อผู้เข้าอบรม
+        </button>
+        <button class="nav-subitem" id="navTrainingRecord"
+          onclick="switchPage('trainingRecord')">
+          บันทึกการอบรม
+        </button>
+        <button class="nav-subitem" id="navTrainingExpense"
+          onclick="switchPage('trainingExpense')">
+          บันทึกค่าใช้จ่าย
+        </button>
+      </div>
+    </div>
+
+    <!-- ── กลุ่ม: การลา ── -->
+    <div class="nav-section-label" style="margin-top:12px;">การลางาน</div>
+
+    <div class="nav-group" id="groupLeave">
+      <button class="nav-group-header" onclick="toggleGroup('groupLeave')">
+        <i class="bi bi-calendar-event group-icon"></i>
+        <span class="group-label">บันทึกการลา</span>
+        <i class="bi bi-chevron-down chevron"></i>
+      </button>
+      <div class="nav-submenu" id="subLeave">
+        <button class="nav-subitem" id="navLeaveRecord"
+          onclick="switchPage('leaveRecord')">
+          บันทึกลางาน
+        </button>
+        <button class="nav-subitem" id="navDailyAbsence"
+          onclick="switchPage('dailyAbsence')">
+          รายงานการหยุดงานประจำวัน
+        </button>
+        <button class="nav-subitem" id="navLeaveStatus"
+          onclick="switchPage('leaveStatus')">
+          ตรวจสอบสถานะลางาน
+        </button>
+      </div>
+    </div>
+
+    <!-- ── กลุ่ม: OT ── -->
+    <div class="nav-section-label" style="margin-top:12px;">ชั่วโมงพิเศษ</div>
+
+    <button class="nav-item-custom" id="navOT" onclick="switchPage('ot')">
+      <i class="bi bi-clock-history"></i>
+      <span>OT</span>
+    </button>
+
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="db-status" style="padding: 0 8px; margin-bottom: 8px;">
+      <div class="db-dot" id="dbDot"></div>
+      <span id="dbStatusText">ไม่ได้เชื่อมต่อ</span>
+    </div>
+    <div class="user-card" onclick="confirmLogout()">
+      <div class="user-avatar">
+        <i class="bi bi-person-fill"></i>
+      </div>
+      <div class="user-info">
+        <div class="user-name" id="sidebarUsername">ผู้ใช้</div>
+        <div class="user-role" id="sidebarRole">-</div>
+      </div>
+      <i class="bi bi-box-arrow-right" style="color:var(--gray-400);font-size:14px;"></i>
+    </div>
+  </div>
+</aside>
