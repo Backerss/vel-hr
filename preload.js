@@ -20,4 +20,10 @@ contextBridge.exposeInMainWorld('api', {
   getDailyReportByDate: (date) => ipcRenderer.invoke('get-daily-report-by-date', date),
   // Training history
   getEmployeeTraining: (empId) => ipcRenderer.invoke('get-employee-training', empId),
+  // Training management
+  getCourses: () => ipcRenderer.invoke('get-courses'),
+  getTrainingPlans: (filters) => ipcRenderer.invoke('get-training-plans', filters),
+  saveTrainingPlan: (data) => ipcRenderer.invoke('save-training-plan', data),
+  getTrainingParticipants: (planId) => ipcRenderer.invoke('get-training-participants', planId),
+  searchEmployees: (payload) => ipcRenderer.invoke('search-employees', payload),
 });

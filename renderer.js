@@ -8,7 +8,7 @@ import { checkDBStatus, doLogin, confirmLogout, doLogout, currentUser } from './
 import {
   loadEmployeesPage, loadSubdivisions, loadPositions,
   fetchAndRenderEmployees, renderEmployeeTable,
-  onSearch, filterEmployees,
+  onSearch, filterEmployees, goToEmployeePage, setEmployeePageSize,
   openAddEmployee, openEditEmployee, saveEmployee, closeEmpModal,
   openDeleteEmployee, executeDelete, closeConfirmModal
 } from './components/js/employees.js';
@@ -17,6 +17,14 @@ import {
   trainingDTRender, trainingDTGoPage, trainingDTSort,
   trainingDTSetPageSize, trainingDTSearch
 } from './components/js/training.js';
+import {
+  loadTrainingManagementPage, switchTrainingTab, updateCourseDisplay,
+  submitTrainingForm, addParticipant, removeParticipant, renderParticipantsList,
+  viewTrainingDetails, closeTrainingDetailsModal, editTraining,
+  filterTrainingList, loadTrainingList, goToTrainingPage,
+  openTrainingModal, closeTrainingModal, refreshTrainingData,
+  onTrainingSearch, setTrainingPageSize
+} from './components/js/training-plan.js';
 import {
   loadLeaveRecordPage, fetchAndRenderLeave, applyLeaveFilter, onLeaveSearch,
   renderLeaveTable, goLeavePage,
@@ -34,14 +42,15 @@ async function loadComponent(url, targetId) {
 
 // ===================== PAGE CONFIG =====================
 const PAGE_CONFIG = {
-  employees:       { title: 'ข้อมูลพนักงาน',             subtitle: 'จัดการข้อมูลพนักงานทั้งหมด',       icon: 'bi-people-fill',        group: null },
-  trainingList:    { title: 'แจ้งรายชื่อผู้เข้าอบรม',    subtitle: 'ลงทะเบียนรายชื่อผู้เข้าอบรม',     icon: 'bi-person-lines-fill',  group: 'groupTraining' },
-  trainingRecord:  { title: 'บันทึกการอบรม',              subtitle: 'บันทึกผลการเข้าอบรม',             icon: 'bi-journal-check',      group: 'groupTraining' },
-  trainingExpense: { title: 'บันทึกค่าใช้จ่าย',          subtitle: 'บันทึกค่าใช้จ่ายการอบรม',        icon: 'bi-receipt',            group: 'groupTraining' },
-  leaveRecord:     { title: 'บันทึกลางาน',                subtitle: 'บันทึกการลาของพนักงาน',           icon: 'bi-calendar-plus',      group: 'groupLeave' },
-  dailyAbsence:    { title: 'รายงานการหยุดงานประจำวัน',   subtitle: 'ดูรายงานการขาด/ลา ประจำวัน',     icon: 'bi-calendar-x',         group: 'groupLeave' },
-  leaveStatus:     { title: 'ตรวจสอบสถานะลางาน',          subtitle: 'ตรวจสอบสถานะการอนุมัติลา',       icon: 'bi-calendar-check',     group: 'groupLeave' },
-  ot:              { title: 'OT',                         subtitle: 'จัดการข้อมูลการทำงานล่วงเวลา',   icon: 'bi-clock-history',      group: null },
+  employees:            { title: 'ข้อมูลพนักงาน',             subtitle: 'จัดการข้อมูลพนักงานทั้งหมด',       icon: 'bi-people-fill',        group: null },
+  trainingManagement:   { title: 'จัดการแผนการฝึกอบรม',      subtitle: 'สร้างและจัดการแผนการฝึกอบรม',   icon: 'bi-clipboard-check',    group: 'groupTraining' },
+  trainingList:         { title: 'แจ้งรายชื่อผู้เข้าอบรม',    subtitle: 'ลงทะเบียนรายชื่อผู้เข้าอบรม',     icon: 'bi-person-lines-fill',  group: 'groupTraining' },
+  trainingRecord:       { title: 'บันทึกการอบรม',              subtitle: 'บันทึกผลการเข้าอบรม',             icon: 'bi-journal-check',      group: 'groupTraining' },
+  trainingExpense:      { title: 'บันทึกค่าใช้จ่าย',          subtitle: 'บันทึกค่าใช้จ่ายการอบรม',        icon: 'bi-receipt',            group: 'groupTraining' },
+  leaveRecord:          { title: 'บันทึกลางาน',                subtitle: 'บันทึกการลาของพนักงาน',           icon: 'bi-calendar-plus',      group: 'groupLeave' },
+  dailyAbsence:         { title: 'รายงานการหยุดงานประจำวัน',   subtitle: 'ดูรายงานการขาด/ลา ประจำวัน',     icon: 'bi-calendar-x',         group: 'groupLeave' },
+  leaveStatus:          { title: 'ตรวจสอบสถานะลางาน',          subtitle: 'ตรวจสอบสถานะการอนุมัติลา',       icon: 'bi-calendar-check',     group: 'groupLeave' },
+  ot:                   { title: 'OT',                         subtitle: 'จัดการข้อมูลการทำงานล่วงเวลา',   icon: 'bi-clock-history',      group: null },
 };
 
 // ===================== NAV GROUP TOGGLE =====================
@@ -85,6 +94,8 @@ async function switchPage(page) {
 
   if (page === 'employees') {
     await loadEmployeesPage();
+  } else if (page === 'trainingManagement') {
+    await loadTrainingManagementPage();
   } else if (page === 'leaveRecord') {
     await loadLeaveRecordPage();
   } else if (page === 'dailyAbsence') {
@@ -158,7 +169,7 @@ async function init() {
   }
 
   // Setup modal backdrop close
-  initModalBackdropClose(['empModal','confirmModal','logoutModal','leaveModal','leaveConfirmModal']);
+  initModalBackdropClose(['empModal','confirmModal','logoutModal','leaveModal','leaveConfirmModal','trainingFormModal','trainingDetailsModal']);
 
   // Login event listeners
   document.getElementById('loginUsername').addEventListener('keydown', (e) => {
@@ -183,11 +194,18 @@ Object.assign(window, {
   // Employees
   openAddEmployee, openEditEmployee, saveEmployee, closeEmpModal,
   openDeleteEmployee, executeDelete, closeConfirmModal,
-  onSearch, filterEmployees,
+  onSearch, filterEmployees, goToEmployeePage, setEmployeePageSize,
   // Training
   openTrainingHistory, closeTrainingHistory,
   trainingDTRender, trainingDTGoPage, trainingDTSort,
   trainingDTSetPageSize, trainingDTSearch,
+  // Training Management (Plan)
+  loadTrainingManagementPage, switchTrainingTab, updateCourseDisplay,
+  submitTrainingForm, addParticipant, removeParticipant, renderParticipantsList,
+  viewTrainingDetails, closeTrainingDetailsModal, editTraining,
+  filterTrainingList, loadTrainingList, goToTrainingPage,
+  openTrainingModal, closeTrainingModal, refreshTrainingData,
+  onTrainingSearch, setTrainingPageSize,
   // Leave
   openLeaveForm, lookupEmployee, saveLeaveRecord, closeLeaveModal,
   confirmDeleteLeave, executeDeleteLeave, applyLeaveFilter, onLeaveSearch,

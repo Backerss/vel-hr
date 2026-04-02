@@ -8,15 +8,36 @@ export let positions = [];
 let editingEmpId = null;
 let deletingEmpId = null;
 let searchTimeout = null;
+let empCurrentPage = 1;
+let empTotalCount = 0;
+let empPerPage = 50;
+
+function withTimeout(promise, ms, name) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${name} timeout`)), ms))
+  ]);
+}
 
 export async function loadEmployeesPage() {
   const container = document.getElementById('pageContent');
   container.innerHTML = `<div class="text-center py-5"><div class="spinner" style="margin:0 auto;"></div><p class="mt-3 text-muted">กำลังโหลดข้อมูล...</p></div>`;
 
-  await loadSubdivisions();
-  await loadPositions();
+  try {
+    await Promise.all([
+      withTimeout(loadSubdivisions(), 10000, 'loadSubdivisions'),
+      withTimeout(loadPositions(), 10000, 'loadPositions')
+    ]);
+  } catch (e) {
+    console.warn('Employee metadata load warning:', e.message);
+  }
 
-  const countRes = await window.api.getEmployeeCount();
+  let countRes = { success: false };
+  try {
+    countRes = await withTimeout(window.api.getEmployeeCount(), 10000, 'getEmployeeCount');
+  } catch (e) {
+    console.warn('Employee count load warning:', e.message);
+  }
   let totalCount = 0, activeCount = 0, inactiveCount = 0;
   if (countRes.success) {
     totalCount = countRes.total;
@@ -69,6 +90,15 @@ export async function loadEmployeesPage() {
             oninput="onSearch()" />
         </div>
 
+        <div style="display:flex;align-items:center;gap:8px;color:var(--gray-600);font-size:12.5px;">
+          <span>แสดง</span>
+          <select class="filter-select" id="empPageSize" onchange="setEmployeePageSize()" style="min-width:88px;">
+            <option value="25">25</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+
         <select class="filter-select" id="filterStatus" onchange="filterEmployees()">
           <option value="">ทุกสถานะ</option>
           <option value="Activated">Activated</option>
@@ -115,6 +145,7 @@ export async function loadEmployeesPage() {
         <div class="record-count">
           แสดง <span id="displayCount">0</span> จาก <span id="totalRecordCount">0</span> รายการ
         </div>
+        <div class="emp-pagination" id="empPaginationControls"></div>
       </div>
     </div>
   `;
@@ -163,12 +194,14 @@ export async function loadPositions() {
   }
 }
 
-export async function fetchAndRenderEmployees() {
+export async function fetchAndRenderEmployees(page = empCurrentPage) {
+  empCurrentPage = page;
+  const t0 = performance.now();
   const search = document.getElementById('searchInput')?.value || '';
   const status = document.getElementById('filterStatus')?.value || '';
   const subdivision = document.getElementById('filterSubdivision')?.value || '';
 
-  const res = await window.api.getEmployees({ search, status, subdivision });
+  const res = await window.api.getEmployees({ search, status, subdivision, page, perPage: empPerPage });
   const tbody = document.getElementById('empTableBody');
 
   if (!res.success) {
@@ -178,15 +211,49 @@ export async function fetchAndRenderEmployees() {
   }
 
   allEmployees = res.data;
+  empTotalCount = res.total;
+  const t1 = performance.now();
   renderEmployeeTable(allEmployees);
+  renderEmpPagination(res.page, res.total, res.perPage);
+  const t2 = performance.now();
+  console.log(`[employees] page=${page} rows=${allEmployees.length}/${res.total} query=${Math.round(t1-t0)}ms render=${Math.round(t2-t1)}ms total=${Math.round(t2-t0)}ms`);
+}
+
+export async function goToEmployeePage(page) {
+  await fetchAndRenderEmployees(page);
+}
+
+function renderEmpPagination(page, total, perPage) {
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const displayFrom = total === 0 ? 0 : (page - 1) * perPage + 1;
+  const displayTo = Math.min(page * perPage, total);
+
+  const dc = document.getElementById('displayCount');
+  const tc = document.getElementById('totalRecordCount');
+  if (dc) dc.textContent = total === 0 ? '0' : `${displayFrom.toLocaleString()}-${displayTo.toLocaleString()}`;
+  if (tc) tc.textContent = total.toLocaleString();
+
+  const pager = document.getElementById('empPaginationControls');
+  if (!pager) return;
+  if (totalPages <= 1) { pager.innerHTML = ''; return; }
+
+  const startP = Math.max(1, page - 3);
+  const endP = Math.min(totalPages, page + 3);
+  let html = `<button class="leave-page-btn" onclick="goToEmployeePage(${page - 1})" ${page <= 1 ? 'disabled' : ''}>‹</button>`;
+  if (startP > 1) html += `<button class="leave-page-btn" onclick="goToEmployeePage(1)">1</button>`;
+  if (startP > 2) html += `<span style="padding:0 4px;color:var(--gray-400);">…</span>`;
+  for (let i = startP; i <= endP; i++) {
+    html += `<button class="leave-page-btn ${i === page ? 'active' : ''}" onclick="goToEmployeePage(${i})">${i}</button>`;
+  }
+  if (endP < totalPages - 1) html += `<span style="padding:0 4px;color:var(--gray-400);">…</span>`;
+  if (endP < totalPages) html += `<button class="leave-page-btn" onclick="goToEmployeePage(${totalPages})">${totalPages}</button>`;
+  html += `<button class="leave-page-btn" onclick="goToEmployeePage(${page + 1})" ${page >= totalPages ? 'disabled' : ''}>›</button>`;
+  pager.innerHTML = html;
 }
 
 export function renderEmployeeTable(employees) {
   const tbody = document.getElementById('empTableBody');
   const isAdmin = currentUser && currentUser.role === 'admin';
-
-  document.getElementById('displayCount').textContent = employees.length.toLocaleString();
-  document.getElementById('totalRecordCount').textContent = employees.length.toLocaleString();
 
   if (employees.length === 0) {
     tbody.innerHTML = `<tr><td colspan="8">
@@ -242,7 +309,15 @@ export function onSearch() {
 }
 
 export async function filterEmployees() {
-  await fetchAndRenderEmployees();
+  empCurrentPage = 1;
+  await fetchAndRenderEmployees(1);
+}
+
+export async function setEmployeePageSize() {
+  const pageSizeEl = document.getElementById('empPageSize');
+  empPerPage = Math.max(1, Math.min(Number(pageSizeEl?.value) || 50, 100));
+  empCurrentPage = 1;
+  await fetchAndRenderEmployees(1);
 }
 
 // ===================== ADD / EDIT EMPLOYEE =====================

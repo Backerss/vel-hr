@@ -1,0 +1,282 @@
+﻿<!-- ===================== TRAINING MANAGEMENT PAGE ===================== -->
+
+<!-- STAT CARDS -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="stat-card">
+      <div class="stat-icon blue"><i class="bi bi-clipboard-check-fill"></i></div>
+      <div>
+        <div class="stat-value" id="statTotalPlans">0</div>
+        <div class="stat-label">แผนการอบรมทั้งหมด</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="stat-card">
+      <div class="stat-icon green"><i class="bi bi-building"></i></div>
+      <div>
+        <div class="stat-value" id="statInternal">0</div>
+        <div class="stat-label">อบรมภายใน</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="stat-card">
+      <div class="stat-icon amber"><i class="bi bi-globe2"></i></div>
+      <div>
+        <div class="stat-value" id="statExternal">0</div>
+        <div class="stat-label">อบรมภายนอก</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TABLE SECTION -->
+<div class="table-section">
+  <div class="table-header">
+    <span class="table-title">รายการแผนการอบรม</span>
+
+    <div class="search-box" style="max-width:320px;">
+      <i class="bi bi-search"></i>
+      <input type="text" class="search-input" id="trainingSearchInput"
+        placeholder="ค้นหาเลขที่ / หลักสูตร / หน่วยงาน / วิทยากร"
+        oninput="onTrainingSearch()">
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;color:var(--gray-600);font-size:12.5px;">
+      <span>แสดง</span>
+      <select class="filter-select" id="trainingPageSize" onchange="setTrainingPageSize()" style="min-width:88px;">
+        <option value="25">25</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+    </div>
+
+    <button class="btn-outline-custom" onclick="refreshTrainingData()">
+      <i class="bi bi-arrow-clockwise"></i> รีเฟรช
+    </button>
+
+    <button class="btn-primary-custom" onclick="openTrainingModal()">
+      <i class="bi bi-plus-circle-fill"></i> สร้างแผนการอบรม
+    </button>
+  </div>
+
+  <div class="table-responsive-custom">
+    <table class="data-table" style="width:100%;">
+      <thead>
+        <tr>
+          <th style="width:80px;text-align:center;">เลขที่</th>
+          <th>หลักสูตร</th>
+          <th style="width:180px;">วันเริ่ม-สิ้นสุด</th>
+          <th style="width:130px;">หน่วยงาน</th>
+          <th style="width:90px;text-align:center;">ประเภท</th>
+          <th style="width:130px;">วิทยากร</th>
+          <th style="width:60px;text-align:center;">ผู้เข้า</th>
+          <th style="width:80px;text-align:center;">จัดการ</th>
+        </tr>
+      </thead>
+      <tbody id="trainingTableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="table-footer">
+    <div class="record-count">
+      แสดง <span id="trainingDisplayCount">0</span> จาก <span id="trainingTotalCount">0</span> รายการ
+    </div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;" id="trainingPaginationControls"></div>
+  </div>
+</div>
+
+<!-- ===================== TRAINING FORM MODAL ===================== -->
+<div class="modal-overlay" id="trainingFormModal">
+  <div class="modal-card" style="width:860px;max-width:96vw;max-height:92vh;overflow-y:auto;">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="bi bi-clipboard-plus"></i>
+        <span id="trainingModalTitle">สร้างแผนการอบรม</span>
+      </div>
+      <button class="modal-close" onclick="closeTrainingModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+
+    <div class="modal-body" style="padding:20px 24px;">
+      <form id="trainingForm" onsubmit="submitTrainingForm(event)">
+        <input type="hidden" id="editingPlanId">
+
+        <div class="form-section-title" style="margin-bottom:14px;">ข้อมูลการอบรม</div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>หลักสูตร <span class="required">*</span></label>
+            <select id="coursesId" class="form-control-m" required onchange="updateCourseDisplay()">
+              <option value="">-- เลือกหลักสูตร --</option>
+            </select>
+            <input type="hidden" id="coursesName">
+          </div>
+          <div class="form-group">
+            <label>ประเภท <span class="required">*</span></label>
+            <select id="planTypeTraining" class="form-control-m" required>
+              <option value="">-- เลือก --</option>
+              <option value="ภายใน">ภายใน</option>
+              <option value="ภายนอก">ภายนอก</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>หน่วยงานที่อบรม <span class="required">*</span></label>
+            <input type="text" id="planCompany" class="form-control-m" placeholder="เช่น HR, IT" required>
+          </div>
+          <div class="form-group">
+            <label>สถานที่จัดอบรม <span class="required">*</span></label>
+            <input type="text" id="planLocation" class="form-control-m" placeholder="สถานที่" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>ชื่อวิทยากร <span class="required">*</span></label>
+            <input type="text" id="planLecturer" class="form-control-m" placeholder="ชื่อวิทยากร" required>
+          </div>
+          <div class="form-group">
+            <label>ผู้ประสานงานอบรม <span class="required">*</span></label>
+            <input type="text" id="planCoordinator" class="form-control-m" placeholder="ผู้ประสานงาน" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>วันที่เริ่ม <span class="required">*</span></label>
+            <div style="display:flex;gap:8px;">
+              <input type="date" id="planStartDate" class="form-control-m" required style="flex:1;">
+              <input type="time" id="planTimeStart" class="form-control-m" required style="width:110px;flex-shrink:0;">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>วันที่สิ้นสุด <span class="required">*</span></label>
+            <div style="display:flex;gap:8px;">
+              <input type="date" id="planEndDate" class="form-control-m" required style="flex:1;">
+              <input type="time" id="planTimeEnd" class="form-control-m" required style="width:110px;flex-shrink:0;">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>จำนวนชั่วโมง <span class="required">*</span></label>
+            <input type="number" id="planHour" class="form-control-m" placeholder="จำนวนชั่วโมง" required min="1">
+          </div>
+          <div class="form-group">
+            <label>หมายเหตุ</label>
+            <input type="text" id="planRemark" class="form-control-m" placeholder="หมายเหตุ (ถ้ามี)">
+          </div>
+        </div>
+
+        <div class="form-divider"></div>
+        <div class="form-section-title" style="margin-bottom:14px;">
+          ผู้เข้าอบรม
+          <span id="participantCountBadge" style="margin-left:8px;background:var(--primary-light);color:var(--primary);padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600;">0 คน</span>
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+          <div class="search-box" style="flex:1;max-width:none;">
+            <i class="bi bi-search"></i>
+            <input
+              type="text"
+              id="participantSearchInput"
+              class="search-input"
+              autocomplete="off"
+              placeholder="พิมพ์รหัส / ชื่อ / แผนก แล้ว Enter หรือคลิกเลือก"
+            >
+          </div>
+          <button type="button" id="btnAddParticipant" class="btn-primary-custom">
+            <i class="bi bi-person-plus-fill"></i> เพิ่ม
+          </button>
+        </div>
+
+        <div id="participantSearchResults" style="display:none;border:1px solid var(--gray-200);border-radius:10px;background:white;box-shadow:0 4px 16px rgba(0,0,0,0.10);margin-bottom:8px;max-height:200px;overflow-y:auto;"></div>
+
+        <div id="participantsList" style="min-height:60px;border:1px solid var(--gray-100);border-radius:10px;padding:8px;background:var(--gray-50);">
+          <div id="participantsEmptyState" style="text-align:center;padding:20px;color:var(--gray-400);font-size:13px;">
+            <i class="bi bi-people" style="font-size:22px;display:block;margin-bottom:6px;"></i>
+            ยังไม่มีผู้เข้าอบรม
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-outline-custom" type="button" onclick="closeTrainingModal()">ยกเลิก</button>
+      <button class="btn-primary-custom" id="btnSaveTraining" type="button" onclick="submitTrainingForm(event)">
+        <i class="bi bi-check2-circle"></i> บันทึก
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== TRAINING DETAILS MODAL ===================== -->
+<div class="modal-overlay" id="trainingDetailsModal">
+  <div class="modal-card" style="width:860px;max-width:96vw;max-height:92vh;overflow-y:auto;">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="bi bi-journal-text"></i>
+        รายละเอียดการอบรม
+      </div>
+      <button class="modal-close" onclick="closeTrainingDetailsModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div id="trainingDetailsContent"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline-custom" onclick="closeTrainingDetailsModal()">ปิด</button>
+      <button class="btn-primary-custom" id="editTrainingBtn" onclick="editTraining()">
+        <i class="bi bi-pencil"></i> แก้ไข
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+.participant-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--gray-100);
+  border-radius: 8px;
+  background: white;
+  margin-bottom: 4px;
+}
+.participant-row:last-child { border-bottom: none; }
+.participant-info { display: flex; align-items: center; gap: 10px; }
+.participant-id {
+  font-size: 11.5px; font-weight: 700;
+  background: var(--primary-light); color: var(--primary);
+  padding: 2px 8px; border-radius: 20px;
+}
+.participant-name { font-size: 13px; font-weight: 600; color: var(--gray-800); }
+.participant-sub { font-size: 11.5px; color: var(--gray-500); }
+.btn-remove-participant {
+  background: none; border: 1px solid #fecaca;
+  color: var(--danger); border-radius: 6px;
+  padding: 3px 10px; font-size: 12px; cursor: pointer;
+  display: flex; align-items: center; gap: 4px;
+  transition: var(--transition);
+}
+.btn-remove-participant:hover { background: #fef2f2; }
+.training-suggest-item {
+  display: block; width: 100%; text-align: left;
+  padding: 9px 14px; border: none; background: none; cursor: pointer;
+  border-bottom: 1px solid var(--gray-100); font-family: Sarabun,sans-serif;
+  transition: background 0.12s;
+}
+.training-suggest-item:last-child { border-bottom: none; }
+.training-suggest-item:hover { background: var(--primary-light); }
+.suggest-id { font-size: 11.5px; font-weight: 700; color: var(--primary); margin-right: 6px; }
+.suggest-name { font-size: 13px; font-weight: 600; color: var(--gray-800); }
+.suggest-sub { font-size: 11.5px; color: var(--gray-500); margin-top: 2px; }
+</style>

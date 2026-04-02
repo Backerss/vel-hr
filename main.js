@@ -44,6 +44,7 @@ function createWindow() {
   Menu.setApplicationMenu(null);
 
   mainWindow.loadFile('index.html');
+  mainWindow.webContents.openDevTools()
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -118,39 +119,81 @@ ipcMain.handle('login', async (event, { username, password }) => {
   }
 });
 
-// Get all employees
-ipcMain.handle('get-employees', async (event, { search = '', status = '', subdivision = '' }) => {
+// Get employees with server-side pagination
+ipcMain.handle('get-employees', async (event, filters = {}) => {
+  const { search = '', status = '', subdivision = '', page = 1, perPage = 50 } = filters;
   if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
   try {
-    let query = `SELECT e.Emp_ID, CONCAT(e.Emp_Sname, e.Emp_Firstname, ' ', e.Emp_Lastname) AS Fullname,
-      e.Emp_Start_date, e.Emp_Packing_date, e.Emp_IDCard, e.Emp_Level,
-      s.Sub_Name, p.Position_Name, e.Emp_Status, e.Emp_Vsth,
-      s.Sub_ID, p.Position_ID, e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname
-      FROM employees e
-      INNER JOIN subdivision s ON s.Sub_ID = e.Sub_ID
-      INNER JOIN position p ON p.Position_ID = e.Position_ID
-      WHERE 1=1`;
+    const conditions = ['1=1'];
     const params = [];
 
     if (search) {
-      query += ` AND (e.Emp_ID LIKE ? OR e.Emp_Firstname LIKE ? OR e.Emp_Lastname LIKE ? OR e.Emp_IDCard LIKE ?)`;
+      conditions.push(`(e.Emp_ID LIKE ? OR e.Emp_Firstname LIKE ? OR e.Emp_Lastname LIKE ? OR e.Emp_IDCard LIKE ?)`);
       params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
     if (status) {
-      query += ` AND e.Emp_Status = ?`;
+      conditions.push(`e.Emp_Status = ?`);
       params.push(status);
     }
     if (subdivision) {
-      query += ` AND e.Sub_ID = ?`;
+      conditions.push(`e.Sub_ID = ?`);
       params.push(subdivision);
     }
 
-    query += ` ORDER BY e.Emp_ID ASC`;
+    const joins = `FROM employees e INNER JOIN subdivision s ON s.Sub_ID = e.Sub_ID INNER JOIN position p ON p.Position_ID = e.Position_ID`;
+    const where = `WHERE ${conditions.join(' AND ')}`;
 
-    const [rows] = await db.execute(query, params);
-    return { success: true, data: rows };
+    const [countRows] = await db.execute(`SELECT COUNT(*) as total ${joins} ${where}`, params);
+    const total = countRows[0].total;
+
+    const safePerPage = Math.max(1, Math.min(Number(perPage) || 50, 100));
+    const safePage = Math.max(1, Number(page) || 1);
+    const offset = (safePage - 1) * safePerPage;
+
+    const [rows] = await db.execute(
+      `SELECT e.Emp_ID, CONCAT(e.Emp_Sname, e.Emp_Firstname, ' ', e.Emp_Lastname) AS Fullname,
+        e.Emp_Start_date, e.Emp_Packing_date, e.Emp_IDCard, e.Emp_Level,
+        s.Sub_Name, p.Position_Name, e.Emp_Status, e.Emp_Vsth,
+        s.Sub_ID, p.Position_ID, e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname
+        ${joins} ${where}
+        ORDER BY e.Emp_ID ASC
+        LIMIT ${safePerPage} OFFSET ${offset}`,
+      params
+    );
+    return { success: true, data: rows, total, page: safePage, perPage: safePerPage };
   } catch (error) {
     console.error('Get employees error:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+// Search employees for autocomplete (lightweight)
+ipcMain.handle('search-employees', async (event, { keyword = '', limit = 20 } = {}) => {
+  if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
+  try {
+    const q = String(keyword || '').trim();
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 50));
+
+    if (!q) return { success: true, data: [] };
+
+    const [rows] = await db.execute(
+      `SELECT e.Emp_ID, e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname,
+        CONCAT(e.Emp_Sname, e.Emp_Firstname, ' ', e.Emp_Lastname) AS Fullname,
+        s.Sub_Name, e.Emp_Status
+      FROM employees e
+      LEFT JOIN subdivision s ON s.Sub_ID = e.Sub_ID
+      WHERE e.Emp_ID LIKE ?
+         OR e.Emp_Firstname LIKE ?
+         OR e.Emp_Lastname LIKE ?
+         OR CONCAT(e.Emp_Sname, e.Emp_Firstname, ' ', e.Emp_Lastname) LIKE ?
+         OR s.Sub_Name LIKE ?
+      ORDER BY e.Emp_ID ASC
+      LIMIT ${safeLimit}`,
+      [`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`]
+    );
+    return { success: true, data: rows };
+  } catch (error) {
+    console.error('Search employees error:', error);
     return { success: false, message: error.message };
   }
 });
@@ -408,6 +451,178 @@ ipcMain.handle('get-daily-report-by-date', async (event, dateStr) => {
         WHERE ? BETWEEN dr.drp_Sdate AND IF(dr.drp_Edate = '' OR dr.drp_Edate = '0000/00/00' OR dr.drp_Edate IS NULL, dr.drp_Sdate, dr.drp_Edate)
         ORDER BY FIELD(IFNULL(e.Emp_Vsth,dr.drp_status),'Vel','SK','TBS','CWS'), dr.drp_empID ASC`,
       [dbDate]
+    );
+    return { success: true, data: rows };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Get all courses
+ipcMain.handle('get-courses', async (event) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const [rows] = await db.execute('SELECT Courses_ID, Courses_Name, Courses_Date, Courses_Remark FROM courses ORDER BY Courses_Name');
+    return { success: true, data: rows };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Get training plans with server-side pagination
+ipcMain.handle('get-training-plans', async (event, filters = {}) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const { search = '', page = 1, perPage = 25 } = filters;
+    const safePerPage = Math.max(1, Math.min(Number(perPage) || 25, 100));
+    const safePage = Math.max(1, Number(page) || 1);
+    const offset = (safePage - 1) * safePerPage;
+
+    const conditions = ['1=1'];
+    const params = [];
+
+    if (search) {
+      conditions.push(`(
+        tp.Plan_ID LIKE ?
+        OR c.Courses_Name LIKE ?
+        OR tp.Plan_Company LIKE ?
+        OR tp.Plan_Lecturer LIKE ?
+        OR tp.Plan_Coordinator LIKE ?
+      )`);
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    const joins = `FROM training_plan tp INNER JOIN courses c ON c.Courses_ID = tp.Courses_ID`;
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const participantJoin = `
+      LEFT JOIN (
+        SELECT Plan_ID, COUNT(*) AS ParticipantCount
+        FROM history_training
+        GROUP BY Plan_ID
+      ) participant_counts ON participant_counts.Plan_ID = tp.Plan_ID`;
+
+    const [countRows] = await db.execute(
+      `SELECT COUNT(*) AS total
+      ${joins} ${where}`,
+      params
+    );
+
+    const [summaryRows] = await db.execute(
+      `SELECT
+        COUNT(*) AS totalCount,
+        SUM(CASE WHEN tp.Plan_TypeTraining = 'ภายใน' THEN 1 ELSE 0 END) AS internalCount,
+        SUM(CASE WHEN tp.Plan_TypeTraining = 'ภายนอก' THEN 1 ELSE 0 END) AS externalCount
+      ${joins}`,
+      []
+    );
+
+    const [rows] = await db.execute(
+      `SELECT tp.Plan_ID, tp.Plan_Record, c.Courses_ID, c.Courses_Name,
+        tp.Plan_Hour, tp.Plan_Company, tp.Plan_Location, tp.Plan_TypeTraining,
+        tp.Plan_Lecturer, DATE_FORMAT(tp.Plan_StartDate, '%Y-%m-%d') AS Plan_StartDate,
+        tp.Plan_TimeStart, DATE_FORMAT(tp.Plan_EndDate, '%Y-%m-%d') AS Plan_EndDate,
+        tp.Plan_TimeEnd, tp.Plan_Remark, tp.Plan_Coordinator, tp.Plan_Status,
+        DATE_FORMAT(tp.Plan_Record, '%Y-%m-%d %H:%i:%s') AS Plan_Record_DateTime,
+        COALESCE(participant_counts.ParticipantCount, 0) AS ParticipantCount
+      ${joins}
+      ${participantJoin}
+      ${where}
+      ORDER BY tp.Plan_StartDate DESC, tp.Plan_ID DESC
+      LIMIT ${safePerPage} OFFSET ${offset}`,
+      params
+    );
+
+    return {
+      success: true,
+      data: rows,
+      total: Number(countRows[0].total) || 0,
+      page: safePage,
+      perPage: safePerPage,
+      summary: {
+        total: Number(summaryRows[0]?.totalCount) || 0,
+        internal: Number(summaryRows[0]?.internalCount) || 0,
+        external: Number(summaryRows[0]?.externalCount) || 0
+      }
+    };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Save training plan (create new or update existing)
+ipcMain.handle('save-training-plan', async (event, data) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    // Convert date format from YYYY-MM-DD to YYYY/MM/DD for MySQL
+    const startDate = data.Plan_StartDate.replace(/-/g, '/');
+    const endDate = data.Plan_EndDate.replace(/-/g, '/');
+    
+    let planId;
+    
+    if (data.Plan_ID) {
+      // Update existing training plan
+      await db.execute(
+        `UPDATE training_plan SET
+          Courses_ID=?, Plan_Hour=?, Plan_Company=?, Plan_Location=?,
+          Plan_TypeTraining=?, Plan_Lecturer=?, Plan_StartDate=?, Plan_TimeStart=?,
+          Plan_EndDate=?, Plan_TimeEnd=?, Plan_Remark=?, Plan_Coordinator=?, Plan_Status=?
+        WHERE Plan_ID=?`,
+        [
+          data.Courses_ID, data.Plan_Hour, data.Plan_Company, data.Plan_Location,
+          data.Plan_TypeTraining, data.Plan_Lecturer, startDate, data.Plan_TimeStart,
+          endDate, data.Plan_TimeEnd, data.Plan_Remark, data.Plan_Coordinator,
+          data.Plan_Status || 'Active', data.Plan_ID
+        ]
+      );
+      planId = data.Plan_ID;
+    } else {
+      // Insert new training plan
+      const result = await db.execute(
+        `INSERT INTO training_plan (Courses_ID, Plan_Hour, Plan_Company, Plan_Location,
+          Plan_TypeTraining, Plan_Lecturer, Plan_StartDate, Plan_TimeStart,
+          Plan_EndDate, Plan_TimeEnd, Plan_Remark, Plan_Coordinator, Plan_Status, Plan_Record)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [
+          data.Courses_ID, data.Plan_Hour, data.Plan_Company, data.Plan_Location,
+          data.Plan_TypeTraining, data.Plan_Lecturer, startDate, data.Plan_TimeStart,
+          endDate, data.Plan_TimeEnd, data.Plan_Remark, data.Plan_Coordinator, 'Active'
+        ]
+      );
+      planId = result[0].insertId;
+    }
+    
+    // Add participants to history_training
+    if (data.participants && data.participants.length > 0) {
+      for (const empId of data.participants) {
+        // Check if participant already exists
+        const [existing] = await db.execute(
+          'SELECT his_id FROM history_training WHERE Plan_ID=? AND Emp_ID=? AND Courses_ID=?',
+          [planId, empId, data.Courses_ID]
+        );
+        
+        if (existing.length === 0) {
+          await db.execute(
+            `INSERT INTO history_training (Courses_ID, Plan_ID, Emp_ID, his_state, his_timestamp)
+            VALUES (?, ?, ?, 'Pending', NOW())`,
+            [data.Courses_ID, planId, empId]
+          );
+        }
+      }
+    }
+    
+    return { success: true, message: 'บันทึกแผนการฝึกอบรมสำเร็จ', data: { Plan_ID: planId } };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Get training participants (employees in history_training for a specific plan)
+ipcMain.handle('get-training-participants', async (event, planId) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const [rows] = await db.execute(
+      `SELECT ht.his_id, ht.Emp_ID, ht.his_state, ht.his_remark,
+        e.Emp_ID, CONCAT(e.Emp_Sname, e.Emp_Firstname, ' ', e.Emp_Lastname) AS Fullname,
+        s.Sub_Name, p.Position_Name
+      FROM history_training ht
+      INNER JOIN employees e ON e.Emp_ID = ht.Emp_ID
+      LEFT JOIN subdivision s ON s.Sub_ID = e.Sub_ID
+      LEFT JOIN position p ON p.Position_ID = e.Position_ID
+      WHERE ht.Plan_ID = ?
+      ORDER BY e.Emp_ID ASC`,
+      [planId]
     );
     return { success: true, data: rows };
   } catch (e) { return { success: false, message: e.message }; }
