@@ -23,7 +23,9 @@ import {
   viewTrainingDetails, closeTrainingDetailsModal, editTraining,
   filterTrainingList, loadTrainingList, goToTrainingPage,
   openTrainingModal, closeTrainingModal, refreshTrainingData,
-  onTrainingSearch, setTrainingPageSize
+  onTrainingSearch, setTrainingPageSize,
+  togglePendingParticipant, toggleAllPendingParticipants,
+  toggleParticipantForRemoval, toggleAllParticipantsForRemoval, removeSelectedParticipants
 } from './components/js/training-plan.js';
 import {
   loadLeaveRecordPage, fetchAndRenderLeave, applyLeaveFilter, onLeaveSearch,
@@ -206,6 +208,8 @@ Object.assign(window, {
   filterTrainingList, loadTrainingList, goToTrainingPage,
   openTrainingModal, closeTrainingModal, refreshTrainingData,
   onTrainingSearch, setTrainingPageSize,
+  togglePendingParticipant, toggleAllPendingParticipants,
+  toggleParticipantForRemoval, toggleAllParticipantsForRemoval, removeSelectedParticipants,
   // Leave
   openLeaveForm, lookupEmployee, saveLeaveRecord, closeLeaveModal,
   confirmDeleteLeave, executeDeleteLeave, applyLeaveFilter, onLeaveSearch,

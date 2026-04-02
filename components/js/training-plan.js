@@ -16,12 +16,48 @@ let lastSuggestionRows = [];
 let editingPlanId = null;
 let trainingDataLoadFailed = false;
 let trainingDataLoadMessage = '';
+let pendingParticipantIds = new Set();
+let participantsToRemoveIds = new Set();
 
 function withTimeout(promise, ms, name) {
   return Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error(`${name} timeout`)), ms))
   ]);
+}
+
+// ===================== AUTO-CALCULATE TRAINING HOURS =====================
+function calcTrainingHours() {
+  const startDate = document.getElementById('planStartDate')?.value;
+  const startTime = document.getElementById('planTimeStart')?.value;
+  const endDate   = document.getElementById('planEndDate')?.value;
+  const endTime   = document.getElementById('planTimeEnd')?.value;
+  if (!startDate || !startTime || !endDate || !endTime) return;
+  const start = new Date(`${startDate}T${startTime}`);
+  const end   = new Date(`${endDate}T${endTime}`);
+  const diffMs = end - start;
+  if (diffMs <= 0) return;
+  const hours = Math.round(diffMs / 1000 / 60 / 60 * 10) / 10;
+  const el = document.getElementById('planHour');
+  if (el && !el.dataset.manuallyEdited) el.value = hours;
+}
+
+function initializeDateTimeListeners() {
+  ['planStartDate', 'planTimeStart', 'planEndDate', 'planTimeEnd'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const fresh = el.cloneNode(true);
+    el.parentNode.replaceChild(fresh, el);
+    fresh.addEventListener('change', calcTrainingHours);
+  });
+  // Allow manual override: mark planHour as manually edited when user types
+  const planHourEl = document.getElementById('planHour');
+  if (planHourEl) {
+    const freshHour = planHourEl.cloneNode(true);
+    planHourEl.parentNode.replaceChild(freshHour, planHourEl);
+    freshHour.addEventListener('input', () => { freshHour.dataset.manuallyEdited = 'true'; });
+    freshHour.addEventListener('focus', () => { freshHour.dataset.manuallyEdited = ''; });
+  }
 }
 
 function getEmployeeDisplayName(emp) {
@@ -190,6 +226,8 @@ function renderTrainingStats() {
 export function openTrainingModal(planId = null) {
   editingPlanId = planId;
   selectedParticipants = [];
+  pendingParticipantIds = new Set();
+  participantsToRemoveIds = new Set();
   lastSuggestionRows = [];
   latestSearchToken = 0;
 
@@ -206,8 +244,9 @@ export function openTrainingModal(planId = null) {
   // Populate courses dropdown
   initializeCoursesDropdown();
 
-  // Setup participant picker
+  // Setup participant picker & date-time auto-calc
   initializeParticipantPicker();
+  initializeDateTimeListeners();
 
   // If editing, pre-fill fields
   if (planId) {
@@ -222,6 +261,8 @@ export function openTrainingModal(planId = null) {
 export function closeTrainingModal() {
   closeModal('trainingFormModal');
   selectedParticipants = [];
+  pendingParticipantIds = new Set();
+  participantsToRemoveIds = new Set();
   editingPlanId = null;
   clearParticipantSearch();
 }
@@ -262,28 +303,35 @@ function initializeCoursesDropdown() {
 function initializeParticipantPicker() {
   const input = document.getElementById('participantSearchInput');
   const addBtn = document.getElementById('btnAddParticipant');
-  const resultEl = document.getElementById('participantSearchResults');
-  if (!input || !addBtn || !resultEl) return;
+  let resultEl = document.getElementById('participantSearchResults');
+  if (!input || !resultEl) return;
 
-  // Remove old listeners by cloning
+  pendingParticipantIds = new Set();
+
+  // Clone to remove old event listeners
   const newInput = input.cloneNode(true);
   input.parentNode.replaceChild(newInput, input);
-  const newBtn = addBtn.cloneNode(true);
-  addBtn.parentNode.replaceChild(newBtn, addBtn);
+
+  // Clone resultEl to clear stale listeners
+  const newResultEl = resultEl.cloneNode(false);
+  resultEl.parentNode.replaceChild(newResultEl, resultEl);
+
+  if (addBtn) {
+    const newBtn = addBtn.cloneNode(true);
+    addBtn.parentNode.replaceChild(newBtn, addBtn);
+    newBtn.addEventListener('mousedown', e => e.preventDefault());
+    newBtn.addEventListener('click', addParticipant);
+  }
 
   newInput.addEventListener('input', onParticipantSearchInput);
   newInput.addEventListener('keydown', handleParticipantSearchKeydown);
   newInput.addEventListener('blur', () => setTimeout(() => {
     const el = document.getElementById('participantSearchResults');
     if (el) el.style.display = 'none';
-  }, 150));
+  }, 200));
 
-  newBtn.addEventListener('click', addParticipant);
-  resultEl.addEventListener('click', (event) => {
-    const btn = event.target.closest('[data-emp-id]');
-    if (!btn) return;
-    selectParticipant(btn.dataset.empId);
-  });
+  // Prevent input blur when interacting inside suggestions panel
+  newResultEl.addEventListener('mousedown', e => e.preventDefault());
 }
 
 function clearParticipantSearch() {
@@ -291,6 +339,8 @@ function clearParticipantSearch() {
   const resultEl = document.getElementById('participantSearchResults');
   if (input) input.value = '';
   if (resultEl) { resultEl.innerHTML = ''; resultEl.style.display = 'none'; }
+  pendingParticipantIds = new Set();
+  updateAddButton();
 }
 
 function renderParticipantSuggestions(rows, keyword = '') {
@@ -300,6 +350,13 @@ function renderParticipantSuggestions(rows, keyword = '') {
   const selectedIds = new Set(selectedParticipants.map(p => String(p.Emp_ID)));
   const filteredRows = (rows || []).filter(emp => !selectedIds.has(String(emp.Emp_ID)));
   lastSuggestionRows = filteredRows;
+
+  // Clean pending IDs no longer in current result set
+  pendingParticipantIds = new Set([...pendingParticipantIds].filter(id =>
+    filteredRows.some(e => String(e.Emp_ID) === id)
+  ));
+
+  updateAddButton();
 
   if (filteredRows.length === 0) {
     if (String(keyword || '').trim()) {
@@ -311,16 +368,63 @@ function renderParticipantSuggestions(rows, keyword = '') {
     return;
   }
 
-  resultEl.innerHTML = filteredRows.map(emp => `
-    <button type="button" class="training-suggest-item" data-emp-id="${escHtml(String(emp.Emp_ID))}">
-      <div>
-        <span class="suggest-id">${escHtml(String(emp.Emp_ID))}</span>
-        <span class="suggest-name">${escHtml(getEmployeeDisplayName(emp) || '-')}</span>
-      </div>
-      <div class="suggest-sub">${escHtml(emp.Sub_Name || 'ไม่ระบุแผนก')}</div>
-    </button>
-  `).join('');
+  const pendingCount = pendingParticipantIds.size;
+  const allChecked = filteredRows.length > 0 && filteredRows.every(e => pendingParticipantIds.has(String(e.Emp_ID)));
+  const addBtnBg = pendingCount > 0 ? 'var(--primary)' : '#94a3b8';
+  const addBtnCursor = pendingCount > 0 ? 'pointer' : 'not-allowed';
+
+  resultEl.innerHTML = `
+    <div style="padding:7px 12px;border-bottom:1px solid var(--gray-200);background:#f8fafc;display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:0;z-index:1;">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;color:#475569;font-weight:600;user-select:none;margin:0;">
+        <input type="checkbox" ${allChecked ? 'checked' : ''} onchange="toggleAllPendingParticipants(this.checked)" onclick="event.stopPropagation()" style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary);">
+        เลือกทั้งหมด
+      </label>
+      <button type="button" onclick="addParticipant()" ${pendingCount === 0 ? 'disabled' : ''}
+        style="background:${addBtnBg};color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:${addBtnCursor};display:flex;align-items:center;gap:5px;flex-shrink:0;white-space:nowrap;">
+        <i class="bi bi-person-plus-fill"></i> เพิ่ม${pendingCount > 0 ? ` ${pendingCount} คน` : ''}
+      </button>
+    </div>
+    ${filteredRows.map(emp => {
+      const checked = pendingParticipantIds.has(String(emp.Emp_ID));
+      return `
+      <label class="training-suggest-item" style="display:flex;align-items:center;gap:10px;cursor:pointer;" data-emp-id="${escHtml(String(emp.Emp_ID))}">
+        <input type="checkbox" ${checked ? 'checked' : ''} onchange="togglePendingParticipant('${escHtml(String(emp.Emp_ID))}')"
+          onclick="event.stopPropagation()" style="width:15px;height:15px;flex-shrink:0;cursor:pointer;accent-color:var(--primary);">
+        <div style="flex:1;min-width:0;">
+          <div>
+            <span class="suggest-id">${escHtml(String(emp.Emp_ID))}</span>
+            <span class="suggest-name">${escHtml(getEmployeeDisplayName(emp) || '-')}</span>
+          </div>
+          <div class="suggest-sub">${escHtml(emp.Sub_Name || 'ไม่ระบุแผนก')}</div>
+        </div>
+      </label>`;
+    }).join('')}
+  `;
   resultEl.style.display = 'block';
+}
+
+function updateAddButton() {
+  const btn = document.getElementById('btnAddParticipant');
+  if (!btn) return;
+  const count = pendingParticipantIds.size;
+  btn.innerHTML = count > 0
+    ? `<i class="bi bi-person-plus-fill"></i> เพิ่ม (${count})`
+    : `<i class="bi bi-person-plus-fill"></i> เพิ่ม`;
+}
+
+export function togglePendingParticipant(empId) {
+  const id = String(empId);
+  if (pendingParticipantIds.has(id)) pendingParticipantIds.delete(id);
+  else pendingParticipantIds.add(id);
+  const search = document.getElementById('participantSearchInput')?.value || '';
+  renderParticipantSuggestions(lastSuggestionRows, search);
+}
+
+export function toggleAllPendingParticipants(checked) {
+  if (checked) lastSuggestionRows.forEach(e => pendingParticipantIds.add(String(e.Emp_ID)));
+  else pendingParticipantIds.clear();
+  const search = document.getElementById('participantSearchInput')?.value || '';
+  renderParticipantSuggestions(lastSuggestionRows, search);
 }
 
 async function fetchEmployeeSuggestions(keyword) {
@@ -380,9 +484,24 @@ export function updateCourseDisplay() {
 
 // ===================== ADD PARTICIPANT =====================
 export async function addParticipant() {
+  // If there are checked (pending) participants, add them all
+  if (pendingParticipantIds.size > 0) {
+    let added = 0;
+    pendingParticipantIds.forEach(id => {
+      if (selectedParticipants.find(p => String(p.Emp_ID) === id)) return;
+      const emp = lastSuggestionRows.find(e => String(e.Emp_ID) === id);
+      if (emp) { selectedParticipants.push({ ...emp }); added++; }
+    });
+    pendingParticipantIds.clear();
+    clearParticipantSearch();
+    renderParticipantsList();
+    if (added > 0) showToast(`เพิ่มผู้เข้าอบรม ${added} คน`, 'success');
+    return;
+  }
+  // Fallback: search text with no checkboxes → try to add first matching result
   const input = document.getElementById('participantSearchInput');
   const keyword = String(input?.value || '').trim();
-  if (!keyword) { showToast('โปรดพิมพ์รหัสหรือชื่อพนักงาน', 'warning'); return; }
+  if (!keyword) { showToast('โปรดเลือกพนักงานจากรายการ', 'warning'); return; }
   if (lastSuggestionRows.length === 0) await fetchEmployeeSuggestions(keyword);
   const exact = lastSuggestionRows.find(e => String(e.Emp_ID) === keyword);
   const fallback = lastSuggestionRows[0];
@@ -402,6 +521,11 @@ export function renderParticipantsList() {
   const container = document.getElementById('participantsList');
   if (!container) return;
 
+  // Remove stale removal IDs
+  participantsToRemoveIds = new Set([...participantsToRemoveIds].filter(id =>
+    selectedParticipants.some(p => String(p.Emp_ID) === id)
+  ));
+
   if (selectedParticipants.length === 0) {
     container.innerHTML = `<div id="participantsEmptyState" style="text-align:center;padding:20px;color:var(--gray-400);font-size:13px;">
       <i class="bi bi-people" style="font-size:22px;display:block;margin-bottom:6px;"></i>
@@ -411,22 +535,67 @@ export function renderParticipantsList() {
     return;
   }
 
-  container.innerHTML = selectedParticipants.map(emp => `
-    <div class="participant-row">
-      <div class="participant-info">
-        <span class="participant-id">${escHtml(emp.Emp_ID)}</span>
-        <div>
-          <div class="participant-name">${escHtml(getEmployeeDisplayName(emp) || '-')}</div>
-          <div class="participant-sub">${escHtml(emp.Sub_Name || 'ไม่ระบุแผนก')}</div>
-        </div>
-      </div>
-      <button type="button" class="btn-remove-participant" onclick="removeParticipant('${escHtml(emp.Emp_ID)}')">
-        <i class="bi bi-trash"></i> ลบ
+  const checkedCount = participantsToRemoveIds.size;
+  const allChecked = selectedParticipants.every(p => participantsToRemoveIds.has(String(p.Emp_ID)));
+  const removeBg = checkedCount > 0 ? '#ef4444' : '#94a3b8';
+  const removeCursor = checkedCount > 0 ? 'pointer' : 'not-allowed';
+
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--gray-100);background:#f8fafc;border-radius:8px 8px 0 0;margin-bottom:4px;">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;color:#475569;font-weight:600;user-select:none;margin:0;">
+        <input type="checkbox" ${allChecked ? 'checked' : ''} onchange="toggleAllParticipantsForRemoval(this.checked)" onclick="event.stopPropagation()" style="width:15px;height:15px;cursor:pointer;accent-color:#ef4444;">
+        เลือกทั้งหมด (${selectedParticipants.length} คน)
+      </label>
+      <button type="button" onclick="removeSelectedParticipants()" ${checkedCount === 0 ? 'disabled' : ''}
+        style="background:${removeBg};color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600;cursor:${removeCursor};display:flex;align-items:center;gap:5px;transition:background 0.15s;">
+        <i class="bi bi-trash"></i> ลบที่เลือก${checkedCount > 0 ? ` (${checkedCount})` : ''}
       </button>
     </div>
-  `).join('');
+    ${selectedParticipants.map(emp => {
+      const isChecked = participantsToRemoveIds.has(String(emp.Emp_ID));
+      return `
+      <div class="participant-row" style="${isChecked ? 'background:#fef2f2;' : ''}">
+        <div class="participant-info">
+          <input type="checkbox" ${isChecked ? 'checked' : ''}
+            onchange="toggleParticipantForRemoval('${escHtml(String(emp.Emp_ID))}', this.checked)"
+            style="width:15px;height:15px;cursor:pointer;accent-color:#ef4444;flex-shrink:0;">
+          <span class="participant-id">${escHtml(emp.Emp_ID)}</span>
+          <div>
+            <div class="participant-name">${escHtml(getEmployeeDisplayName(emp) || '-')}</div>
+            <div class="participant-sub">${escHtml(emp.Sub_Name || 'ไม่ระบุแผนก')}</div>
+          </div>
+        </div>
+        <button type="button" class="btn-remove-participant" onclick="removeParticipant('${escHtml(String(emp.Emp_ID))}')">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>`;
+    }).join('')}
+  `;
 
   updateParticipantCountBadge();
+}
+
+// ===================== BATCH REMOVE PARTICIPANTS =====================
+export function toggleParticipantForRemoval(empId, checked) {
+  const id = String(empId);
+  if (checked) participantsToRemoveIds.add(id);
+  else participantsToRemoveIds.delete(id);
+  renderParticipantsList();
+}
+
+export function toggleAllParticipantsForRemoval(checked) {
+  if (checked) selectedParticipants.forEach(p => participantsToRemoveIds.add(String(p.Emp_ID)));
+  else participantsToRemoveIds.clear();
+  renderParticipantsList();
+}
+
+export function removeSelectedParticipants() {
+  if (participantsToRemoveIds.size === 0) return;
+  const count = participantsToRemoveIds.size;
+  selectedParticipants = selectedParticipants.filter(p => !participantsToRemoveIds.has(String(p.Emp_ID)));
+  participantsToRemoveIds.clear();
+  showToast(`ลบ ${count} คนออกจากรายการแล้ว`, 'success');
+  renderParticipantsList();
 }
 
 // ===================== TRAINING FORM SUBMISSION =====================
