@@ -32,4 +32,5 @@ contextBridge.exposeInMainWorld('api', {
   saveTrainingPlan: (data) => ipcRenderer.invoke('save-training-plan', data),
   getTrainingParticipants: (planId) => ipcRenderer.invoke('get-training-participants', planId),
   searchEmployees: (payload) => ipcRenderer.invoke('search-employees', payload),
+  getNextPlanId: () => ipcRenderer.invoke('get-next-plan-id'),
 });

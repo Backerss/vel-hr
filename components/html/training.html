@@ -106,6 +106,15 @@
 
         <div class="form-section-title" style="margin-bottom:14px;">ข้อมูลการอบรม</div>
 
+        <div class="form-row" style="margin-bottom:12px;">
+          <div class="form-group" style="max-width:260px;">
+            <label>เลขที่เอกสาร</label>
+            <div id="planDocNoDisplay" style="padding:8px 14px;background:var(--primary-light);border:1.5px solid var(--primary);border-radius:8px;color:var(--primary);font-weight:700;font-size:15px;min-height:38px;display:flex;align-items:center;letter-spacing:0.05em;">
+              กำลังโหลด...
+            </div>
+          </div>
+        </div>
+
         <div class="form-row">
           <div class="form-group">
             <label>หลักสูตร <span class="required">*</span></label>
@@ -150,16 +159,26 @@
           <div class="form-group">
             <label>วันที่เริ่ม <span class="required">*</span></label>
             <div style="display:flex;gap:8px;">
-              <input type="date" id="planStartDate" class="form-control-m" required style="flex:1;">
-              <input type="time" id="planTimeStart" class="form-control-m" required style="width:110px;flex-shrink:0;">
+              <input type="text" id="planStartDate" class="form-control-m" required style="flex:1;"
+                placeholder="DD/MM/YYYY" maxlength="10" autocomplete="off"
+                oninput="autoFormatDateField(this)" onblur="formatDateInputField(this)">
+              <input type="text" id="planTimeStart" class="form-control-m" required style="width:110px;flex-shrink:0;"
+                placeholder="HH:MM" maxlength="5" autocomplete="off"
+                oninput="autoFormatTimeField(this)" onblur="formatTimeInputField(this)">
             </div>
+            <div style="font-size:11px;color:var(--gray-400);margin-top:3px;">รูปแบบ: วัน/เดือน/ปี พ.ศ. &nbsp;|&nbsp; เวลา 24 ชม. เช่น 08:30</div>
           </div>
           <div class="form-group">
             <label>วันที่สิ้นสุด <span class="required">*</span></label>
             <div style="display:flex;gap:8px;">
-              <input type="date" id="planEndDate" class="form-control-m" required style="flex:1;">
-              <input type="time" id="planTimeEnd" class="form-control-m" required style="width:110px;flex-shrink:0;">
+              <input type="text" id="planEndDate" class="form-control-m" required style="flex:1;"
+                placeholder="DD/MM/YYYY" maxlength="10" autocomplete="off"
+                oninput="autoFormatDateField(this)" onblur="formatDateInputField(this)">
+              <input type="text" id="planTimeEnd" class="form-control-m" required style="width:110px;flex-shrink:0;"
+                placeholder="HH:MM" maxlength="5" autocomplete="off"
+                oninput="autoFormatTimeField(this)" onblur="formatTimeInputField(this)">
             </div>
+            <div style="font-size:11px;color:var(--gray-400);margin-top:3px;">รูปแบบ: วัน/เดือน/ปี พ.ศ. &nbsp;|&nbsp; เวลา 24 ชม. เช่น 17:00</div>
           </div>
         </div>
 

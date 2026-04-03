@@ -44,9 +44,7 @@ body {
 #loginOverlay {
   position: fixed;
   inset: 0;
-  background:
-    linear-gradient(rgba(0, 0, 0, 0.52), rgba(0, 0, 0, 0.52)),
-    url('../../data/img/banner.jpg') center / cover no-repeat;
+  background: linear-gradient(135deg, #1a56db 0%, #0f3a8a 60%, #061a4a 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -74,21 +72,18 @@ body {
 }
 
 .login-logo {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 24px;
-  padding: 10px 16px;
-  background: #f0f4ff;
-  border-radius: 14px;
-  max-width: 220px;
+  margin: 0 auto 20px;
+  box-shadow: 0 8px 24px rgba(26, 86, 219, 0.35);
 }
 
-.login-logo img {
-  max-width: 168px;
-  height: auto;
-  display: block;
-}
+.login-logo i { font-size: 28px; color: white; }
 
 .login-title {
   font-size: 22px;
@@ -577,10 +572,6 @@ body {
   overflow: hidden;
   box-shadow: var(--shadow-sm);
   margin-top: 20px;
-}
-
-.table-section.overflow-visible {
-  overflow: visible;
 }
 
 .table-header {

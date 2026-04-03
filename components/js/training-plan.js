@@ -27,14 +27,91 @@ function withTimeout(promise, ms, name) {
 }
 
 // ===================== AUTO-CALCULATE TRAINING HOURS =====================
+
+// Convert DD/MM/YYYY (BE year) → YYYY-MM-DD (CE year) for DB storage
+function formDateToDb(val) {
+  if (!val) return '';
+  const p = val.split('/');
+  if (p.length !== 3 || p[2].length !== 4) return '';
+  const ceYear = parseInt(p[2], 10) - 543; // Convert พ.ศ. → ค.ศ.
+  return `${ceYear}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+}
+
+// Convert YYYY-MM-DD (CE year from DB) → DD/MM/YYYY (BE year) for display
+function dbDateToFormDate(val) {
+  if (!val) return '';
+  const p = val.split('-');
+  if (p.length !== 3) return '';
+  const thYear = parseInt(p[0], 10) + 543; // Convert ค.ศ. → พ.ศ.
+  return `${p[2]}/${p[1]}/${thYear}`;
+}
+
+// Validate and format a date text field on blur (exported for onclick use)
+export function formatDateInputField(el) {
+  const raw = (el.value || '').trim();
+  if (!raw) { el.style.borderColor = ''; return; }
+  // Accept DD/MM/YYYY or DD-MM-YYYY or 8-digit DDMMYYYY
+  let d, m, y;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) { [d, m, y] = raw.split('/'); }
+  else if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) { [d, m, y] = raw.split('-'); }
+  else if (/^\d{8}$/.test(raw)) { d = raw.slice(0,2); m = raw.slice(2,4); y = raw.slice(4); }
+  else { el.style.borderColor = '#ef4444'; return; }
+  const dt = new Date(`${y}-${m}-${d}T00:00:00`);
+  if (isNaN(dt.getTime()) || parseInt(m) < 1 || parseInt(m) > 12 || parseInt(d) < 1 || parseInt(d) > 31) {
+    el.style.borderColor = '#ef4444'; return;
+  }
+  el.value = `${d.padStart(2,'0')}/${m.padStart(2,'0')}/${y}`;
+  el.style.borderColor = '';
+  calcTrainingHours();
+}
+
+// Auto-insert '/' separator while typing
+export function autoFormatDateField(el) {
+  let v = el.value.replace(/[^0-9]/g, '');
+  if (v.length > 8) v = v.slice(0, 8);
+  if (v.length >= 5) v = v.slice(0,2) + '/' + v.slice(2,4) + '/' + v.slice(4);
+  else if (v.length >= 3) v = v.slice(0,2) + '/' + v.slice(2);
+  el.value = v;
+}
+
+// Validate and format a time text field on blur (exported for onclick use)
+export function formatTimeInputField(el) {
+  const raw = (el.value || '').replace(/[^0-9:]/g, '').trim();
+  if (!raw) { el.style.borderColor = ''; return; }
+  let h, min;
+  if (/^\d{4}$/.test(raw)) { h = raw.slice(0,2); min = raw.slice(2); }
+  else if (/^\d{1,2}:\d{2}$/.test(raw)) { [h, min] = raw.split(':'); }
+  else { el.style.borderColor = '#ef4444'; return; }
+  const hNum = parseInt(h, 10), mNum = parseInt(min, 10);
+  if (isNaN(hNum) || isNaN(mNum) || hNum < 0 || hNum > 23 || mNum < 0 || mNum > 59) {
+    el.style.borderColor = '#ef4444'; return;
+  }
+  el.value = `${String(hNum).padStart(2,'0')}:${String(mNum).padStart(2,'0')}`;
+  el.style.borderColor = '';
+  calcTrainingHours();
+}
+
+// Auto-insert ':' separator while typing time
+export function autoFormatTimeField(el) {
+  let v = el.value.replace(/[^0-9]/g, '');
+  if (v.length > 4) v = v.slice(0, 4);
+  if (v.length >= 3) v = v.slice(0,2) + ':' + v.slice(2);
+  el.value = v;
+}
+
 function calcTrainingHours() {
-  const startDate = document.getElementById('planStartDate')?.value;
-  const startTime = document.getElementById('planTimeStart')?.value;
-  const endDate   = document.getElementById('planEndDate')?.value;
-  const endTime   = document.getElementById('planTimeEnd')?.value;
-  if (!startDate || !startTime || !endDate || !endTime) return;
-  const start = new Date(`${startDate}T${startTime}`);
-  const end   = new Date(`${endDate}T${endTime}`);
+  const startDateVal = document.getElementById('planStartDate')?.value; // DD/MM/YYYY
+  const startTime    = document.getElementById('planTimeStart')?.value; // HH:MM
+  const endDateVal   = document.getElementById('planEndDate')?.value;   // DD/MM/YYYY
+  const endTime      = document.getElementById('planTimeEnd')?.value;   // HH:MM
+  if (!startDateVal || !startTime || !endDateVal || !endTime) return;
+  const startDateDb = formDateToDb(startDateVal);
+  const endDateDb   = formDateToDb(endDateVal);
+  if (!startDateDb || !endDateDb) return;
+  // Validate time format HH:MM
+  if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) return;
+  const start = new Date(`${startDateDb}T${startTime}`);
+  const end   = new Date(`${endDateDb}T${endTime}`);
   const diffMs = end - start;
   if (diffMs <= 0) return;
   const hours = Math.round(diffMs / 1000 / 60 / 60 * 10) / 10;
@@ -48,6 +125,7 @@ function initializeDateTimeListeners() {
     if (!el) return;
     const fresh = el.cloneNode(true);
     el.parentNode.replaceChild(fresh, el);
+    fresh.addEventListener('blur', calcTrainingHours);
     fresh.addEventListener('change', calcTrainingHours);
   });
   // Allow manual override: mark planHour as manually edited when user types
@@ -248,6 +326,9 @@ export function openTrainingModal(planId = null) {
   initializeParticipantPicker();
   initializeDateTimeListeners();
 
+  // Load document number preview
+  loadNextPlanDocNo(planId);
+
   // If editing, pre-fill fields
   if (planId) {
     const plan = allTrainingPlans.find(p => p.Plan_ID === planId);
@@ -267,6 +348,29 @@ export function closeTrainingModal() {
   clearParticipantSearch();
 }
 
+// ===================== DOCUMENT NUMBER PREVIEW =====================
+async function loadNextPlanDocNo(planId) {
+  const el = document.getElementById('planDocNoDisplay');
+  if (!el) return;
+  if (planId) {
+    // Editing: show existing plan's document number (Plan_ID is already 'PN00000XXX' format)
+    el.textContent = String(planId);
+    return;
+  }
+  // Creating: fetch predicted next ID
+  try {
+    const res = await window.api.getNextPlanId?.();
+    if (res?.success) {
+      el.textContent = `PN${String(res.nextId).padStart(8, '0')}`;
+      el.title = `เลขที่เอกสารนี้เป็นค่าประมาณการ — เลขจริงจะถูกกำหนดเมื่อบันทึก`;
+    } else {
+      el.textContent = 'PN????????';
+    }
+  } catch {
+    el.textContent = 'PN????????';
+  }
+}
+
 // ===================== PRE-FILL FORM FOR EDIT =====================
 function prefillForm(plan) {
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
@@ -276,10 +380,11 @@ function prefillForm(plan) {
   set('planLocation', plan.Plan_Location);
   set('planLecturer', plan.Plan_Lecturer);
   set('planCoordinator', plan.Plan_Coordinator);
-  set('planStartDate', plan.Plan_StartDate);
-  set('planTimeStart', plan.Plan_TimeStart);
-  set('planEndDate', plan.Plan_EndDate);
-  set('planTimeEnd', plan.Plan_TimeEnd);
+  // Convert YYYY-MM-DD → DD/MM/YYYY for date text inputs
+  set('planStartDate', dbDateToFormDate(plan.Plan_StartDate));
+  set('planTimeStart', plan.Plan_TimeStart || '');
+  set('planEndDate', dbDateToFormDate(plan.Plan_EndDate));
+  set('planTimeEnd', plan.Plan_TimeEnd || '');
   set('planHour', plan.Plan_Hour);
   set('planRemark', plan.Plan_Remark);
   updateCourseDisplay();
@@ -602,9 +707,35 @@ export function removeSelectedParticipants() {
 export async function submitTrainingForm(event) {
   if (event) event.preventDefault();
 
+  // Auto-add any participants that are checked/pending but not yet confirmed
+  if (pendingParticipantIds.size > 0) {
+    let autoAdded = 0;
+    pendingParticipantIds.forEach(id => {
+      if (selectedParticipants.find(p => String(p.Emp_ID) === id)) return;
+      const emp = lastSuggestionRows.find(e => String(e.Emp_ID) === id);
+      if (emp) { selectedParticipants.push({ ...emp }); autoAdded++; }
+    });
+    pendingParticipantIds.clear();
+    if (autoAdded > 0) renderParticipantsList();
+  }
+
   const coursesId = document.getElementById('coursesId')?.value;
   if (!coursesId) { showToast('โปรดเลือกหลักสูตร', 'warning'); return; }
   if (selectedParticipants.length === 0) { showToast('โปรดเพิ่มผู้เข้าอบรมอย่างน้อย 1 คน', 'warning'); return; }
+
+  // Convert DD/MM/YYYY → YYYY-MM-DD for DB
+  const startDateRaw = document.getElementById('planStartDate')?.value || '';
+  const endDateRaw   = document.getElementById('planEndDate')?.value || '';
+  const startDateDb  = formDateToDb(startDateRaw);
+  const endDateDb    = formDateToDb(endDateRaw);
+
+  if (!startDateDb) { showToast('วันที่เริ่มต้นไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'warning'); return; }
+  if (!endDateDb)   { showToast('วันที่สิ้นสุดไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'warning'); return; }
+
+  const startTime = document.getElementById('planTimeStart')?.value || '';
+  const endTime   = document.getElementById('planTimeEnd')?.value || '';
+  if (!/^\d{2}:\d{2}$/.test(startTime)) { showToast('เวลาเริ่มต้นไม่ถูกต้อง (ต้องเป็น HH:MM เช่น 08:30)', 'warning'); return; }
+  if (!/^\d{2}:\d{2}$/.test(endTime))   { showToast('เวลาสิ้นสุดไม่ถูกต้อง (ต้องเป็น HH:MM เช่น 17:00)', 'warning'); return; }
 
   const formData = {
     Plan_ID:           document.getElementById('editingPlanId')?.value || null,
@@ -615,10 +746,10 @@ export async function submitTrainingForm(event) {
     Plan_TypeTraining: document.getElementById('planTypeTraining')?.value,
     Plan_Lecturer:     document.getElementById('planLecturer')?.value,
     Plan_Coordinator:  document.getElementById('planCoordinator')?.value,
-    Plan_StartDate:    document.getElementById('planStartDate')?.value,
-    Plan_TimeStart:    document.getElementById('planTimeStart')?.value,
-    Plan_EndDate:      document.getElementById('planEndDate')?.value,
-    Plan_TimeEnd:      document.getElementById('planTimeEnd')?.value,
+    Plan_StartDate:    startDateDb,
+    Plan_TimeStart:    startTime,
+    Plan_EndDate:      endDateDb,
+    Plan_TimeEnd:      endTime,
     Plan_Remark:       document.getElementById('planRemark')?.value,
     participants:      selectedParticipants.map(p => p.Emp_ID)
   };

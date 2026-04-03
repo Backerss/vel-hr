@@ -648,6 +648,18 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
   }
 });
 
+// Get next Plan_ID for document number preview
+ipcMain.handle('get-next-plan-id', async (event) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    // Plan_ID is varchar format 'PN00000001', extract numeric part for MAX
+    const [rows] = await db.execute(
+      `SELECT COALESCE(MAX(CAST(SUBSTRING(Plan_ID, 3) AS UNSIGNED)), 0) + 1 AS nextId FROM training_plan`
+    );
+    return { success: true, nextId: Number(rows[0].nextId) || 1 };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
 // Get all courses
 ipcMain.handle('get-courses', async (event) => {
   if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
@@ -762,19 +774,26 @@ ipcMain.handle('save-training-plan', async (event, data) => {
       );
       planId = data.Plan_ID;
     } else {
-      // Insert new training plan
-      const result = await db.execute(
-        `INSERT INTO training_plan (Courses_ID, Plan_Hour, Plan_Company, Plan_Location,
+      // Generate next Plan_ID in 'PN00000001' format
+      const [nextIdRows] = await db.execute(
+        `SELECT COALESCE(MAX(CAST(SUBSTRING(Plan_ID, 3) AS UNSIGNED)), 0) + 1 AS nextId FROM training_plan`
+      );
+      const nextNum = Number(nextIdRows[0].nextId) || 1;
+      const newPlanId = 'PN' + String(nextNum).padStart(8, '0');
+
+      // Insert new training plan with generated Plan_ID
+      await db.execute(
+        `INSERT INTO training_plan (Plan_ID, Courses_ID, Plan_Hour, Plan_Company, Plan_Location,
           Plan_TypeTraining, Plan_Lecturer, Plan_StartDate, Plan_TimeStart,
           Plan_EndDate, Plan_TimeEnd, Plan_Remark, Plan_Coordinator, Plan_Status, Plan_Record)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())`,
         [
-          data.Courses_ID, data.Plan_Hour, data.Plan_Company, data.Plan_Location,
+          newPlanId, data.Courses_ID, data.Plan_Hour, data.Plan_Company, data.Plan_Location,
           data.Plan_TypeTraining, data.Plan_Lecturer, startDate, data.Plan_TimeStart,
           endDate, data.Plan_TimeEnd, data.Plan_Remark, data.Plan_Coordinator, 'Active'
         ]
       );
-      planId = result[0].insertId;
+      planId = newPlanId;
     }
     
     // Add participants to history_training

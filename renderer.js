@@ -25,7 +25,8 @@ import {
   openTrainingModal, closeTrainingModal, refreshTrainingData,
   onTrainingSearch, setTrainingPageSize,
   togglePendingParticipant, toggleAllPendingParticipants,
-  toggleParticipantForRemoval, toggleAllParticipantsForRemoval, removeSelectedParticipants
+  toggleParticipantForRemoval, toggleAllParticipantsForRemoval, removeSelectedParticipants,
+  formatDateInputField, autoFormatDateField, formatTimeInputField, autoFormatTimeField
 } from './components/js/training-plan.js';
 import {
   loadTrainingRecordPage,
@@ -218,6 +219,7 @@ Object.assign(window, {
   onTrainingSearch, setTrainingPageSize,
   togglePendingParticipant, toggleAllPendingParticipants,
   toggleParticipantForRemoval, toggleAllParticipantsForRemoval, removeSelectedParticipants,
+  formatDateInputField, autoFormatDateField, formatTimeInputField, autoFormatTimeField,
   // Training Record
   loadTrainingRecordPage,
   onRecordPlanSearch, showRecordPlanDropdown, hideRecordPlanDropdown,
