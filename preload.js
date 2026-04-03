@@ -33,4 +33,9 @@ contextBridge.exposeInMainWorld('api', {
   getTrainingParticipants: (planId) => ipcRenderer.invoke('get-training-participants', planId),
   searchEmployees: (payload) => ipcRenderer.invoke('search-employees', payload),
   getNextPlanId: () => ipcRenderer.invoke('get-next-plan-id'),
+  // Training expenses
+  getNextExpenseId: () => ipcRenderer.invoke('get-next-expense-id'),
+  searchPlansForExpense: (payload) => ipcRenderer.invoke('search-plans-for-expense', payload),
+  getExpenses: (filters) => ipcRenderer.invoke('get-expenses', filters),
+  saveExpense: (data) => ipcRenderer.invoke('save-expense', data),
 });

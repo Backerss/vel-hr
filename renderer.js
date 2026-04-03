@@ -29,6 +29,12 @@ import {
   formatDateInputField, autoFormatDateField, formatTimeInputField, autoFormatTimeField
 } from './components/js/training-plan.js';
 import {
+  loadTrainingExpensePage,
+  refreshExpenseData, onExpenseSearch, setExpensePageSize, goToExpensePage,
+  openExpenseModal, closeExpenseModal, submitExpenseForm, calcExpenseTotal,
+  onExpPlanIdInput, hideExpPlanSuggestions, selectExpPlan
+} from './components/js/training-expenses.js';
+import {
   loadTrainingRecordPage,
   onRecordPlanSearch, showRecordPlanDropdown, hideRecordPlanDropdown,
   selectRecordPlan, onRecordTimeRangeChange,
@@ -53,12 +59,10 @@ async function loadComponent(url, targetId) {
 const PAGE_CONFIG = {
   employees:            { title: 'ข้อมูลพนักงาน',             subtitle: 'จัดการข้อมูลพนักงานทั้งหมด',       icon: 'bi-people-fill',        group: null },
   trainingManagement:   { title: 'จัดการแผนการฝึกอบรม',      subtitle: 'สร้างและจัดการแผนการฝึกอบรม',   icon: 'bi-clipboard-check',    group: 'groupTraining' },
-  trainingList:         { title: 'แจ้งรายชื่อผู้เข้าอบรม',    subtitle: 'ลงทะเบียนรายชื่อผู้เข้าอบรม',     icon: 'bi-person-lines-fill',  group: 'groupTraining' },
   trainingRecord:       { title: 'บันทึกการอบรม',              subtitle: 'บันทึกผลการเข้าอบรม',             icon: 'bi-journal-check',      group: 'groupTraining' },
   trainingExpense:      { title: 'บันทึกค่าใช้จ่าย',          subtitle: 'บันทึกค่าใช้จ่ายการอบรม',        icon: 'bi-receipt',            group: 'groupTraining' },
   leaveRecord:          { title: 'บันทึกลางาน',                subtitle: 'บันทึกการลาของพนักงาน',           icon: 'bi-calendar-plus',      group: 'groupLeave' },
   dailyAbsence:         { title: 'รายงานการหยุดงานประจำวัน',   subtitle: 'ดูรายงานการขาด/ลา ประจำวัน',     icon: 'bi-calendar-x',         group: 'groupLeave' },
-  leaveStatus:          { title: 'ตรวจสอบสถานะลางาน',          subtitle: 'ตรวจสอบสถานะการอนุมัติลา',       icon: 'bi-calendar-check',     group: 'groupLeave' },
   ot:                   { title: 'OT',                         subtitle: 'จัดการข้อมูลการทำงานล่วงเวลา',   icon: 'bi-clock-history',      group: null },
 };
 
@@ -111,6 +115,8 @@ async function switchPage(page) {
     await loadDailyAbsencePage();
   } else if (page === 'trainingRecord') {
     await loadTrainingRecordPage();
+  } else if (page === 'trainingExpense') {
+    await loadTrainingExpensePage();
   } else {
     loadPlaceholderPage(cfg);
   }
@@ -180,7 +186,7 @@ async function init() {
   }
 
   // Setup modal backdrop close
-  initModalBackdropClose(['empModal','confirmModal','logoutModal','leaveModal','leaveConfirmModal','trainingFormModal','trainingDetailsModal']);
+  initModalBackdropClose(['empModal','confirmModal','logoutModal','leaveModal','leaveConfirmModal','trainingFormModal','trainingDetailsModal','expenseFormModal']);
 
   // Login event listeners
   document.getElementById('loginUsername').addEventListener('keydown', (e) => {
@@ -225,6 +231,10 @@ Object.assign(window, {
   onRecordPlanSearch, showRecordPlanDropdown, hideRecordPlanDropdown,
   selectRecordPlan, onRecordTimeRangeChange,
   updateRecordState, updateRecordRemark, exportTrainingRecordExcel,
+  // Training Expenses
+  loadTrainingExpensePage, refreshExpenseData, onExpenseSearch,
+  setExpensePageSize, goToExpensePage, openExpenseModal, closeExpenseModal,
+  submitExpenseForm, calcExpenseTotal, onExpPlanIdInput, hideExpPlanSuggestions, selectExpPlan,
   // Leave
   openLeaveForm, lookupEmployee, saveLeaveRecord, closeLeaveModal,
   confirmDeleteLeave, executeDeleteLeave, applyLeaveFilter, onLeaveSearch,

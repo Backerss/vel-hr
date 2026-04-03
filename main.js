@@ -773,6 +773,18 @@ ipcMain.handle('save-training-plan', async (event, data) => {
         ]
       );
       planId = data.Plan_ID;
+
+      // Remove participants that are no longer in the updated list
+      const newParticipants = (data.participants && data.participants.length > 0) ? data.participants : [];
+      if (newParticipants.length > 0) {
+        const placeholders = newParticipants.map(() => '?').join(',');
+        await db.execute(
+          `DELETE FROM history_training WHERE Plan_ID=? AND Emp_ID NOT IN (${placeholders})`,
+          [planId, ...newParticipants]
+        );
+      } else {
+        await db.execute('DELETE FROM history_training WHERE Plan_ID=?', [planId]);
+      }
     } else {
       // Generate next Plan_ID in 'PN00000001' format
       const [nextIdRows] = await db.execute(
@@ -1092,4 +1104,173 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
   } catch (e) {
     return { success: false, message: e.message };
   }
+});
+
+// ===================== TRAINING EXPENSES IPC =====================
+
+// Get next Expenses_ID in 'THB0000001' format
+ipcMain.handle('get-next-expense-id', async () => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const [rows] = await db.execute(
+      `SELECT COALESCE(MAX(CAST(SUBSTRING(Expenses_ID, 4) AS UNSIGNED)), 0) + 1 AS nextId FROM training_expenses`
+    );
+    return { success: true, nextId: Number(rows[0].nextId) || 1 };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Search training plans available for expense entry (exclude plans that already have an expense)
+// Supports exact=true for single-plan lookup (used on submit validation)
+ipcMain.handle('search-plans-for-expense', async (event, { keyword = '', exact = false } = {}) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const editingExpensesId = null; // always exclude existing entries on create
+    let whereClause, params;
+    if (exact) {
+      whereClause = `WHERE tp.Plan_ID = ? AND tp.Plan_ID NOT IN (SELECT Plan_ID FROM training_expenses)`;
+      params = [keyword.trim()];
+    } else {
+      whereClause = `WHERE (tp.Plan_ID LIKE ? OR c.Courses_Name LIKE ? OR c.Courses_ID LIKE ?)
+        AND tp.Plan_ID NOT IN (SELECT Plan_ID FROM training_expenses)`;
+      const q = `%${keyword.trim()}%`;
+      params = [q, q, q];
+    }
+    const [rows] = await db.execute(
+      `SELECT tp.Plan_ID, c.Courses_ID, c.Courses_Name,
+        DATE_FORMAT(tp.Plan_StartDate, '%Y-%m-%d') AS Plan_StartDate,
+        tp.Plan_Company
+      FROM training_plan tp
+      INNER JOIN courses c ON c.Courses_ID = tp.Courses_ID
+      ${whereClause}
+      ORDER BY tp.Plan_ID DESC
+      LIMIT 20`,
+      params
+    );
+    return { success: true, data: rows };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Get expenses list with pagination + stats
+ipcMain.handle('get-expenses', async (event, filters = {}) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const { search = '', page = 1, perPage = 15 } = filters;
+    const safePerPage = Math.max(10, Math.min(25, Number(perPage) || 15));
+    const safePage    = Math.max(1, Number(page) || 1);
+    const offset      = (safePage - 1) * safePerPage;
+
+    const conditions = ['1=1'];
+    const params     = [];
+    if (search) {
+      conditions.push(`(te.Expenses_ID LIKE ? OR tp.Plan_ID LIKE ? OR c.Courses_Name LIKE ? OR c.Courses_ID LIKE ?)`);
+      const q = `%${search}%`;
+      params.push(q, q, q, q);
+    }
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const joins = `FROM training_expenses te
+      INNER JOIN training_plan tp ON tp.Plan_ID = te.Plan_ID
+      INNER JOIN courses c ON c.Courses_ID = te.Courses_ID`;
+
+    const [[{ total }]] = await db.execute(
+      `SELECT COUNT(*) AS total ${joins} ${where}`, params
+    );
+
+    const [[statsRow]] = await db.execute(
+      `SELECT
+        COUNT(*) AS totalAll,
+        COALESCE(SUM(CAST(te.Expenses_Sum AS UNSIGNED)), 0) AS sumAll,
+        SUM(CASE WHEN YEAR(te.Expenses_TimeStamp)=YEAR(NOW()) AND MONTH(te.Expenses_TimeStamp)=MONTH(NOW()) THEN 1 ELSE 0 END) AS thisMonth,
+        SUM(CASE WHEN YEAR(te.Expenses_TimeStamp)=YEAR(NOW()) AND MONTH(te.Expenses_TimeStamp)=MONTH(NOW()) THEN CAST(te.Expenses_Sum AS UNSIGNED) ELSE 0 END) AS sumMonth
+      FROM training_expenses te
+      INNER JOIN training_plan tp ON tp.Plan_ID = te.Plan_ID
+      INNER JOIN courses c ON c.Courses_ID = te.Courses_ID`,
+      []
+    );
+
+    const [rows] = await db.execute(
+      `SELECT te.Expenses_ID, te.Plan_ID, te.Courses_ID, c.Courses_Name,
+        te.Expenses_Lecturer, te.Expenses_Tools, te.Expenses_Food,
+        te.Expenses_Snack, te.Expenses_Travel, te.Expenses_Sum,
+        te.Expenses_Remarks,
+        DATE_FORMAT(te.Expenses_TimeStamp, '%Y-%m-%dT%H:%i:%s') AS Expenses_TimeStamp
+      ${joins} ${where}
+      ORDER BY te.Expenses_TimeStamp DESC, te.Expenses_ID DESC
+      LIMIT ${safePerPage} OFFSET ${offset}`,
+      params
+    );
+
+    return {
+      success: true,
+      data: rows,
+      total: Number(total) || 0,
+      page: safePage,
+      perPage: safePerPage,
+      stats: {
+        total:     Number(statsRow.totalAll)  || 0,
+        sumAll:    Number(statsRow.sumAll)    || 0,
+        thisMonth: Number(statsRow.thisMonth) || 0,
+        sumMonth:  Number(statsRow.sumMonth)  || 0,
+      }
+    };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Save (create or update) a training expense record
+ipcMain.handle('save-expense', async (event, data) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const { Expenses_ID, Plan_ID, Courses_ID,
+            Expenses_Lecturer, Expenses_Tools, Expenses_Food,
+            Expenses_Snack, Expenses_Travel, Expenses_Sum, Expenses_Remarks } = data;
+
+    if (!Plan_ID || !Courses_ID) return { success: false, message: 'ข้อมูลไม่ครบถ้วน' };
+
+    if (Expenses_ID) {
+      // Update existing — verify it's within editable window (≤ 1 month)
+      const [[existing]] = await db.execute(
+        `SELECT Expenses_TimeStamp FROM training_expenses WHERE Expenses_ID = ?`, [Expenses_ID]
+      );
+      if (!existing) return { success: false, message: 'ไม่พบรายการที่ต้องการแก้ไข' };
+
+      const ts = new Date(existing.Expenses_TimeStamp);
+      const cutoff = new Date();
+      cutoff.setMonth(cutoff.getMonth() - 1);
+      if (ts < cutoff) return { success: false, message: 'ไม่สามารถแก้ไขได้ เนื่องจากบันทึกเกิน 1 เดือนแล้ว' };
+
+      await db.execute(
+        `UPDATE training_expenses SET
+          Expenses_Lecturer=?, Expenses_Tools=?, Expenses_Food=?,
+          Expenses_Snack=?, Expenses_Travel=?, Expenses_Sum=?, Expenses_Remarks=?
+        WHERE Expenses_ID=?`,
+        [Expenses_Lecturer, Expenses_Tools, Expenses_Food,
+         Expenses_Snack, Expenses_Travel, Expenses_Sum, Expenses_Remarks || '',
+         Expenses_ID]
+      );
+      return { success: true, message: 'แก้ไขค่าใช้จ่ายสำเร็จ' };
+    } else {
+      // Insert new — generate next ID
+      const [[nextRow]] = await db.execute(
+        `SELECT COALESCE(MAX(CAST(SUBSTRING(Expenses_ID, 4) AS UNSIGNED)), 0) + 1 AS nextId FROM training_expenses`
+      );
+      const nextNum     = Number(nextRow.nextId) || 1;
+      const newId       = 'THB' + String(nextNum).padStart(7, '0');
+
+      // Check plan not already recorded
+      const [[dup]] = await db.execute(
+        `SELECT Expenses_ID FROM training_expenses WHERE Plan_ID = ?`, [Plan_ID]
+      );
+      if (dup) return { success: false, message: `แผนการอบรมนี้มีการบันทึกค่าใช้จ่ายแล้ว (${dup.Expenses_ID})` };
+
+      await db.execute(
+        `INSERT INTO training_expenses
+          (Expenses_ID, Plan_ID, Courses_ID, Expenses_Lecturer, Expenses_Tools,
+           Expenses_Food, Expenses_Snack, Expenses_Travel, Expenses_Sum, Expenses_Remarks)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newId, Plan_ID, Courses_ID,
+         Expenses_Lecturer, Expenses_Tools, Expenses_Food,
+         Expenses_Snack, Expenses_Travel, Expenses_Sum, Expenses_Remarks || '']
+      );
+      return { success: true, message: 'บันทึกค่าใช้จ่ายสำเร็จ', data: { Expenses_ID: newId } };
+    }
+  } catch (e) { return { success: false, message: e.message }; }
 });

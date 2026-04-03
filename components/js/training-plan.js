@@ -14,6 +14,7 @@ let participantSearchTimer = null;
 let latestSearchToken = 0;
 let lastSuggestionRows = [];
 let editingPlanId = null;
+let viewingPlanId = null;
 let trainingDataLoadFailed = false;
 let trainingDataLoadMessage = '';
 let pendingParticipantIds = new Set();
@@ -301,7 +302,7 @@ function renderTrainingStats() {
 }
 
 // ===================== OPEN/CLOSE TRAINING MODAL =====================
-export function openTrainingModal(planId = null) {
+export async function openTrainingModal(planId = null) {
   editingPlanId = planId;
   selectedParticipants = [];
   pendingParticipantIds = new Set();
@@ -337,6 +338,23 @@ export function openTrainingModal(planId = null) {
 
   renderParticipantsList();
   showModal('trainingFormModal');
+
+  // If editing, load existing participants asynchronously after modal is shown
+  if (planId) {
+    try {
+      const participantsRes = await window.api.getTrainingParticipants(planId);
+      if (participantsRes?.success && participantsRes.data?.length > 0) {
+        selectedParticipants = participantsRes.data.map(p => ({
+          Emp_ID: p.Emp_ID,
+          Fullname: p.Fullname || '',
+          Sub_Name: p.Sub_Name || '',
+          Emp_Firstname: p.Emp_Firstname || '',
+          Emp_Lastname: p.Emp_Lastname || ''
+        }));
+        renderParticipantsList();
+      }
+    } catch {}
+  }
 }
 
 export function closeTrainingModal() {
@@ -891,6 +909,7 @@ export async function setTrainingPageSize() {
 
 // ===================== VIEW TRAINING DETAILS =====================
 export async function viewTrainingDetails(planId) {
+  viewingPlanId = planId;
   const plan = allTrainingPlans.find(p => String(p.Plan_ID) === String(planId));
   if (!plan) { showToast('ไม่พบข้อมูล', 'warning'); return; }
 
@@ -958,9 +977,9 @@ export function closeTrainingDetailsModal() {
 
 // ===================== EDIT TRAINING =====================
 export function editTraining() {
+  const planId = viewingPlanId;
   closeTrainingDetailsModal();
-  // TODO: implement edit - currently shows placeholder
-  showToast('คุณลักษณะการแก้ไขจะถูกพัฒนาเพิ่มเติม', 'info');
+  openTrainingModal(planId);
 }
 
 // Keep legacy export names for renderer.js compatibility
