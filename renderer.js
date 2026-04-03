@@ -28,6 +28,12 @@ import {
   toggleParticipantForRemoval, toggleAllParticipantsForRemoval, removeSelectedParticipants
 } from './components/js/training-plan.js';
 import {
+  loadTrainingRecordPage,
+  onRecordPlanSearch, showRecordPlanDropdown, hideRecordPlanDropdown,
+  selectRecordPlan, onRecordTimeRangeChange,
+  updateRecordState, updateRecordRemark, exportTrainingRecordExcel
+} from './components/js/training-record.js';
+import {
   loadLeaveRecordPage, fetchAndRenderLeave, applyLeaveFilter, onLeaveSearch,
   renderLeaveTable, goLeavePage,
   openLeaveForm, lookupEmployee, saveLeaveRecord, closeLeaveModal,
@@ -102,6 +108,8 @@ async function switchPage(page) {
     await loadLeaveRecordPage();
   } else if (page === 'dailyAbsence') {
     await loadDailyAbsencePage();
+  } else if (page === 'trainingRecord') {
+    await loadTrainingRecordPage();
   } else {
     loadPlaceholderPage(cfg);
   }
@@ -210,6 +218,11 @@ Object.assign(window, {
   onTrainingSearch, setTrainingPageSize,
   togglePendingParticipant, toggleAllPendingParticipants,
   toggleParticipantForRemoval, toggleAllParticipantsForRemoval, removeSelectedParticipants,
+  // Training Record
+  loadTrainingRecordPage,
+  onRecordPlanSearch, showRecordPlanDropdown, hideRecordPlanDropdown,
+  selectRecordPlan, onRecordTimeRangeChange,
+  updateRecordState, updateRecordRemark, exportTrainingRecordExcel,
   // Leave
   openLeaveForm, lookupEmployee, saveLeaveRecord, closeLeaveModal,
   confirmDeleteLeave, executeDeleteLeave, applyLeaveFilter, onLeaveSearch,

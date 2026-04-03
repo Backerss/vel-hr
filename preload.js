@@ -19,6 +19,11 @@ contextBridge.exposeInMainWorld('api', {
   // Daily absence report
   getDailyReportByDate: (date) => ipcRenderer.invoke('get-daily-report-by-date', date),
   exportAbsenceExcel: (d) => ipcRenderer.invoke('export-absence-excel', d),
+  // Training record
+  getTrainingPlansForRecord: () => ipcRenderer.invoke('get-training-plans-for-record'),
+  getTrainingRecordParticipants: (planId) => ipcRenderer.invoke('get-training-record-participants', planId),
+  saveTrainingRecordRow: (d) => ipcRenderer.invoke('save-training-record-row', d),
+  exportTrainingRecordExcel: (d) => ipcRenderer.invoke('export-training-record-excel', d),
   // Training history
   getEmployeeTraining: (empId) => ipcRenderer.invoke('get-employee-training', empId),
   // Training management

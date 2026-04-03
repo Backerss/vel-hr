@@ -44,7 +44,7 @@ function createWindow() {
   Menu.setApplicationMenu(null);
 
   mainWindow.loadFile('index.html');
-  //mainWindow.webContents.openDevTools()
+  mainWindow.webContents.openDevTools()
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -818,4 +818,259 @@ ipcMain.handle('get-training-participants', async (event, planId) => {
     );
     return { success: true, data: rows };
   } catch (e) { return { success: false, message: e.message }; }
+});
+
+// ===================== TRAINING RECORD IPC =====================
+
+// Get training plans list for record dropdown (no pagination)
+ipcMain.handle('get-training-plans-for-record', async () => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const [rows] = await db.execute(
+      `SELECT tp.Plan_ID, c.Courses_ID, c.Courses_Name,
+        DATE_FORMAT(tp.Plan_StartDate, '%Y-%m-%d') AS Plan_StartDate,
+        tp.Plan_TimeStart,
+        DATE_FORMAT(tp.Plan_EndDate, '%Y-%m-%d') AS Plan_EndDate,
+        tp.Plan_TimeEnd,
+        tp.Plan_Lecturer, tp.Plan_Company, tp.Plan_Location, tp.Plan_Hour
+      FROM training_plan tp
+      INNER JOIN courses c ON c.Courses_ID = tp.Courses_ID
+      ORDER BY tp.Plan_StartDate DESC, tp.Plan_ID DESC
+      LIMIT 500`
+    );
+    return { success: true, data: rows };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Get participants with name parts for training record export
+ipcMain.handle('get-training-record-participants', async (event, planId) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const [rows] = await db.execute(
+      `SELECT ht.his_id, ht.Emp_ID, ht.his_state, ht.his_remark,
+        e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname,
+        CONCAT(e.Emp_Sname, e.Emp_Firstname, ' ', e.Emp_Lastname) AS Fullname,
+        s.Sub_Name, p.Position_Name
+      FROM history_training ht
+      INNER JOIN employees e ON e.Emp_ID = ht.Emp_ID
+      LEFT JOIN subdivision s ON s.Sub_ID = e.Sub_ID
+      LEFT JOIN position p ON p.Position_ID = e.Position_ID
+      WHERE ht.Plan_ID = ?
+      ORDER BY e.Emp_ID ASC`,
+      [planId]
+    );
+    return { success: true, data: rows };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+ipcMain.handle('save-training-record-row', async (event, { hisId, state, remark }) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    await db.execute(
+      'UPDATE history_training SET his_state = ?, his_remark = ? WHERE his_id = ?',
+      [state || null, remark || '', hisId]
+    );
+    return { success: true };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Export training record to Excel using F-HR-002 template
+// Each sheet fills all participants: header block (rows 1-8) + 30 data rows, then
+// 2 blank spacers + repeat header + continue participants (continuous numbering).
+ipcMain.handle('export-training-record-excel', async (event, { plan, participants, timeRange }) => {
+  if (!plan || !participants) return { success: false, message: 'ไม่มีข้อมูล' };
+  try {
+    const ExcelJS = require('exceljs');
+    const path = require('path');
+    const templatePath = path.join(__dirname, 'data', 'F-HR-002 บันทึกการอบรม.xlsx');
+
+    let timeLabel = '';
+    if (timeRange === 'morning') timeLabel = '08.00 - 12.00 น.';
+    else if (timeRange === 'afternoon') timeLabel = '13.00 - 17.00 น.';
+    else {
+      const ts = plan.Plan_TimeStart ? plan.Plan_TimeStart.substring(0, 5) : '';
+      const te = plan.Plan_TimeEnd   ? plan.Plan_TimeEnd.substring(0, 5)   : '';
+      timeLabel = ts && te ? `${ts} - ${te} น.` : (ts || te || '');
+    }
+
+    const thMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                      'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+    const dObj = plan.Plan_StartDate ? new Date(plan.Plan_StartDate + 'T00:00:00') : new Date();
+    const dateLabel = `${dObj.getDate()} ${thMonths[dObj.getMonth()]} ${dObj.getFullYear()}`;
+
+    const saveResult = await dialog.showSaveDialog({
+      title: 'บันทึกไฟล์ Excel',
+      defaultPath: `F-HR-002_${plan.Plan_StartDate || 'training'}.xlsx`,
+      filters: [{ name: 'Excel Files', extensions: ['xlsx'] }]
+    });
+    if (saveResult.canceled || !saveResult.filePath) return { success: false, message: 'ยกเลิก' };
+    const outputPath = saveResult.filePath;
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(templatePath);
+
+    const HEADER_ROWS    = 8;   // rows 1-8 = header block (title, date/time, subject, etc.)
+    const FIRST_DATA_ROW = 9;   // data starts at row 9
+    const ROWS_PER_BLOCK = 30;  // 30 participants per block (rows 9-38)
+    const SPACER_ROWS    = 2;   // blank rows between repeated blocks
+
+    const sheet0 = wb.worksheets[0]; // Sheet 1: รายชื่อ
+    const sheet1 = wb.worksheets[1]; // Sheet 2: แบบบันทึก
+    if (!sheet0) throw new Error('ไม่พบ sheet ในไฟล์ template');
+
+    // ── snapshot(fromRow, toRow): capture rows + merges into offset-based structure ──
+    function snapRows(sheet, fromRow, toRow) {
+      const rows = [];
+      for (let rn = fromRow; rn <= toRow; rn++) {
+        const row = sheet.getRow(rn);
+        const cells = [];
+        row.eachCell({ includeEmpty: true }, (cell, cn) => {
+          cells.push({
+            cn,
+            value: JSON.parse(JSON.stringify(cell.value ?? null)),
+            style: JSON.parse(JSON.stringify(cell.style ?? {}))
+          });
+        });
+        rows.push({ rn, height: row.height, cells });
+      }
+      const merges = [];
+      (sheet.model.merges || []).forEach(m => {
+        const mo = m.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
+        if (!mo) return;
+        const r1 = parseInt(mo[2]), r2 = parseInt(mo[4]);
+        if (r1 >= fromRow && r2 <= toRow)
+          merges.push([mo[1], r1 - fromRow, mo[3], r2 - fromRow]);
+      });
+      return { rows, merges, fromRow };
+    }
+
+    // ── stamp snapshot onto sheet at targetRow (first snap row goes to targetRow) ──
+    function stampSnap(sheet, snap, targetRow) {
+      const delta = targetRow - snap.fromRow;
+      snap.merges.forEach(([c1, ro1, c2, ro2]) => {
+        try {
+          sheet.mergeCells(
+            `${c1}${snap.fromRow + ro1 + delta}:${c2}${snap.fromRow + ro2 + delta}`
+          );
+        } catch(e) {}
+      });
+      snap.rows.forEach(({ rn, height, cells }) => {
+        const row = sheet.getRow(rn + delta);
+        if (height) row.height = height;
+        cells.forEach(({ cn, value, style }) => {
+          const cell = row.getCell(cn);
+          cell.value = value;
+          if (style && Object.keys(style).length) cell.style = style;
+        });
+        row.commit();
+      });
+    }
+
+    // ── write the 6 variable header values; startRow = where row-1 of the block is ──
+    function writeHeaderValues(sheet, startRow) {
+      sheet.getCell(startRow + 1, 3).value = dateLabel;           // C2: date
+      sheet.getCell(startRow + 1, 9).value = timeLabel;           // I2: time
+      sheet.getCell(startRow + 2, 5).value = plan.Courses_Name  || ''; // E3: subject
+      sheet.getCell(startRow + 3, 4).value = plan.Plan_Lecturer || ''; // D4: trainer
+      sheet.getCell(startRow + 4, 4).value = plan.Plan_Company  || ''; // D5: company
+      sheet.getCell(startRow + 4, 9).value = plan.Plan_Location || ''; // I5: location
+    }
+
+    // ── resolve English names stored duplicated in both fields ──
+    // e.g. Firstname="YOON THARAPHI THAW" Lastname="YOON THARAPHI THAW"
+    // → firstname="YOON", lastname="THARAPHI THAW"
+    function resolveNames(p) {
+      let firstname = p.Emp_Firstname || '';
+      let lastname  = p.Emp_Lastname  || '';
+      if (firstname && firstname === lastname) {
+        const sp = firstname.indexOf(' ');
+        if (sp > -1) { lastname = firstname.slice(sp + 1); firstname = firstname.slice(0, sp); }
+        else { lastname = ''; }
+      }
+      return { firstname, lastname };
+    }
+
+    // ── write one block of participant rows (up to 30) at dataStartRow ──
+    function writeDataBlock(sheet, dataStartRow, globalOffset, dataRowSnap) {
+      for (let i = 0; i < ROWS_PER_BLOCK; i++) {
+        const pIdx   = globalOffset + i;
+        const rowNum = dataStartRow + i;
+        const row    = sheet.getRow(rowNum);
+        // Apply data-row style for rows outside the template's original 9-38 range
+        if (rowNum < FIRST_DATA_ROW || rowNum >= FIRST_DATA_ROW + ROWS_PER_BLOCK) {
+          if (dataRowSnap.rows[0].height) row.height = dataRowSnap.rows[0].height;
+          dataRowSnap.rows[0].cells.forEach(({ cn, style }) => {
+            if (style && Object.keys(style).length)
+              row.getCell(cn).style = JSON.parse(JSON.stringify(style));
+          });
+        }
+        if (pIdx < participants.length) {
+          const p = participants[pIdx];
+          const { firstname, lastname } = resolveNames(p);
+          row.getCell(1).value  = pIdx + 1;           // continuous sequence
+          row.getCell(2).value  = p.Emp_ID || '';
+          row.getCell(3).value  = p.Emp_Sname || '';  // คำนำหน้า
+          row.getCell(4).value  = firstname;           // ชื่อ
+          row.getCell(5).value  = lastname;            // นามสกุล
+          row.getCell(6).value  = p.Position_Name || '';
+          row.getCell(7).value  = p.Sub_Name || '';
+          row.getCell(11).value = p.his_remark || '';
+        } else {
+          for (let c = 1; c <= 11; c++) row.getCell(c).value = null;
+        }
+        row.commit();
+      }
+    }
+
+    // ── fill an entire sheet with all participants, repeating header every 30 rows ──
+    function fillSheet(sheet) {
+      const totalBlocks = Math.max(1, Math.ceil(participants.length / ROWS_PER_BLOCK));
+
+      // Snapshot header and one data-row style BEFORE modifying anything
+      const headerSnap  = snapRows(sheet, 1, HEADER_ROWS);
+      const dataRowSnap = snapRows(sheet, FIRST_DATA_ROW, FIRST_DATA_ROW); // row 9 style
+
+      // Block 0: write directly into template rows 1-38
+      writeHeaderValues(sheet, 1);
+      writeDataBlock(sheet, FIRST_DATA_ROW, 0, dataRowSnap);
+
+      // Clear footer rows that follow block 0 in the template (rows 39+)
+      if (totalBlocks > 1) {
+        for (let r = FIRST_DATA_ROW + ROWS_PER_BLOCK; r <= FIRST_DATA_ROW + ROWS_PER_BLOCK + 8; r++) {
+          const row = sheet.getRow(r);
+          row.eachCell({ includeEmpty: true }, cell => { cell.value = null; });
+          row.commit();
+        }
+      }
+
+      // Blocks 1, 2, … : 2 spacer rows → header block → data block
+      let nextRow = FIRST_DATA_ROW + ROWS_PER_BLOCK; // starts at 39
+      for (let b = 1; b < totalBlocks; b++) {
+        // Write 2 blank spacer rows
+        for (let s = 0; s < SPACER_ROWS; s++) {
+          const row = sheet.getRow(nextRow + s);
+          row.eachCell({ includeEmpty: true }, cell => { cell.value = null; });
+          row.commit();
+        }
+        nextRow += SPACER_ROWS;
+
+        // Stamp full header block (labels + borders + merges)
+        stampSnap(sheet, headerSnap, nextRow);
+        writeHeaderValues(sheet, nextRow);
+        nextRow += HEADER_ROWS;
+
+        // Write participant data
+        writeDataBlock(sheet, nextRow, b * ROWS_PER_BLOCK, dataRowSnap);
+        nextRow += ROWS_PER_BLOCK;
+      }
+    }
+
+    fillSheet(sheet0);
+    if (sheet1) fillSheet(sheet1);
+
+    await wb.xlsx.writeFile(outputPath);
+    return { success: true, filePath: outputPath };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
 });
