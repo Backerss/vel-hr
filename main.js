@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
 const path = require('path');
 const mysql = require('mysql2/promise');
 
@@ -454,6 +454,198 @@ ipcMain.handle('get-daily-report-by-date', async (event, dateStr) => {
     );
     return { success: true, data: rows };
   } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Export daily absence report to Excel (using template)
+ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
+  if (!data || !date) return { success: false, message: 'ไม่มีข้อมูล' };
+  try {
+    const ExcelJS = require('exceljs');
+    const path = require('path');
+
+    const templatePath = path.join(__dirname, 'data', 'รายงานการหยุดงานประจำวัน.xlsx');
+
+    // Group data by company
+    const grouped = { Vel: [], SK: [], TBS: [], CWS: [] };
+    data.forEach(r => {
+      const vsth = (r.Emp_Vsth || r.drp_status || 'Vel').trim();
+      if (grouped[vsth] !== undefined) grouped[vsth].push(r);
+      else grouped['Vel'].push(r);
+    });
+    const outsourceList = [...grouped.SK, ...grouped.TBS, ...grouped.CWS];
+    const pageCount = Math.max(Math.ceil(grouped.Vel.length / 20), Math.ceil(outsourceList.length / 20), 1);
+
+    // Total employees per company
+    const totalByGroup = { Vel: 0, SK: 0, TBS: 0, CWS: 0 };
+    try {
+      const [empRows] = await db.execute(
+        `SELECT IFNULL(Emp_Vsth,'Vel') AS grp, COUNT(*) AS cnt FROM employees WHERE Emp_Status='Activated' GROUP BY IFNULL(Emp_Vsth,'Vel')`
+      );
+      empRows.forEach(r => { if (totalByGroup[r.grp] !== undefined) totalByGroup[r.grp] = r.cnt; });
+    } catch(e) {}
+
+    // Format date label (Thai month name, CE year)
+    const thMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                      'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+    const dObj = new Date(date + 'T00:00:00');
+    const thDateLabel = `${dObj.getDate()} ${thMonths[dObj.getMonth()]} ${dObj.getFullYear()}`;
+
+    // Show save dialog
+    const saveResult = await dialog.showSaveDialog({
+      title: 'บันทึกรายงาน Excel',
+      defaultPath: `รายงานการหยุดงาน_${date}.xlsx`,
+      filters: [{ name: 'Excel Files', extensions: ['xlsx'] }]
+    });
+    if (saveResult.canceled || !saveResult.filePath) return { success: false, message: 'ยกเลิก' };
+    const outputPath = saveResult.filePath;
+
+    // Load template workbook
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(templatePath);
+    const tmplSheet = wb.getWorksheet('Sheet1');
+
+    // Snapshot template state before any modification (for copying to extra sheets)
+    const tmplMerges = tmplSheet.model.merges ? [...tmplSheet.model.merges] : [];
+    const tmplRows = [];
+    tmplSheet.eachRow({ includeEmpty: true }, (row, rn) => {
+      const cells = [];
+      row.eachCell({ includeEmpty: true }, (cell, cn) => {
+        cells.push({ cn, value: JSON.parse(JSON.stringify(cell.value ?? null)), style: JSON.parse(JSON.stringify(cell.style ?? {})) });
+      });
+      tmplRows.push({ rn, height: row.height, cells });
+    });
+    const tmplColWidths = [];
+    for (let c = 1; c <= 30; c++) {
+      const col = tmplSheet.getColumn(c);
+      if (col.width) tmplColWidths.push({ c, width: col.width });
+    }
+
+    // Apply template snapshot to a blank sheet
+    function applyTemplate(sheet) {
+      tmplMerges.forEach(m => { try { sheet.mergeCells(m); } catch(e) {} });
+      tmplRows.forEach(({ rn, height, cells }) => {
+        const row = sheet.getRow(rn);
+        if (height) row.height = height;
+        cells.forEach(({ cn, value, style }) => {
+          const cell = row.getCell(cn);
+          cell.value = value;
+          if (style && Object.keys(style).length) cell.style = style;
+        });
+        row.commit();
+      });
+      tmplColWidths.forEach(({ c, width }) => { sheet.getColumn(c).width = width; });
+    }
+
+    // Helper: get communicate label
+    function commLabel(r) {
+      if (r.drp_Communicate && r.drp_Communicate.trim()) return 'โทร';
+      if (r.drp_Communicate1 && r.drp_Communicate1.trim()) return 'แจ้งล่วงหน้า';
+      return '';
+    }
+
+    // Fill one sheet with data for page pageIdx
+    function fillPage(sheet, pageIdx) {
+      const velPage   = grouped.Vel.slice(pageIdx * 20, (pageIdx + 1) * 20);
+      const outPage   = outsourceList.slice(pageIdx * 20, (pageIdx + 1) * 20);
+      const isLastPg  = (pageIdx === pageCount - 1);
+
+      // Date label
+      sheet.getCell('U1').value = thDateLabel;
+
+      // Vel rows (left side, cols A=1 B=2 E=5 F=6 G=7 H=8 I=9)
+      for (let i = 0; i < 20; i++) {
+        const rowNum = i + 6;
+        if (i < velPage.length) {
+          const r = velPage[i];
+          const comm = commLabel(r);
+          sheet.getCell(rowNum, 1).value  = pageIdx * 20 + i + 1;
+          sheet.getCell(rowNum, 2).value  = (r.Fullname || '').trim();
+          sheet.getCell(rowNum, 5).value  = r.Sub_Name || '';
+          sheet.getCell(rowNum, 6).value  = r.drp_Type || '';
+          sheet.getCell(rowNum, 7).value  = comm === 'โทร' ? '✓' : '';
+          sheet.getCell(rowNum, 8).value  = comm === 'แจ้งล่วงหน้า' ? '✓' : '';
+          sheet.getCell(rowNum, 9).value  = (r.drp_Remark || '').trim();
+        } else {
+          // Clear the sequence number placeholder so blank rows show empty
+          sheet.getCell(rowNum, 1).value = null;
+        }
+      }
+
+      // Outsource rows (right side, cols L=12 M=13 Q=17 R=18 S=19 T=20 U=21 V=22)
+      for (let i = 0; i < 20; i++) {
+        const rowNum = i + 6;
+        if (i < outPage.length) {
+          const r = outPage[i];
+          const comm = commLabel(r);
+          const vsth = (r.Emp_Vsth || r.drp_status || '').trim();
+          sheet.getCell(rowNum, 12).value = pageIdx * 20 + i + 1;
+          sheet.getCell(rowNum, 13).value = (r.Fullname || '').trim();
+          sheet.getCell(rowNum, 17).value = r.Sub_Name || '';
+          sheet.getCell(rowNum, 18).value = r.drp_Type || '';
+          sheet.getCell(rowNum, 19).value = comm === 'โทร' ? '✓' : '';
+          sheet.getCell(rowNum, 20).value = comm === 'แจ้งล่วงหน้า' ? '✓' : '';
+          sheet.getCell(rowNum, 21).value = vsth;
+          sheet.getCell(rowNum, 22).value = (r.drp_Remark || '').trim();
+        } else {
+          sheet.getCell(rowNum, 12).value = null;
+        }
+      }
+
+      // Summary & leave-type matrix — only on last page
+      if (isLastPg) {
+        // Row 26: Vel totals (E26=total emp, I26=absent count)
+        sheet.getCell(26, 5).value  = totalByGroup.Vel || 0;
+        sheet.getCell(26, 9).value  = grouped.Vel.length;
+        // Row 26: SK totals (Q26=total emp, U26=absent count)
+        sheet.getCell(26, 17).value = totalByGroup.SK || 0;
+        sheet.getCell(26, 21).value = grouped.SK.length;
+        // Row 27: TBS
+        sheet.getCell(27, 17).value = totalByGroup.TBS || 0;
+        sheet.getCell(27, 21).value = grouped.TBS.length;
+        // Row 28: CWS
+        sheet.getCell(28, 17).value = totalByGroup.CWS || 0;
+        sheet.getCell(28, 21).value = grouped.CWS.length;
+
+        // Leave-type matrix rows 31-35
+        // Col: B=2(A) C=3(B) D=4(S) E=5(H) F=6(D) H=8(F) J=10(C) L=12(O) N=14(x)
+        const LT_MAP = { 'A':2,'B':3,'S':4,'H':5,'D':6,'F':8,'C':10,'O':12,'x':14 };
+        const COMPANIES = ['Vel','SK','TBS','CWS'];
+        COMPANIES.forEach((co, ci) => {
+          const rd = grouped[co] || [];
+          Object.entries(LT_MAP).forEach(([lt, col]) => {
+            sheet.getCell(31 + ci, col).value = rd.filter(r => r.drp_Type === lt).length;
+          });
+        });
+        // Total row (row 35)
+        Object.entries(LT_MAP).forEach(([lt, col]) => {
+          const tot = COMPANIES.reduce((s, co) => s + (grouped[co]||[]).filter(r => r.drp_Type === lt).length, 0);
+          sheet.getCell(35, col).value = tot;
+        });
+
+        // Right summary (R31=total emp, R32=came to work, R33=total absent)
+        const totalEmp    = Object.values(totalByGroup).reduce((a, b) => a + b, 0);
+        const totalAbsent = data.length;
+        sheet.getCell(31, 18).value = totalEmp;
+        sheet.getCell(32, 18).value = Math.max(0, totalEmp - totalAbsent);
+        sheet.getCell(33, 18).value = totalAbsent;
+      }
+    }
+
+    // Fill Sheet1 (page 0)
+    fillPage(tmplSheet, 0);
+
+    // Add extra sheets for additional pages
+    for (let p = 1; p < pageCount; p++) {
+      const newSheet = wb.addWorksheet(`Sheet${p + 1}`);
+      applyTemplate(newSheet);
+      fillPage(newSheet, p);
+    }
+
+    await wb.xlsx.writeFile(outputPath);
+    return { success: true, filePath: outputPath };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
 });
 
 // Get all courses

@@ -9,6 +9,8 @@ let deletingLeaveId = null;
 let leaveCurrentPage = 1;
 const LEAVE_PER_PAGE = 50;
 let leaveSearchTimeout = null;
+let currentAbsenceDate = '';
+let currentAbsenceData = [];
 
 // ---- Date helpers ----
 export function dbDateToDisplay(d) {
@@ -434,8 +436,8 @@ export async function loadDailyAbsencePage() {
         <button class="btn-primary-custom" onclick="loadAbsenceReport()">
           <i class="bi bi-search"></i> แสดงรายงาน
         </button>
-        <button class="btn-outline-custom" onclick="printAbsenceReport()" title="พิมพ์รายงาน">
-          <i class="bi bi-printer"></i> พิมพ์
+        <button class="btn-outline-custom" onclick="printAbsenceReport()" title="ส่งออก Excel">
+          <i class="bi bi-file-earmark-excel"></i> Excel
         </button>
       </div>
     </div>
@@ -466,6 +468,8 @@ export async function loadAbsenceReport() {
   }
 
   const data = res.data;
+  currentAbsenceDate = dateVal;
+  currentAbsenceData = data;
   const VSTH_ORDER = ['Vel','SK','TBS','CWS'];
   const grouped = {};
   VSTH_ORDER.forEach(v => { grouped[v] = []; });
@@ -707,34 +711,16 @@ export function clearSignature(canvasId) {
   canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 }
 
-export function printAbsenceReport() {
-  const printArea = document.getElementById('printableArea');
-  if (!printArea) { showToast('ยังไม่มีข้อมูลรายงาน', 'error'); return; }
-
-  const w = window.open('', '_blank');
-  const style = `
-    <style>
-      * { box-sizing:border-box; margin:0; padding:0; }
-      body { font-family: 'Sarabun', sans-serif; font-size:12.5px; color:#1e293b; padding:24px; }
-      table { width:100%; border-collapse:collapse; }
-      th,td { border:1px solid #e2e8f0; padding:6px 10px; }
-      th { background:#f8fafc; font-weight:700; }
-      @media print { body { padding:0; } }
-    </style>
-    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">`;
-
-  const clone = printArea.cloneNode(true);
-  clone.querySelectorAll('canvas').forEach(c => {
-    const orig = document.getElementById(c.id);
-    const img = document.createElement('img');
-    img.src = orig?.toDataURL('image/png') || '';
-    img.style.cssText = 'width:100%;height:100px;border:1.5px solid #e2e8f0;border-radius:8px;';
-    c.parentNode.replaceChild(img, c);
-  });
-  clone.querySelectorAll('button').forEach(b => b.remove());
-
-  w.document.write(`<!DOCTYPE html><html><head><title>รายงานการหยุดงานประจำวัน</title>${style}</head><body>${clone.innerHTML}</body></html>`);
-  w.document.close();
-  w.focus();
-  setTimeout(() => { w.print(); }, 600);
+export async function printAbsenceReport() {
+  if (!currentAbsenceData || currentAbsenceData.length === 0) {
+    showToast('ยังไม่มีข้อมูลรายงาน กรุณาเลือกวันที่แล้วกด "แสดงรายงาน" ก่อน', 'error');
+    return;
+  }
+  showToast('กำลังสร้างไฟล์ Excel...', 'info');
+  const res = await window.api.exportAbsenceExcel({ date: currentAbsenceDate, data: currentAbsenceData });
+  if (res && res.success) {
+    showToast('ส่งออก Excel สำเร็จ', 'success');
+  } else if (res && res.message && res.message !== 'ยกเลิก') {
+    showToast('เกิดข้อผิดพลาด: ' + res.message, 'error');
+  }
 }

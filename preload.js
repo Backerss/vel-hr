@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('api', {
   deleteDailyReport: (id) => ipcRenderer.invoke('delete-daily-report', id),
   // Daily absence report
   getDailyReportByDate: (date) => ipcRenderer.invoke('get-daily-report-by-date', date),
+  exportAbsenceExcel: (d) => ipcRenderer.invoke('export-absence-excel', d),
   // Training history
   getEmployeeTraining: (empId) => ipcRenderer.invoke('get-employee-training', empId),
   // Training management
