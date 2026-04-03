@@ -7,14 +7,26 @@
     "start": "electron .",
     "dev": "electron . --dev"
   },
-  "keywords": ["hr", "management", "electron"],
+  "keywords": [
+    "hr",
+    "management",
+    "electron"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "electron": "^41.1.1"
+    "electron": "^41.1.1",
+    "electron-builder": "^26.8.1"
   },
   "dependencies": {
     "mysql2": "^3.20.0"
+  },
+  "build": {
+  "appId": "com.example.hrmanagement",
+  "productName": "HR Management System",
+  "win": {
+    "target": ["nsis"]
   }
+}
 }
