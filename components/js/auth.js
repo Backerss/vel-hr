@@ -4,6 +4,11 @@ import { loadEmployeesPage } from './employees.js';
 
 export let currentUser = null;
 
+function getRoleLabel(role) {
+  if (role === 'guest') return 'ผู้เข้าชม';
+  return 'ผู้ดูแลระบบ';
+}
+
 // ===================== SESSION / REMEMBER ME =====================
 const SESSION_KEY = 'hr_remember_session';
 const SESSION_TTL = 12 * 60 * 60 * 1000; // 12 ชั่วโมง (ms)
@@ -39,7 +44,7 @@ export async function initAutoLogin() {
     currentUser = result.user;
     currentUser.role = result.role;
     document.getElementById('sidebarUsername').textContent = currentUser.name || currentUser.username;
-    document.getElementById('sidebarRole').textContent = result.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน';
+    document.getElementById('sidebarRole').textContent = getRoleLabel(result.role);
     applyMenuForRole(result.role);
     const overlay = document.getElementById('loginOverlay');
     overlay.classList.add('hidden');
@@ -101,7 +106,7 @@ export async function doLoginAsGuest() {
   currentUser = { name: 'Guest', username: 'guest', role: 'guest' };
 
   document.getElementById('sidebarUsername').textContent = 'Guest';
-  document.getElementById('sidebarRole').textContent = 'ผู้เข้าชม';
+  document.getElementById('sidebarRole').textContent = getRoleLabel('guest');
 
   applyMenuForRole('guest');
 
@@ -121,7 +126,12 @@ export async function doLogin() {
   alertEl.style.display = 'none';
 
   if (!username) {
-    showLoginAlert('กรุณากรอกรหัสพนักงาน / Username');
+    showLoginAlert('กรุณากรอกชื่อผู้ใช้');
+    return;
+  }
+
+  if (!password) {
+    showLoginAlert('กรุณากรอกรหัสผ่าน');
     return;
   }
 
@@ -136,8 +146,7 @@ export async function doLogin() {
       currentUser.role = result.role;
 
       document.getElementById('sidebarUsername').textContent = currentUser.name || currentUser.username;
-      document.getElementById('sidebarRole').textContent =
-        result.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน';
+      document.getElementById('sidebarRole').textContent = getRoleLabel(result.role);
 
       applyMenuForRole(result.role);
 
