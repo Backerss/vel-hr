@@ -286,6 +286,25 @@ export async function openLeaveForm(id) {
   showModal('leaveModal');
 }
 
+export function onLeaveTypeChange() {
+  if (currentUser?.role === 'guest') return;
+  const sel = document.getElementById('fLeaveType');
+  const rem = document.getElementById('fLeaveRemark');
+  if (!sel || !rem) return;
+  if (sel.value) {
+    const lt = leaveTypes.find(t => t.leave_abbreviation === sel.value);
+    rem.value = lt ? lt.leave_name : sel.options[sel.selectedIndex]?.text || '';
+  }
+}
+
+export function onLeaveStartDTChange() {
+  const startEl = document.getElementById('fLeaveStartDT');
+  const endEl   = document.getElementById('fLeaveEndDT');
+  if (!startEl || !endEl || !startEl.value) return;
+  const datePart = startEl.value.split('T')[0];
+  endEl.value = `${datePart}T17:00`;
+}
+
 function clearLeaveForm() {
   ['fLeaveEmpID','fLeaveFirstname','fLeaveLastname','fLeaveDept','fLeaveSub'].forEach(f => {
     const el = document.getElementById(f);

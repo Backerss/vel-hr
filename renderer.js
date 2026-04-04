@@ -51,6 +51,7 @@ import {
   renderLeaveTable, goLeavePage,
   openLeaveForm, lookupEmployee, saveLeaveRecord, closeLeaveModal,
   confirmDeleteLeave, executeDeleteLeave,
+  onLeaveTypeChange, onLeaveStartDTChange,
   loadDailyAbsencePage, loadAbsenceReport, clearSignature, printAbsenceReport
 } from './components/js/leave.js';
 import {
@@ -265,6 +266,7 @@ Object.assign(window, {
   // Leave
   openLeaveForm, lookupEmployee, saveLeaveRecord, closeLeaveModal,
   confirmDeleteLeave, executeDeleteLeave, applyLeaveFilter, onLeaveSearch,
+  onLeaveTypeChange, onLeaveStartDTChange,
   goLeavePage, loadAbsenceReport, clearSignature, printAbsenceReport,
   // OT
   loadOtPage,
