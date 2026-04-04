@@ -41,12 +41,24 @@ import {
   updateRecordState, updateRecordRemark, exportTrainingRecordExcel
 } from './components/js/training-record.js';
 import {
+  loadHolidayPage, hdRefresh, hdOnSearch, hdOnYearChange,
+  hdCalPrev, hdCalNext, hdCalRender,
+  hdOpenModal, hdCloseModal, hdAutoFormatDate, hdBlurDate, hdSubmitForm,
+  hdOpenDeleteModal, hdCloseDeleteModal, hdExecuteDelete
+} from './components/js/holiday.js';
+import {
   loadLeaveRecordPage, fetchAndRenderLeave, applyLeaveFilter, onLeaveSearch,
   renderLeaveTable, goLeavePage,
   openLeaveForm, lookupEmployee, saveLeaveRecord, closeLeaveModal,
   confirmDeleteLeave, executeDeleteLeave,
   loadDailyAbsencePage, loadAbsenceReport, clearSignature, printAbsenceReport
 } from './components/js/leave.js';
+import {
+  loadOtPage,
+  otOnSubChange, otOnFilterChange, otOnEmpSearch,
+  otToggleEmp, otSelectAll, otDeselectAll,
+  otGenerate, otExport, otPrint
+} from './components/js/ot.js';
 
 // ===================== COMPONENT LOADER =====================
 async function loadComponent(url, targetId) {
@@ -64,6 +76,7 @@ const PAGE_CONFIG = {
   leaveRecord:          { title: 'บันทึกลางาน',                subtitle: 'บันทึกการลาของพนักงาน',           icon: 'bi-calendar-plus',      group: 'groupLeave' },
   dailyAbsence:         { title: 'รายงานการหยุดงานประจำวัน',   subtitle: 'ดูรายงานการขาด/ลา ประจำวัน',     icon: 'bi-calendar-x',         group: 'groupLeave' },
   ot:                   { title: 'OT',                         subtitle: 'จัดการข้อมูลการทำงานล่วงเวลา',   icon: 'bi-clock-history',      group: null },
+  holiday:              { title: 'วันหยุดบริษัท',                  subtitle: 'กำหนดวันหยุดประจำปีของบริษัท',         icon: 'bi-calendar2-heart',    group: null },
 };
 
 // ===================== NAV GROUP TOGGLE =====================
@@ -88,7 +101,9 @@ async function switchPage(page) {
   document.querySelectorAll('.nav-item-custom').forEach(n => n.classList.remove('active'));
   document.querySelectorAll('.nav-subitem').forEach(n => n.classList.remove('active'));
 
-  const navId = 'nav' + page.charAt(0).toUpperCase() + page.slice(1);
+  const navId = (page === 'ot')
+    ? 'navOT'
+    : ('nav' + page.charAt(0).toUpperCase() + page.slice(1));
   const navEl = document.getElementById(navId);
   if (navEl) navEl.classList.add('active');
 
@@ -117,6 +132,10 @@ async function switchPage(page) {
     await loadTrainingRecordPage();
   } else if (page === 'trainingExpense') {
     await loadTrainingExpensePage();
+  } else if (page === 'ot') {
+    await loadOtPage();
+  } else if (page === 'holiday') {
+    await loadHolidayPage();
   } else {
     loadPlaceholderPage(cfg);
   }
@@ -186,7 +205,7 @@ async function init() {
   }
 
   // Setup modal backdrop close
-  initModalBackdropClose(['empModal','confirmModal','logoutModal','leaveModal','leaveConfirmModal','trainingFormModal','trainingDetailsModal','expenseFormModal']);
+  initModalBackdropClose(['empModal','confirmModal','logoutModal','leaveModal','leaveConfirmModal','trainingFormModal','trainingDetailsModal','expenseFormModal','holidayFormModal','holidayDeleteModal']);
 
   // Login event listeners
   document.getElementById('loginUsername').addEventListener('keydown', (e) => {
@@ -235,10 +254,20 @@ Object.assign(window, {
   loadTrainingExpensePage, refreshExpenseData, onExpenseSearch,
   setExpensePageSize, goToExpensePage, openExpenseModal, closeExpenseModal,
   submitExpenseForm, calcExpenseTotal, onExpPlanIdInput, hideExpPlanSuggestions, selectExpPlan,
+  // Holiday
+  loadHolidayPage, hdRefresh, hdOnSearch, hdOnYearChange,
+  hdCalPrev, hdCalNext, hdCalRender,
+  hdOpenModal, hdCloseModal, hdAutoFormatDate, hdBlurDate, hdSubmitForm,
+  hdOpenDeleteModal, hdCloseDeleteModal, hdExecuteDelete,
   // Leave
   openLeaveForm, lookupEmployee, saveLeaveRecord, closeLeaveModal,
   confirmDeleteLeave, executeDeleteLeave, applyLeaveFilter, onLeaveSearch,
   goLeavePage, loadAbsenceReport, clearSignature, printAbsenceReport,
+  // OT
+  loadOtPage,
+  otOnSubChange, otOnFilterChange, otOnEmpSearch,
+  otToggleEmp, otSelectAll, otDeselectAll,
+  otGenerate, otExport, otPrint,
   // Shared modal util
   closeModal, showModal, showToast,
 });

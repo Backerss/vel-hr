@@ -1,0 +1,232 @@
+<!-- ===================== HOLIDAY MANAGEMENT PAGE ===================== -->
+
+<!-- TOP ROW: Year selector + stat cards -->
+<div class="row g-3 mb-4" style="align-items:center;">
+  <div class="col-md-4">
+    <div class="stat-card">
+      <div class="stat-icon blue"><i class="bi bi-calendar2-heart-fill"></i></div>
+      <div>
+        <div class="stat-value" id="hdStatTotal">0</div>
+        <div class="stat-label">วันหยุดทั้งหมด (ปีนี้)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="stat-card">
+      <div class="stat-icon green"><i class="bi bi-calendar-check-fill"></i></div>
+      <div>
+        <div class="stat-value" id="hdStatUpcoming">0</div>
+        <div class="stat-label">วันหยุดที่กำลังจะมาถึง</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="stat-card">
+      <div class="stat-icon amber"><i class="bi bi-calendar-x-fill"></i></div>
+      <div>
+        <div class="stat-value" id="hdStatPast">0</div>
+        <div class="stat-label">วันหยุดที่ผ่านไปแล้ว</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN GRID: Calendar + Table side by side -->
+<div style="display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start;">
+
+  <!-- LEFT: Calendar -->
+  <div>
+    <div class="table-section" style="padding:16px 14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <button class="btn-outline-custom" style="padding:5px 10px;" onclick="hdCalPrev()">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <span id="hdCalMonthLabel" style="font-weight:700;font-size:15px;color:var(--gray-800);"></span>
+        <button class="btn-outline-custom" style="padding:5px 10px;" onclick="hdCalNext()">
+          <i class="bi bi-chevron-right"></i>
+        </button>
+      </div>
+      <div id="hdCalendar"></div>
+    </div>
+
+    <!-- Legend -->
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;padding:0 4px;">
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gray-600);">
+        <span style="width:12px;height:12px;border-radius:3px;background:#ef4444;display:inline-block;"></span> วันหยุดบริษัท
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gray-600);">
+        <span style="width:12px;height:12px;border-radius:3px;background:#dbeafe;border:1.5px solid #93c5fd;display:inline-block;"></span> วันนี้
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gray-600);">
+        <span style="width:12px;height:12px;border-radius:3px;background:var(--gray-100);display:inline-block;"></span> วันเสาร์-อาทิตย์
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Table -->
+  <div class="table-section">
+    <div class="table-header">
+      <span class="table-title">รายการวันหยุดประจำปี</span>
+
+      <div style="display:flex;align-items:center;gap:8px;">
+        <select class="filter-select" id="hdYearFilter" onchange="hdOnYearChange()" style="min-width:100px;font-weight:600;color:var(--primary);">
+        </select>
+      </div>
+
+      <div class="search-box" style="max-width:260px;">
+        <i class="bi bi-search"></i>
+        <input type="text" class="search-input" id="hdSearchInput"
+          placeholder="ค้นหาชื่อวันหยุด..."
+          oninput="hdOnSearch()">
+      </div>
+
+      <button class="btn-outline-custom" onclick="hdRefresh()">
+        <i class="bi bi-arrow-clockwise"></i> รีเฟรช
+      </button>
+      <button class="btn-primary-custom" onclick="hdOpenModal()">
+        <i class="bi bi-plus-circle-fill"></i> เพิ่มวันหยุด
+      </button>
+    </div>
+
+    <div class="table-responsive-custom">
+      <table class="data-table" style="width:100%;">
+        <thead>
+          <tr>
+            <th style="width:44px;text-align:center;">#</th>
+            <th style="width:130px;">วันที่</th>
+            <th>ชื่อวันหยุด</th>
+            <th style="width:90px;text-align:center;">ปี (พ.ศ.)</th>
+            <th style="width:90px;text-align:center;">จัดการ</th>
+          </tr>
+        </thead>
+        <tbody id="hdTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="table-footer">
+      <div class="record-count">
+        แสดง <span id="hdDisplayCount">0</span> จาก <span id="hdTotalCount">0</span> รายการ
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== HOLIDAY FORM MODAL ===================== -->
+<div class="modal-overlay" id="holidayFormModal">
+  <div class="modal-card" style="width:480px;max-width:96vw;">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="bi bi-calendar-plus"></i>
+        <span id="hdModalTitle">เพิ่มวันหยุด</span>
+      </div>
+      <button class="modal-close" onclick="hdCloseModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+
+    <div class="modal-body" style="padding:20px 24px;">
+      <form id="hdForm" onsubmit="hdSubmitForm(event)">
+        <input type="hidden" id="hdEditingId">
+
+        <div class="form-group" style="margin-bottom:14px;">
+          <label>วันที่ <span class="required">*</span></label>
+          <input type="text" id="hdDate" class="form-control-m" required
+            placeholder="DD/MM/YYYY (พ.ศ.)" maxlength="10" autocomplete="off"
+            oninput="hdAutoFormatDate(this)" onblur="hdBlurDate(this)">
+          <div style="font-size:11px;color:var(--gray-400);margin-top:3px;">รูปแบบ: วัน/เดือน/ปี พ.ศ. เช่น 01/01/2568</div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:14px;">
+          <label>ชื่อวันหยุด <span class="required">*</span></label>
+          <input type="text" id="hdName" class="form-control-m" required
+            placeholder="เช่น วันสงกรานต์, วันแรงงาน">
+        </div>
+
+
+      </form>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-outline-custom" type="button" onclick="hdCloseModal()">ยกเลิก</button>
+      <button class="btn-primary-custom" id="hdBtnSave" type="button" onclick="hdSubmitForm(event)">
+        <i class="bi bi-check2-circle"></i> บันทึก
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== HOLIDAY DELETE CONFIRM MODAL ===================== -->
+<div class="modal-overlay" id="holidayDeleteModal">
+  <div class="modal-card" style="width:420px;max-width:96vw;">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="bi bi-trash" style="color:var(--danger);"></i>
+        <span style="color:var(--danger);">ยืนยันการลบ</span>
+      </div>
+      <button class="modal-close" onclick="hdCloseDeleteModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="modal-body" style="padding:20px 24px;">
+      <p style="margin:0;font-size:14px;">ต้องการลบวันหยุด <strong id="hdDeleteLabel"></strong> ออกจากระบบใช่หรือไม่?</p>
+      <p style="margin:8px 0 0;font-size:12.5px;color:var(--gray-500);">การดำเนินการนี้ไม่สามารถย้อนกลับได้</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline-custom" onclick="hdCloseDeleteModal()">ยกเลิก</button>
+      <button class="btn-primary-custom" style="background:var(--danger);border-color:var(--danger);" onclick="hdExecuteDelete()">
+        <i class="bi bi-trash"></i> ลบ
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ====== Holiday Calendar ====== */
+.hd-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+.hd-cal-day-label {
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 0;
+  color: var(--gray-500);
+}
+.hd-cal-day-label.weekend { color: #ef4444; }
+.hd-cal-cell {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  font-size: 12.5px;
+  cursor: default;
+  font-weight: 500;
+  color: var(--gray-700);
+  transition: background 0.12s;
+}
+.hd-cal-cell.empty { background: transparent; }
+.hd-cal-cell.weekend { color: #9ca3af; background: var(--gray-50); }
+.hd-cal-cell.today {
+  background: #dbeafe; color: #1e40af; font-weight: 700;
+  border: 1.5px solid #93c5fd;
+}
+.hd-cal-cell.holiday {
+  background: #fee2e2; color: #ef4444; font-weight: 700;
+  cursor: pointer;
+}
+.hd-cal-cell.holiday:hover { background: #fecaca; }
+.hd-cal-cell.today.holiday {
+  background: #ef4444; color: #fff;
+  border-color: #b91c1c;
+}
+.hd-cal-dot {
+  position: absolute;
+  bottom: 3px; left: 50%; transform: translateX(-50%);
+  width: 4px; height: 4px; border-radius: 50%;
+  background: #ef4444;
+}
+</style>

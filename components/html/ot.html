@@ -1,0 +1,200 @@
+<!-- ===================== OT PAGE ===================== -->
+<div class="row g-3 mb-4">
+  <!-- Left: Selection Panel -->
+  <div class="col-lg-4">
+    <div class="table-section" style="padding:20px;">
+      <div style="font-size:15px;font-weight:700;color:var(--gray-800);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+        <i class="bi bi-sliders" style="color:var(--primary);"></i> ตั้งค่าแบบฟอร์ม
+      </div>
+
+      <!-- Month / Year -->
+      <div class="form-group" style="margin-bottom:14px;">
+        <label style="font-size:12.5px;font-weight:600;color:var(--gray-600);margin-bottom:6px;display:block;">เดือน / ปี (พ.ศ.)</label>
+        <div style="display:flex;gap:8px;">
+          <select id="otMonth" class="form-control-m" style="flex:1;" onchange="otOnFilterChange()">
+            <option value="1">มกราคม</option><option value="2">กุมภาพันธ์</option>
+            <option value="3">มีนาคม</option><option value="4">เมษายน</option>
+            <option value="5">พฤษภาคม</option><option value="6">มิถุนายน</option>
+            <option value="7">กรกฎาคม</option><option value="8">สิงหาคม</option>
+            <option value="9">กันยายน</option><option value="10">ตุลาคม</option>
+            <option value="11">พฤศจิกายน</option><option value="12">ธันวาคม</option>
+          </select>
+          <select id="otYear" class="form-control-m" style="width:110px;" onchange="otOnFilterChange()">
+          </select>
+        </div>
+      </div>
+
+      <!-- Department filter -->
+      <div class="form-group" style="margin-bottom:14px;">
+        <label style="font-size:12.5px;font-weight:600;color:var(--gray-600);margin-bottom:6px;display:block;">แผนก / หน่วยงาน</label>
+        <select id="otSubFilter" class="form-control-m" onchange="otOnSubChange()">
+          <option value="">-- ทั้งหมด --</option>
+        </select>
+      </div>
+
+      <!-- Search employee -->
+      <div class="form-group" style="margin-bottom:12px;">
+        <label style="font-size:12.5px;font-weight:600;color:var(--gray-600);margin-bottom:6px;display:block;">ค้นหาพนักงาน</label>
+        <div class="search-box">
+          <i class="bi bi-search"></i>
+          <input type="text" class="search-input" id="otEmpSearch"
+            placeholder="รหัส / ชื่อ..."
+            oninput="otOnEmpSearch()">
+        </div>
+      </div>
+
+      <!-- Select all / deselect all -->
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button type="button" class="btn-outline-custom" style="flex:1;font-size:12px;padding:5px 8px;" onclick="otSelectAll()">
+          <i class="bi bi-check2-all"></i> เลือกทั้งหมด
+        </button>
+        <button type="button" class="btn-outline-custom" style="flex:1;font-size:12px;padding:5px 8px;" onclick="otDeselectAll()">
+          <i class="bi bi-x-lg"></i> ยกเลิกทั้งหมด
+        </button>
+      </div>
+
+      <!-- Employee list -->
+      <div id="otEmpList" style="max-height:380px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:10px;">
+        <div style="text-align:center;padding:24px;color:var(--gray-400);font-size:13px;">
+          <div class="spinner" style="margin:0 auto 8px;"></div>
+          กำลังโหลด...
+        </div>
+      </div>
+
+      <div style="margin-top:10px;font-size:12px;color:var(--gray-500);">
+        เลือกแล้ว: <strong id="otSelectedCount" style="color:var(--primary);">0</strong> คน
+        <span id="otCrossDeptBadge" style="display:none;margin-left:6px;background:var(--warning-light,#fff3cd);color:#856404;padding:1px 8px;border-radius:20px;font-size:11px;">หลายแผนก</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Generate + Preview -->
+  <div class="col-lg-8">
+    <div class="table-section" style="padding:20px;min-height:200px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+        <div style="font-size:15px;font-weight:700;color:var(--gray-800);display:flex;align-items:center;gap:8px;">
+          <i class="bi bi-printer" style="color:var(--primary);"></i> แบบฟอร์ม OT
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btn-outline-custom" onclick="otGenerate()" id="otBtnGenerate">
+            <i class="bi bi-arrow-clockwise"></i> สร้างแบบฟอร์ม
+          </button>
+          <button type="button" class="btn-outline-custom" onclick="otExport()" id="otBtnExport" disabled style="color:var(--success,#198754);border-color:var(--success,#198754);">
+            <i class="bi bi-file-earmark-excel-fill"></i> Export Excel (<span id="otExportCount">0</span> ชีท)
+          </button>
+          <button type="button" class="btn-primary-custom" onclick="otPrint()" id="otBtnPrint" disabled>
+            <i class="bi bi-printer-fill"></i> พิมพ์ (<span id="otPrintCount">0</span> ใบ)
+          </button>
+        </div>
+      </div>
+
+      <!-- Hint / Preview area -->
+      <div id="otPreviewArea">
+        <div style="text-align:center;padding:60px 20px;color:var(--gray-400);">
+          <i class="bi bi-file-earmark-text" style="font-size:48px;display:block;margin-bottom:12px;opacity:0.4;"></i>
+          <div style="font-size:14px;">เลือกพนักงานและกด <strong>สร้างแบบฟอร์ม</strong> เพื่อแสดงตัวอย่าง</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PRINT AREA (hidden on screen, shown on print) ===================== -->
+<div id="otPrintArea" style="display:none;"></div>
+
+<style>
+/* ── OT employee list ── */
+.ot-emp-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--gray-100);
+  cursor: pointer;
+  transition: background 0.12s;
+  user-select: none;
+}
+.ot-emp-item:last-child { border-bottom: none; }
+.ot-emp-item:hover { background: var(--primary-subtle); }
+.ot-emp-item.checked { background: var(--primary-light); }
+.ot-emp-item input[type="checkbox"] { width:15px;height:15px;accent-color:var(--primary);flex-shrink:0;cursor:pointer; }
+.ot-emp-info { flex:1;min-width:0; }
+.ot-emp-id { font-size:11.5px;font-weight:700;color:var(--primary); }
+.ot-emp-name { font-size:13px;font-weight:600;color:var(--gray-800); }
+.ot-emp-sub { font-size:11.5px;color:var(--gray-500); }
+
+/* ── OT preview form card ── */
+.ot-form-card {
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  background: #fff;
+}
+.ot-form-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.ot-form-emp-badge {
+  background: var(--primary-light);
+  color: var(--primary);
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.ot-holiday-row { background: #fef2f2; }
+.ot-weekend-row { background: var(--gray-50); color: var(--gray-400); }
+.ot-today-row td:first-child { color: var(--primary); font-weight: 700; }
+
+/* ── PRINT STYLES ── */
+@media print {
+  body > * { display: none !important; }
+  #otPrintArea { display: block !important; }
+
+  .ot-print-page {
+    page-break-after: always;
+    font-family: 'TH SarabunPSK', 'Sarabun', 'Angsana New', sans-serif;
+    font-size: 14pt;
+    padding: 10mm 14mm;
+    color: #000;
+  }
+  .ot-print-page:last-child { page-break-after: avoid; }
+
+  .ot-print-title {
+    text-align: center;
+    font-size: 16pt;
+    font-weight: bold;
+    margin-bottom: 6pt;
+  }
+  .ot-print-info table { width: 100%; border-collapse: collapse; margin-bottom: 8pt; font-size: 13pt; }
+  .ot-print-info td { padding: 2pt 4pt; }
+
+  .ot-print-table { width:100%; border-collapse:collapse; font-size:12pt; }
+  .ot-print-table th, .ot-print-table td {
+    border: 1px solid #000;
+    padding: 3pt 4pt;
+    text-align: center;
+    vertical-align: middle;
+  }
+  .ot-print-table th { background: #e8e8e8; font-weight: bold; }
+  .ot-print-table .day-col { width: 28pt; }
+  .ot-print-table .time-col { width: 40pt; }
+  .ot-print-table .hr-col { width: 32pt; }
+  .ot-print-table .sign-col { width: 44pt; }
+  .ot-print-table .detail-col { width: auto; }
+  .ot-print-table .note-col { width: 90pt; }
+  .ot-ph-row { background: #ffe4e4; }
+  .ot-wk-row { background: #f5f5f5; color: #666; }
+
+  .ot-print-summary { margin-top: 8pt; font-size: 12pt; }
+  .ot-print-summary table { width:100%; border-collapse:collapse; }
+  .ot-print-summary td { padding: 3pt 6pt; border: 1px solid #000; }
+
+  .ot-print-sign { margin-top: 12pt; display: flex; justify-content: space-between; font-size: 12pt; }
+  .ot-print-sign-box { text-align: center; flex: 1; }
+  .ot-print-remark { margin-top: 8pt; font-size: 11pt; color: #333; }
+}
+</style>

@@ -38,4 +38,11 @@ contextBridge.exposeInMainWorld('api', {
   searchPlansForExpense: (payload) => ipcRenderer.invoke('search-plans-for-expense', payload),
   getExpenses: (filters) => ipcRenderer.invoke('get-expenses', filters),
   saveExpense: (data) => ipcRenderer.invoke('save-expense', data),
+  // Holiday
+  getHolidays: (payload) => ipcRenderer.invoke('get-holidays', payload),
+  saveHoliday: (data) => ipcRenderer.invoke('save-holiday', data),
+  deleteHoliday: (id) => ipcRenderer.invoke('delete-holiday', id),
+  // OT
+  getHolidaysForMonth: (payload) => ipcRenderer.invoke('get-holidays-for-month', payload),
+  exportOtExcel: (data) => ipcRenderer.invoke('export-ot-excel', data),
 });
