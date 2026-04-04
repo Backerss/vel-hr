@@ -4,7 +4,7 @@
  */
 
 import { escHtml, showToast, showModal, closeModal, initModalBackdropClose } from './components/js/utils.js';
-import { checkDBStatus, doLogin, confirmLogout, doLogout, currentUser } from './components/js/auth.js';
+import { checkDBStatus, doLogin, doLoginAsGuest, applyMenuForRole, confirmLogout, doLogout, currentUser } from './components/js/auth.js';
 import {
   loadEmployeesPage, loadSubdivisions, loadPositions,
   fetchAndRenderEmployees, renderEmployeeTable,
@@ -224,7 +224,7 @@ async function init() {
 // These are needed because HTML component files use onclick="..." which requires globals.
 Object.assign(window, {
   // Auth
-  doLogin, confirmLogout, doLogout,
+  doLogin, doLoginAsGuest, confirmLogout, doLogout,
   // Nav
   switchPage, toggleGroup, refreshCurrentPage,
   // Employees

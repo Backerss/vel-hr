@@ -4,6 +4,33 @@ import { loadEmployeesPage } from './employees.js';
 
 export let currentUser = null;
 
+// ===================== MENU VISIBILITY BY ROLE =====================
+// guest: ซ่อน วันหยุด, กลุ่มการอบรมทั้งหมด, ซ่อน รายงานการหยุดงานประจำวัน
+// admin/user: แสดงทั้งหมด
+export function applyMenuForRole(role) {
+  const isGuest = role === 'guest';
+
+  // กลุ่มการอบรม (training group header + submenu)
+  const groupTraining = document.getElementById('groupTraining');
+  const labelTraining = groupTraining?.previousElementSibling; // nav-section-label ก่อน groupTraining
+  if (groupTraining) groupTraining.style.display = isGuest ? 'none' : '';
+  // ซ่อน section label "การอบรม" ด้วย
+  document.querySelectorAll('.nav-section-label').forEach(el => {
+    if (el.textContent.trim() === 'การอบรม') el.style.display = isGuest ? 'none' : '';
+  });
+
+  // วันหยุดบริษัท button + section label
+  const navHoliday = document.getElementById('navHoliday');
+  if (navHoliday) navHoliday.style.display = isGuest ? 'none' : '';
+  document.querySelectorAll('.nav-section-label').forEach(el => {
+    if (el.textContent.trim() === 'วันหยุด') el.style.display = isGuest ? 'none' : '';
+  });
+
+  // รายงานการหยุดงานประจำวัน (subitem inside leave group)
+  const navDailyAbsence = document.getElementById('navDailyAbsence');
+  if (navDailyAbsence) navDailyAbsence.style.display = isGuest ? 'none' : '';
+}
+
 export async function checkDBStatus() {
   const dot = document.getElementById('dbDot');
   const txt = document.getElementById('dbStatusText');
@@ -18,6 +45,22 @@ export async function checkDBStatus() {
   } catch {
     txt.textContent = 'ไม่ได้เชื่อมต่อ';
   }
+}
+
+export async function doLoginAsGuest() {
+  currentUser = { name: 'Guest', username: 'guest', role: 'guest' };
+
+  document.getElementById('sidebarUsername').textContent = 'Guest';
+  document.getElementById('sidebarRole').textContent = 'ผู้เข้าชม';
+
+  applyMenuForRole('guest');
+
+  const overlay = document.getElementById('loginOverlay');
+  overlay.classList.add('hidden');
+  setTimeout(() => { overlay.style.display = 'none'; }, 400);
+
+  document.getElementById('app').classList.add('visible');
+  await loadEmployeesPage();
 }
 
 export async function doLogin() {
@@ -45,6 +88,8 @@ export async function doLogin() {
       document.getElementById('sidebarUsername').textContent = currentUser.name || currentUser.username;
       document.getElementById('sidebarRole').textContent =
         result.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน';
+
+      applyMenuForRole(result.role);
 
       const overlay = document.getElementById('loginOverlay');
       overlay.classList.add('hidden');
@@ -76,6 +121,7 @@ export function confirmLogout() {
 export function doLogout() {
   closeModal('logoutModal');
   currentUser = null;
+  applyMenuForRole('admin'); // reset all menus to visible
   document.getElementById('loginUsername').value = '';
   document.getElementById('loginPassword').value = '';
   document.getElementById('loginAlert').style.display = 'none';
