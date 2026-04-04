@@ -30,7 +30,8 @@
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "icon": "data/img/icon.ico"
     }
   }
 }

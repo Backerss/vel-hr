@@ -180,6 +180,24 @@ body {
   background: var(--gray-50);
 }
 
+.remember-me-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--gray-500);
+  cursor: pointer;
+  user-select: none;
+}
+.remember-me-row input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .login-alert {
   border-radius: 10px;
   font-size: 13px;

@@ -4,6 +4,56 @@ import { loadEmployeesPage } from './employees.js';
 
 export let currentUser = null;
 
+// ===================== SESSION / REMEMBER ME =====================
+const SESSION_KEY = 'hr_remember_session';
+const SESSION_TTL = 12 * 60 * 60 * 1000; // 12 ชั่วโมง (ms)
+let _sessionTimer = null;
+
+function _startSessionTimer(expiresAt) {
+  clearTimeout(_sessionTimer);
+  const remaining = expiresAt - Date.now();
+  if (remaining <= 0) { doLogout(); return; }
+  _sessionTimer = setTimeout(() => {
+    showToast('เซสชันหมดอายุ (12 ชั่วโมง) กรุณาเข้าสู่ระบบใหม่', 'warning');
+    doLogout();
+  }, remaining);
+}
+
+export async function initAutoLogin() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return;
+    const session = JSON.parse(atob(raw));
+    if (!session.loginAt || (Date.now() - session.loginAt) > SESSION_TTL) {
+      localStorage.removeItem(SESSION_KEY);
+      return;
+    }
+    // ลอง auto-login เงียบๆ
+    const result = await window.api.login({ username: session.username, password: session.password });
+    if (!result.success) {
+      localStorage.removeItem(SESSION_KEY);
+      const el = document.getElementById('loginUsername');
+      if (el) el.value = session.username || '';
+      return;
+    }
+    currentUser = result.user;
+    currentUser.role = result.role;
+    document.getElementById('sidebarUsername').textContent = currentUser.name || currentUser.username;
+    document.getElementById('sidebarRole').textContent = result.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน';
+    applyMenuForRole(result.role);
+    const overlay = document.getElementById('loginOverlay');
+    overlay.classList.add('hidden');
+    setTimeout(() => { overlay.style.display = 'none'; }, 400);
+    document.getElementById('app').classList.add('visible');
+    const chk = document.getElementById('rememberMe');
+    if (chk) chk.checked = true;
+    _startSessionTimer(session.loginAt + SESSION_TTL);
+    await loadEmployeesPage();
+  } catch {
+    localStorage.removeItem(SESSION_KEY);
+  }
+}
+
 // ===================== MENU VISIBILITY BY ROLE =====================
 // guest: ซ่อน วันหยุด, กลุ่มการอบรมทั้งหมด, ซ่อน รายงานการหยุดงานประจำวัน
 // admin/user: แสดงทั้งหมด
@@ -91,6 +141,17 @@ export async function doLogin() {
 
       applyMenuForRole(result.role);
 
+      // จำรหัสผ่าน (HR เท่านั้น)
+      const loginAt = Date.now();
+      const chk = document.getElementById('rememberMe');
+      if (chk?.checked && result.role !== 'guest') {
+        const payload = btoa(JSON.stringify({ username, password, loginAt }));
+        localStorage.setItem(SESSION_KEY, payload);
+      } else {
+        localStorage.removeItem(SESSION_KEY);
+      }
+      _startSessionTimer(loginAt + SESSION_TTL);
+
       const overlay = document.getElementById('loginOverlay');
       overlay.classList.add('hidden');
       setTimeout(() => { overlay.style.display = 'none'; }, 400);
@@ -121,9 +182,13 @@ export function confirmLogout() {
 export function doLogout() {
   closeModal('logoutModal');
   currentUser = null;
+  clearTimeout(_sessionTimer);
+  localStorage.removeItem(SESSION_KEY);
   applyMenuForRole('admin'); // reset all menus to visible
   document.getElementById('loginUsername').value = '';
   document.getElementById('loginPassword').value = '';
+  const chk = document.getElementById('rememberMe');
+  if (chk) chk.checked = false;
   document.getElementById('loginAlert').style.display = 'none';
   document.getElementById('app').classList.remove('visible');
   const overlay = document.getElementById('loginOverlay');

@@ -4,7 +4,7 @@
  */
 
 import { escHtml, showToast, showModal, closeModal, initModalBackdropClose } from './components/js/utils.js';
-import { checkDBStatus, doLogin, doLoginAsGuest, applyMenuForRole, confirmLogout, doLogout, currentUser } from './components/js/auth.js';
+import { checkDBStatus, doLogin, doLoginAsGuest, initAutoLogin, applyMenuForRole, confirmLogout, doLogout, currentUser } from './components/js/auth.js';
 import {
   loadEmployeesPage, loadSubdivisions, loadPositions,
   fetchAndRenderEmployees, renderEmployeeTable,
@@ -218,6 +218,9 @@ async function init() {
 
   // DB status
   await checkDBStatus();
+
+  // ตรวจ session ที่บันทึกไว้ ถ้ายังไม่หมดอายุ จะ auto-login เลย
+  await initAutoLogin();
 }
 
 // ===================== EXPOSE GLOBALS (for inline onclick in HTML) =====================
