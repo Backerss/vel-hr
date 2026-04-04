@@ -1048,6 +1048,8 @@ body {
 .modal-overlay.show .modal-card-lg { transform: scale(1) translateY(0); }
 
 .leave-readonly { background: var(--gray-100) !important; color: var(--gray-500) !important; cursor: default; }
+.guest-hide-remark #leaveColRemark,
+.guest-hide-remark .leave-remark-cell { display: none !important; }
 .lookup-group { display: flex; gap: 8px; align-items: flex-end; }
 .lookup-group input { flex: 1; }
 .btn-lookup {

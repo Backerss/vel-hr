@@ -1,5 +1,6 @@
 // ===================== LEAVE RECORD & DAILY ABSENCE =====================
 import { escHtml, showToast, showModal, closeModal } from './utils.js';
+import { currentUser } from './auth.js';
 
 export let leaveTypes = [];
 export let allLeaveRecords = [];
@@ -107,7 +108,7 @@ export async function loadLeaveRecordPage() {
               <th style="width:115px;">วันที่ลา</th>
               <th style="width:115px;">ถึงวันที่</th>
               <th style="width:95px;">วันที่บันทึก</th>
-              <th>เหตุผล</th>
+              <th id="leaveColRemark">เหตุผล</th>
               <th style="width:78px;text-align:center;">จัดการ</th>
             </tr>
           </thead>
@@ -173,6 +174,13 @@ export function renderLeaveTable() {
   const pagDiv  = document.getElementById('leavePagination');
   if (!tbody) return;
 
+  // ซ่อน/แสดง column เหตุผลตาม role
+  const leaveTable = tbody.closest('table');
+  if (leaveTable) {
+    if (currentUser?.role === 'guest') leaveTable.classList.add('guest-hide-remark');
+    else leaveTable.classList.remove('guest-hide-remark');
+  }
+
   const total = filteredLeaveRecords.length;
   const totalPages = Math.max(1, Math.ceil(total / LEAVE_PER_PAGE));
   if (leaveCurrentPage > totalPages) leaveCurrentPage = totalPages;
@@ -211,7 +219,7 @@ export function renderLeaveTable() {
         <td style="font-size:12px;">${sdate}</td>
         <td style="font-size:12px;">${edate}</td>
         <td style="font-size:12px;">${dbDateToDisplay(r.drp_record)}</td>
-        <td style="font-size:12.5px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(remarkTrimmed)}">${escHtml(remarkTrimmed||'-')}</td>
+        <td class="leave-remark-cell" style="font-size:12.5px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(remarkTrimmed)}">${escHtml(remarkTrimmed||'-')}</td>
         <td>
           <div class="action-btns" style="justify-content:center;">
             <button class="btn-action edit" title="แก้ไข" onclick="openLeaveForm(${r.drp_id})"><i class="bi bi-pencil-fill"></i></button>
@@ -271,6 +279,10 @@ export async function openLeaveForm(id) {
     if (lookupBtn) { lookupBtn.style.display = ''; }
     if (empNotice) { empNotice.style.display = 'none'; }
   }
+  // ซ่อน/แสดง field เหตุผลตาม role
+  const remarkRow = document.getElementById('leaveRemarkRow');
+  if (remarkRow) remarkRow.style.display = (currentUser?.role === 'guest') ? 'none' : '';
+
   showModal('leaveModal');
 }
 
