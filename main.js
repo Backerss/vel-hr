@@ -1184,10 +1184,10 @@ ipcMain.handle('get-employee-training', async (event, empId) => {
         DATE_FORMAT(tp.Plan_EndDate,   '%Y-%m-%d') AS Plan_EndDate,
 
 
-        tp.Plan_TimeStart,
+        TIME_FORMAT(tp.Plan_TimeStart, '%H:%i') AS Plan_TimeStart,
 
 
-        tp.Plan_TimeEnd,
+        TIME_FORMAT(tp.Plan_TimeEnd, '%H:%i') AS Plan_TimeEnd,
 
 
         tp.Plan_Hour,
@@ -1971,10 +1971,10 @@ ipcMain.handle('get-training-plans', async (event, filters = {}) => {
         tp.Plan_Lecturer, DATE_FORMAT(tp.Plan_StartDate, '%Y-%m-%d') AS Plan_StartDate,
 
 
-        tp.Plan_TimeStart, DATE_FORMAT(tp.Plan_EndDate, '%Y-%m-%d') AS Plan_EndDate,
+        TIME_FORMAT(tp.Plan_TimeStart, '%H:%i') AS Plan_TimeStart, DATE_FORMAT(tp.Plan_EndDate, '%Y-%m-%d') AS Plan_EndDate,
 
 
-        tp.Plan_TimeEnd, tp.Plan_Remark, tp.Plan_Coordinator, tp.Plan_Status,
+        TIME_FORMAT(tp.Plan_TimeEnd, '%H:%i') AS Plan_TimeEnd, tp.Plan_Remark, tp.Plan_Coordinator, tp.Plan_Status,
 
 
         DATE_FORMAT(tp.Plan_Record, '%Y-%m-%d %H:%i:%s') AS Plan_Record_DateTime,
@@ -2073,6 +2073,39 @@ ipcMain.handle('save-training-plan', async (event, data) => {
     const endDate = data.Plan_EndDate.replace(/-/g, '/');
 
 
+    const normalizePlanTime = (value) => {
+
+
+      const raw = String(value || '').trim();
+
+
+      if (!raw) return '';
+
+
+      const match = raw.match(/^(\d{1,2}):(\d{2})/);
+
+
+      if (match) return `${match[1].padStart(2, '0')}:${match[2]}`;
+
+
+      const digits = raw.replace(/\D/g, '');
+
+
+      if (digits.length >= 4) return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
+
+
+      return raw;
+
+
+    };
+
+
+    const startTime = normalizePlanTime(data.Plan_TimeStart);
+
+
+    const endTime = normalizePlanTime(data.Plan_TimeEnd);
+
+
     
 
 
@@ -2112,10 +2145,10 @@ ipcMain.handle('save-training-plan', async (event, data) => {
           data.Courses_ID, data.Plan_Hour, data.Plan_Company, data.Plan_Location,
 
 
-          data.Plan_TypeTraining, data.Plan_Lecturer, startDate, data.Plan_TimeStart,
+          data.Plan_TypeTraining, data.Plan_Lecturer, startDate, startTime,
 
 
-          endDate, data.Plan_TimeEnd, data.Plan_Remark, data.Plan_Coordinator,
+          endDate, endTime, data.Plan_Remark, data.Plan_Coordinator,
 
 
           data.Plan_Status || 'Active', data.Plan_ID
@@ -2214,10 +2247,10 @@ ipcMain.handle('save-training-plan', async (event, data) => {
           newPlanId, data.Courses_ID, data.Plan_Hour, data.Plan_Company, data.Plan_Location,
 
 
-          data.Plan_TypeTraining, data.Plan_Lecturer, startDate, data.Plan_TimeStart,
+          data.Plan_TypeTraining, data.Plan_Lecturer, startDate, startTime,
 
 
-          endDate, data.Plan_TimeEnd, data.Plan_Remark, data.Plan_Coordinator, 'Active'
+          endDate, endTime, data.Plan_Remark, data.Plan_Coordinator, 'Active'
 
 
         ]
@@ -2391,13 +2424,13 @@ ipcMain.handle('get-training-plans-for-record', async () => {
         DATE_FORMAT(tp.Plan_StartDate, '%Y-%m-%d') AS Plan_StartDate,
 
 
-        tp.Plan_TimeStart,
+        TIME_FORMAT(tp.Plan_TimeStart, '%H:%i') AS Plan_TimeStart,
 
 
         DATE_FORMAT(tp.Plan_EndDate, '%Y-%m-%d') AS Plan_EndDate,
 
 
-        tp.Plan_TimeEnd,
+        TIME_FORMAT(tp.Plan_TimeEnd, '%H:%i') AS Plan_TimeEnd,
 
 
         tp.Plan_Lecturer, tp.Plan_Company, tp.Plan_Location, tp.Plan_Hour
@@ -2538,7 +2571,7 @@ ipcMain.handle('save-training-record-row', async (event, { hisId, state, remark 
 ipcMain.handle('export-training-record-excel', async (event, { plan, participants, timeRange }) => {
 
 
-  if (!plan || !participants) return { success: false, message: 'à¹„à¸¡à¹ˆà¸¡à¸µà¸‚à¹‰อมูล' };
+  if (!plan || !participants) return { success: false, message: 'ไม่มีข้อมูล' };
 
 
   try {
@@ -2547,10 +2580,34 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
     const ExcelJS = require('exceljs');
 
 
+    const fs = require('fs');
+
+
     const path = require('path');
 
 
-    const templatePath = path.join(__dirname, 'data', 'F-HR-002 à¸šà¸±à¸™à¸—à¸¶à¸à¸à¸²à¸£à¸­à¸šรม.xlsx');
+    const dataDir = path.join(__dirname, 'data');
+
+
+    const templateName = fs.readdirSync(dataDir).find(name =>
+
+
+      name.startsWith('F-HR-002') && name.toLowerCase().endsWith('.xlsx')
+
+
+    );
+
+
+    if (!templateName) {
+
+
+      return { success: false, message: 'ไม่พบไฟล์ template F-HR-002 ในโฟลเดอร์ data' };
+
+
+    }
+
+
+    const templatePath = path.join(dataDir, templateName);
 
 
 
@@ -2583,10 +2640,10 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
 
 
 
-    const thMonths = ['à¸¡à¸à¸£à¸²à¸„ม','กุมภาพันธ์','à¸¡à¸µà¸™à¸²à¸„ม','เมษายน','à¸žà¸¤à¸©à¸ à¸²à¸„ม','มิถุนายน',
+  const thMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
 
 
-                      'à¸à¸£à¸à¸Žà¸²à¸„ม','à¸ªà¸´à¸‡à¸«à¸²à¸„ม','กันยายน','à¸•à¸¸à¸¥à¸²à¸„ม','พฤศจิกายน','à¸˜à¸±à¸™à¸§à¸²à¸„ม'];
+            'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 
 
     const dObj = plan.Plan_StartDate ? new Date(plan.Plan_StartDate + 'T00:00:00') : new Date();
@@ -2613,7 +2670,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
     });
 
 
-    if (saveResult.canceled || !saveResult.filePath) return { success: false, message: 'à¸¢à¸à¹€ลิก' };
+    if (saveResult.canceled || !saveResult.filePath) return { success: false, message: 'ยกเลิก' };
 
 
     const outputPath = saveResult.filePath;
@@ -2646,10 +2703,10 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
 
 
 
-    const sheet0 = wb.worksheets[0]; // Sheet 1: à¸£à¸²à¸¢à¸Šà¸·à¹ˆอ
+  const sheet0 = wb.worksheets[0]; // Sheet 1: รายชื่อ
 
 
-    const sheet1 = wb.worksheets[1]; // Sheet 2: à¹à¸šà¸šà¸šà¸±à¸™à¸—ึก
+  const sheet1 = wb.worksheets[1]; // Sheet 2: แบบบันทึก
 
 
     if (!sheet0) throw new Error('ไม่พบ sheet ในไฟล์ template');

@@ -47,6 +47,16 @@ function dbDateToFormDate(val) {
   return `${p[2]}/${p[1]}/${thYear}`;
 }
 
+function normalizeTimeValue(val) {
+  const raw = String(val || '').trim();
+  if (!raw) return '';
+  const match = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (match) return `${String(parseInt(match[1], 10)).padStart(2, '0')}:${match[2]}`;
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length >= 4) return `${digits.slice(0,2)}:${digits.slice(2,4)}`;
+  return raw;
+}
+
 // Validate and format a date text field on blur (exported for onclick use)
 export function formatDateInputField(el) {
   const raw = (el.value || '').trim();
@@ -77,7 +87,7 @@ export function autoFormatDateField(el) {
 
 // Validate and format a time text field on blur (exported for onclick use)
 export function formatTimeInputField(el) {
-  const raw = (el.value || '').replace(/[^0-9:]/g, '').trim();
+  const raw = normalizeTimeValue((el.value || '').replace(/[^0-9:]/g, '').trim());
   if (!raw) { el.style.borderColor = ''; return; }
   let h, min;
   if (/^\d{4}$/.test(raw)) { h = raw.slice(0,2); min = raw.slice(2); }
@@ -400,9 +410,9 @@ function prefillForm(plan) {
   set('planCoordinator', plan.Plan_Coordinator);
   // Convert YYYY-MM-DD → DD/MM/YYYY for date text inputs
   set('planStartDate', dbDateToFormDate(plan.Plan_StartDate));
-  set('planTimeStart', plan.Plan_TimeStart || '');
+  set('planTimeStart', normalizeTimeValue(plan.Plan_TimeStart));
   set('planEndDate', dbDateToFormDate(plan.Plan_EndDate));
-  set('planTimeEnd', plan.Plan_TimeEnd || '');
+  set('planTimeEnd', normalizeTimeValue(plan.Plan_TimeEnd));
   set('planHour', plan.Plan_Hour);
   set('planRemark', plan.Plan_Remark);
   updateCourseDisplay();
@@ -750,10 +760,15 @@ export async function submitTrainingForm(event) {
   if (!startDateDb) { showToast('วันที่เริ่มต้นไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'warning'); return; }
   if (!endDateDb)   { showToast('วันที่สิ้นสุดไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'warning'); return; }
 
-  const startTime = document.getElementById('planTimeStart')?.value || '';
-  const endTime   = document.getElementById('planTimeEnd')?.value || '';
+  const startTime = normalizeTimeValue(document.getElementById('planTimeStart')?.value || '');
+  const endTime   = normalizeTimeValue(document.getElementById('planTimeEnd')?.value || '');
   if (!/^\d{2}:\d{2}$/.test(startTime)) { showToast('เวลาเริ่มต้นไม่ถูกต้อง (ต้องเป็น HH:MM เช่น 08:30)', 'warning'); return; }
   if (!/^\d{2}:\d{2}$/.test(endTime))   { showToast('เวลาสิ้นสุดไม่ถูกต้อง (ต้องเป็น HH:MM เช่น 17:00)', 'warning'); return; }
+
+  const startTimeEl = document.getElementById('planTimeStart');
+  const endTimeEl = document.getElementById('planTimeEnd');
+  if (startTimeEl) startTimeEl.value = startTime;
+  if (endTimeEl) endTimeEl.value = endTime;
 
   const formData = {
     Plan_ID:           document.getElementById('editingPlanId')?.value || null,
@@ -940,8 +955,8 @@ export async function viewTrainingDetails(planId) {
       <div class="form-group"><label>ผู้ประสานงาน</label><div>${escHtml(plan.Plan_Coordinator || '-')}</div></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>วันที่เริ่ม</label><div>${formatDate(plan.Plan_StartDate)} ${plan.Plan_TimeStart || ''}</div></div>
-      <div class="form-group"><label>วันที่สิ้นสุด</label><div>${formatDate(plan.Plan_EndDate)} ${plan.Plan_TimeEnd || ''}</div></div>
+      <div class="form-group"><label>วันที่เริ่ม</label><div>${formatDate(plan.Plan_StartDate)} ${normalizeTimeValue(plan.Plan_TimeStart) || ''}</div></div>
+      <div class="form-group"><label>วันที่สิ้นสุด</label><div>${formatDate(plan.Plan_EndDate)} ${normalizeTimeValue(plan.Plan_TimeEnd) || ''}</div></div>
     </div>
     ${plan.Plan_Remark ? `<div class="form-row full"><div class="form-group"><label>หมายเหตุ</label><div style="padding:8px 12px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:4px;font-size:13px;">${escHtml(plan.Plan_Remark)}</div></div></div>` : ''}
 
