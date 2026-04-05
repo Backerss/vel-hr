@@ -323,7 +323,7 @@ ipcMain.handle('login', async (event, { username, password }) => {
 ipcMain.handle('get-employees', async (event, filters = {}) => {
 
 
-  const { search = '', status = '', subdivision = '', page = 1, perPage = 50 } = filters;
+  const { search = '', status = '', subdivision = '', department = '', page = 1, perPage = 50 } = filters;
 
 
   if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
@@ -341,13 +341,100 @@ ipcMain.handle('get-employees', async (event, filters = {}) => {
 
 
 
-    if (search) {
+    const normalizedSearch = String(search || '').trim();
 
 
-      conditions.push(`(e.Emp_ID LIKE ? OR e.Emp_Firstname LIKE ? OR e.Emp_Lastname LIKE ? OR e.Emp_IDCard LIKE ?)`);
+    if (normalizedSearch) {
 
 
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+      const searchLike = `%${normalizedSearch}%`;
+
+
+      const compactSearchLike = `%${normalizedSearch.replace(/\s+/g, '')}%`;
+
+
+      conditions.push(`(
+
+
+        e.Emp_ID LIKE ?
+
+
+        OR e.Emp_Firstname LIKE ?
+
+
+        OR e.Emp_Lastname LIKE ?
+
+
+        OR e.Emp_IDCard LIKE ?
+
+
+        OR e.Emp_Sname LIKE ?
+
+
+        OR CONCAT(IFNULL(e.Emp_Sname,''), IFNULL(e.Emp_Firstname,''), ' ', IFNULL(e.Emp_Lastname,'')) LIKE ?
+
+
+        OR CONCAT(IFNULL(e.Emp_Firstname,''), ' ', IFNULL(e.Emp_Lastname,'')) LIKE ?
+
+
+        OR REPLACE(CONCAT(IFNULL(e.Emp_Sname,''), IFNULL(e.Emp_Firstname,''), IFNULL(e.Emp_Lastname,'')), ' ', '') LIKE ?
+
+
+        OR s.Sub_Name LIKE ?
+
+
+        OR d.Dpt_Name LIKE ?
+
+
+        OR p.Position_Name LIKE ?
+
+
+        OR IFNULL(e.Emp_Vsth,'') LIKE ?
+
+
+      )`);
+
+
+      params.push(
+
+
+        searchLike,
+
+
+        searchLike,
+
+
+        searchLike,
+
+
+        searchLike,
+
+
+        searchLike,
+
+
+        searchLike,
+
+
+        searchLike,
+
+
+        compactSearchLike,
+
+
+        searchLike,
+
+
+        searchLike,
+
+
+        searchLike,
+
+
+        searchLike
+
+
+      );
 
 
     }
@@ -360,6 +447,18 @@ ipcMain.handle('get-employees', async (event, filters = {}) => {
 
 
       params.push(status);
+
+
+    }
+
+
+    if (department) {
+
+
+      conditions.push(`s.Dpt_ID = ?`);
+
+
+      params.push(department);
 
 
     }
@@ -380,7 +479,7 @@ ipcMain.handle('get-employees', async (event, filters = {}) => {
 
 
 
-    const joins = `FROM employees e INNER JOIN subdivision s ON s.Sub_ID = e.Sub_ID INNER JOIN position p ON p.Position_ID = e.Position_ID`;
+  const joins = `FROM employees e INNER JOIN subdivision s ON s.Sub_ID = e.Sub_ID INNER JOIN department d ON d.Dpt_ID = s.Dpt_ID INNER JOIN position p ON p.Position_ID = e.Position_ID`;
 
 
     const where = `WHERE ${conditions.join(' AND ')}`;
@@ -419,10 +518,10 @@ ipcMain.handle('get-employees', async (event, filters = {}) => {
         e.Emp_Start_date, e.Emp_Packing_date, e.Emp_IDCard, e.Emp_Level,
 
 
-        s.Sub_Name, p.Position_Name, e.Emp_Status, e.Emp_Vsth,
+        s.Sub_Name, d.Dpt_Name, p.Position_Name, e.Emp_Status, e.Emp_Vsth,
 
 
-        s.Sub_ID, p.Position_ID, e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname
+        s.Sub_ID, s.Dpt_ID, p.Position_ID, e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname
 
 
         ${joins} ${where}
@@ -674,7 +773,16 @@ ipcMain.handle('get-subdivisions', async () => {
   try {
 
 
-    const [rows] = await db.execute('SELECT Sub_ID, Sub_Name FROM subdivision ORDER BY Sub_Name');
+    const [rows] = await db.execute(`SELECT s.Sub_ID, s.Sub_Name, s.Dpt_ID, d.Dpt_Name
+
+
+      FROM subdivision s
+
+
+      LEFT JOIN department d ON d.Dpt_ID = s.Dpt_ID
+
+
+      ORDER BY d.Dpt_Name ASC, s.Sub_Name ASC`);
 
 
     return { success: true, data: rows };

@@ -8,7 +8,7 @@ import { checkDBStatus, doLogin, doLoginAsGuest, initAutoLogin, applyMenuForRole
 import {
   loadEmployeesPage, loadSubdivisions, loadPositions,
   fetchAndRenderEmployees, renderEmployeeTable,
-  onSearch, filterEmployees, goToEmployeePage, setEmployeePageSize,
+  onSearch, filterEmployees, goToEmployeePage, setEmployeePageSize, onDepartmentFilterChange,
   openAddEmployee, openEditEmployee, saveEmployee, closeEmpModal,
   openDeleteEmployee, executeDelete, closeConfirmModal
 } from './components/js/employees.js';
@@ -234,7 +234,7 @@ Object.assign(window, {
   // Employees
   openAddEmployee, openEditEmployee, saveEmployee, closeEmpModal,
   openDeleteEmployee, executeDelete, closeConfirmModal,
-  onSearch, filterEmployees, goToEmployeePage, setEmployeePageSize,
+  onSearch, filterEmployees, goToEmployeePage, setEmployeePageSize, onDepartmentFilterChange,
   // Training
   openTrainingHistory, closeTrainingHistory,
   trainingDTRender, trainingDTGoPage, trainingDTSort,

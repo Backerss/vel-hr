@@ -4,6 +4,7 @@ import { currentUser } from './auth.js';
 
 export let allEmployees = [];
 export let subdivisions = [];
+let departments = [];
 export let positions = [];
 let editingEmpId = null;
 let deletingEmpId = null;
@@ -17,6 +18,59 @@ function withTimeout(promise, ms, name) {
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error(`${name} timeout`)), ms))
   ]);
+}
+
+function buildDepartmentList() {
+  const departmentMap = new Map();
+  subdivisions.forEach(subdivision => {
+    const departmentId = String(subdivision.Dpt_ID || '').trim();
+    if (!departmentId) return;
+    if (!departmentMap.has(departmentId)) {
+      departmentMap.set(departmentId, {
+        Dpt_ID: departmentId,
+        Dpt_Name: String(subdivision.Dpt_Name || departmentId).trim()
+      });
+    }
+  });
+  departments = [...departmentMap.values()].sort((left, right) =>
+    String(left.Dpt_Name || '').localeCompare(String(right.Dpt_Name || ''))
+  );
+}
+
+function getFilteredSubdivisions(departmentId = '') {
+  return subdivisions.filter(subdivision => !departmentId || String(subdivision.Dpt_ID) === String(departmentId));
+}
+
+function renderEmployeeFilterOptions() {
+  const filterDepartment = document.getElementById('filterDepartment');
+  const filterSubdivision = document.getElementById('filterSubdivision');
+  if (!filterDepartment || !filterSubdivision) return;
+
+  const selectedDepartment = filterDepartment.value || '';
+  const selectedSubdivision = filterSubdivision.value || '';
+
+  filterDepartment.innerHTML = '<option value="">ทุกฝ่าย</option>';
+  departments.forEach(department => {
+    const option = document.createElement('option');
+    option.value = department.Dpt_ID;
+    option.textContent = department.Dpt_Name;
+    filterDepartment.appendChild(option);
+  });
+  if (selectedDepartment && departments.some(department => String(department.Dpt_ID) === String(selectedDepartment))) {
+    filterDepartment.value = selectedDepartment;
+  }
+
+  const visibleSubdivisions = getFilteredSubdivisions(filterDepartment.value || '');
+  filterSubdivision.innerHTML = '<option value="">ทุกแผนก</option>';
+  visibleSubdivisions.forEach(subdivision => {
+    const option = document.createElement('option');
+    option.value = subdivision.Sub_ID;
+    option.textContent = subdivision.Sub_Name;
+    filterSubdivision.appendChild(option);
+  });
+  if (selectedSubdivision && visibleSubdivisions.some(subdivision => String(subdivision.Sub_ID) === String(selectedSubdivision))) {
+    filterSubdivision.value = selectedSubdivision;
+  }
 }
 
 export async function loadEmployeesPage() {
@@ -86,7 +140,7 @@ export async function loadEmployeesPage() {
         <div class="search-box">
           <i class="bi bi-search"></i>
           <input type="text" class="search-input" id="searchInput"
-            placeholder="ค้นหา รหัส / ชื่อ / เลขบัตร..."
+            placeholder="ค้นหา รหัส / ชื่อ / เลขบัตร / แผนก / ฝ่าย..."
             oninput="onSearch()" />
         </div>
 
@@ -106,6 +160,10 @@ export async function loadEmployeesPage() {
           <option value="Terminated">Terminated</option>
         </select>
 
+        <select class="filter-select" id="filterDepartment" onchange="onDepartmentFilterChange()">
+          <option value="">ทุกฝ่าย</option>
+        </select>
+
         <select class="filter-select" id="filterSubdivision" onchange="filterEmployees()">
           <option value="">ทุกแผนก</option>
         </select>
@@ -122,6 +180,7 @@ export async function loadEmployeesPage() {
             <tr>
               <th style="width:80px;">รหัส</th>
               <th>ชื่อ-นามสกุล</th>
+              <th>ฝ่าย</th>
               <th>แผนก</th>
               <th>ตำแหน่ง</th>
               <th style="width:100px;">ประเภท</th>
@@ -132,7 +191,7 @@ export async function loadEmployeesPage() {
           </thead>
           <tbody id="empTableBody">
             <tr class="loading-row">
-              <td colspan="8">
+              <td colspan="9">
                 <div class="spinner"></div>
                 <div>กำลังโหลด...</div>
               </td>
@@ -150,14 +209,7 @@ export async function loadEmployeesPage() {
     </div>
   `;
 
-  // Populate subdivision filter
-  const filterSub = document.getElementById('filterSubdivision');
-  subdivisions.forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s.Sub_ID;
-    opt.textContent = s.Sub_Name;
-    filterSub.appendChild(opt);
-  });
+  renderEmployeeFilterOptions();
 
   await fetchAndRenderEmployees();
 }
@@ -166,6 +218,7 @@ export async function loadSubdivisions() {
   const res = await window.api.getSubdivisions();
   if (res.success) {
     subdivisions = res.data;
+    buildDepartmentList();
     const sel = document.getElementById('fSubID');
     if (sel) {
       sel.innerHTML = '<option value="">-- เลือกแผนก --</option>';
@@ -199,13 +252,14 @@ export async function fetchAndRenderEmployees(page = empCurrentPage) {
   const t0 = performance.now();
   const search = document.getElementById('searchInput')?.value || '';
   const status = document.getElementById('filterStatus')?.value || '';
+  const department = document.getElementById('filterDepartment')?.value || '';
   const subdivision = document.getElementById('filterSubdivision')?.value || '';
 
-  const res = await window.api.getEmployees({ search, status, subdivision, page, perPage: empPerPage });
+  const res = await window.api.getEmployees({ search, status, department, subdivision, page, perPage: empPerPage });
   const tbody = document.getElementById('empTableBody');
 
   if (!res.success) {
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-danger">
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-danger">
       <i class="bi bi-exclamation-triangle me-2"></i>${res.message}</td></tr>`;
     return;
   }
@@ -256,7 +310,7 @@ export function renderEmployeeTable(employees) {
   const isAdmin = currentUser && currentUser.role === 'admin';
 
   if (employees.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8">
+    tbody.innerHTML = `<tr><td colspan="9">
       <div class="empty-state">
         <div class="empty-icon"><i class="bi bi-people"></i></div>
         <div class="empty-text">ไม่พบข้อมูลพนักงาน</div>
@@ -274,6 +328,7 @@ export function renderEmployeeTable(employees) {
       <tr>
         <td><span class="emp-id">${escHtml(emp.Emp_ID)}</span></td>
         <td><span class="emp-name">${escHtml(emp.Fullname || '-')}</span></td>
+        <td>${escHtml(emp.Dpt_Name || '-')}</td>
         <td>${escHtml(emp.Sub_Name || '-')}</td>
         <td>${escHtml(emp.Position_Name || '-')}</td>
         <td><span class="badge" style="background:var(--primary-light);color:var(--primary);font-size:11.5px;">${escHtml(emp.Emp_Vsth || '-')}</span></td>
@@ -306,6 +361,13 @@ export function renderEmployeeTable(employees) {
 export function onSearch() {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(filterEmployees, 350);
+}
+
+export async function onDepartmentFilterChange() {
+  const filterSubdivision = document.getElementById('filterSubdivision');
+  if (filterSubdivision) filterSubdivision.value = '';
+  renderEmployeeFilterOptions();
+  await filterEmployees();
 }
 
 export async function filterEmployees() {
