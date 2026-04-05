@@ -1,5 +1,5 @@
 // ===================== LEAVE RECORD & DAILY ABSENCE =====================
-import { escHtml, showToast, showModal, closeModal } from './utils.js';
+import { escHtml, showToast, showModal, closeModal, requirePasswordConfirm } from './utils.js';
 import { currentUser } from './auth.js';
 
 export let leaveTypes = [];
@@ -430,20 +430,18 @@ export function confirmDeleteLeave(id, empId) {
 
 export async function executeDeleteLeave() {
   if (!deletingLeaveId) return;
-  const btn = document.getElementById('btnConfirmDeleteLeave');
-  btn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;margin:0 8px -3px 0;border-width:2px;"></span> กำลังลบ...';
-  btn.disabled = true;
-  const res = await window.api.deleteDailyReport(deletingLeaveId);
-  btn.innerHTML = '<i class="bi bi-trash3"></i> ลบข้อมูล';
-  btn.disabled  = false;
-  if (res.success) {
-    showToast(res.message, 'success');
-    closeModal('leaveConfirmModal');
-    deletingLeaveId = null;
-    await fetchAndRenderLeave();
-  } else {
-    showToast(res.message || 'เกิดข้อผิดพลาด', 'error');
-  }
+  const id = deletingLeaveId;
+  closeModal('leaveConfirmModal');
+  requirePasswordConfirm(currentUser?.username || '', async () => {
+    const res = await window.api.deleteDailyReport(id);
+    if (res.success) {
+      showToast(res.message, 'success');
+      deletingLeaveId = null;
+      await fetchAndRenderLeave();
+    } else {
+      showToast(res.message || 'เกิดข้อผิดพลาด', 'error');
+    }
+  });
 }
 
 // ===================== DAILY ABSENCE REPORT PAGE =====================

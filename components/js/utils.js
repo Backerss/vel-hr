@@ -69,3 +69,60 @@ export function initModalBackdropClose(modalIds) {
     });
   });
 }
+
+// ===================== PASSWORD CONFIRM (delete guard) =====================
+let _pendingConfirmCallback = null;
+
+export function requirePasswordConfirm(username, callback) {
+  _pendingConfirmCallback = callback;
+  const usernameEl = document.getElementById('pwdConfirmUsername');
+  if (usernameEl) usernameEl.textContent = username;
+  const inp = document.getElementById('pwdConfirmInput');
+  if (inp) inp.value = '';
+  const errEl = document.getElementById('pwdConfirmError');
+  if (errEl) errEl.textContent = '';
+  showModal('passwordConfirmModal');
+  setTimeout(() => { if (inp) inp.focus(); }, 120);
+}
+
+export async function submitPasswordConfirm() {
+  const usernameEl = document.getElementById('pwdConfirmUsername');
+  const username = usernameEl?.textContent?.trim() || '';
+  const inp = document.getElementById('pwdConfirmInput');
+  const password = inp?.value || '';
+  const errEl = document.getElementById('pwdConfirmError');
+  const btn = document.getElementById('btnPasswordConfirm');
+
+  if (!password) {
+    if (errEl) errEl.textContent = 'กรุณากรอกรหัสผ่าน';
+    if (inp) inp.focus();
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;margin:0 6px -3px 0;border-width:2px;"></span> กำลังตรวจสอบ...';
+  }
+
+  const res = await window.api.verifyPassword(username, password);
+
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-shield-check"></i> ยืนยันการลบ';
+  }
+
+  if (res.success) {
+    closeModal('passwordConfirmModal');
+    const cb = _pendingConfirmCallback;
+    _pendingConfirmCallback = null;
+    if (cb) await cb();
+  } else {
+    if (errEl) errEl.textContent = 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่';
+    if (inp) { inp.value = ''; inp.focus(); }
+  }
+}
+
+export function closePasswordConfirmModal() {
+  _pendingConfirmCallback = null;
+  closeModal('passwordConfirmModal');
+}

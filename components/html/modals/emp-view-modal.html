@@ -1,0 +1,83 @@
+<!-- ========== EMPLOYEE VIEW MODAL (read-only, guest) ========== -->
+<div class="modal-overlay" id="empViewModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="bi bi-person-lines-fill"></i>
+        <span>รายละเอียดพนักงาน</span>
+      </div>
+      <button class="modal-close" onclick="closeEmpViewModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+
+      <div class="form-section-title">ข้อมูลส่วนตัว</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>รหัสพนักงาน</label>
+          <div class="view-field" id="vEmpID"></div>
+        </div>
+        <div class="form-group">
+          <label>คำนำหน้า</label>
+          <div class="view-field" id="vEmpSname"></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>ชื่อ</label>
+          <div class="view-field" id="vEmpFirstname"></div>
+        </div>
+        <div class="form-group">
+          <label>นามสกุล</label>
+          <div class="view-field" id="vEmpLastname"></div>
+        </div>
+      </div>
+
+      <div class="form-divider"></div>
+      <div class="form-section-title">ข้อมูลการทำงาน</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>ฝ่าย</label>
+          <div class="view-field" id="vDptName"></div>
+        </div>
+        <div class="form-group">
+          <label>แผนก</label>
+          <div class="view-field" id="vSubName"></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>ตำแหน่ง</label>
+          <div class="view-field" id="vPositionName"></div>
+        </div>
+        <div class="form-group">
+          <label>ประเภทพนักงาน (Vsth)</label>
+          <div class="view-field" id="vEmpVsth"></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>วันที่เริ่มงาน</label>
+          <div class="view-field" id="vEmpStartDate"></div>
+        </div>
+        <div class="form-group">
+          <label>วันที่บรรจุ</label>
+          <div class="view-field" id="vEmpPackingDate"></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>สถานะ</label>
+          <div class="view-field" id="vEmpStatus"></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline-custom" onclick="closeEmpViewModal()">ปิด</button>
+    </div>
+  </div>
+</div>

@@ -3,7 +3,7 @@
  * โหลด HTML components ผ่าน fetch แล้ว wire ทุก function ขึ้น global window
  */
 
-import { escHtml, showToast, showModal, closeModal, initModalBackdropClose } from './components/js/utils.js';
+import { escHtml, showToast, showModal, closeModal, initModalBackdropClose, submitPasswordConfirm, closePasswordConfirmModal } from './components/js/utils.js';
 import { checkDBStatus, doLogin, doLoginAsGuest, initAutoLogin, applyMenuForRole, confirmLogout, doLogout, currentUser } from './components/js/auth.js';
 import {
   loadEmployeesPage, loadSubdivisions, loadPositions,
@@ -11,7 +11,7 @@ import {
   onSearch, filterEmployees, goToEmployeePage, setEmployeePageSize, onDepartmentFilterChange,
   openAddEmployee, openEditEmployee, saveEmployee, closeEmpModal,
   openDeleteEmployee, executeDelete, closeConfirmModal,
-  openViewEmployee
+  openViewEmployee, closeEmpViewModal
 } from './components/js/employees.js';
 import {
   openTrainingHistory, closeTrainingHistory,
@@ -194,7 +194,9 @@ async function init() {
   // Fix: load modals sequentially and append
   const modalFiles = [
     './components/html/modals/emp-modal.html',
+    './components/html/modals/emp-view-modal.html',
     './components/html/modals/confirm-modal.html',
+    './components/html/modals/password-confirm-modal.html',
     './components/html/modals/logout-modal.html',
     './components/html/modals/leave-modal.html',
     './components/html/modals/leave-confirm-modal.html',
@@ -207,7 +209,7 @@ async function init() {
   }
 
   // Setup modal backdrop close
-  initModalBackdropClose(['empModal','confirmModal','logoutModal','leaveModal','leaveConfirmModal','trainingFormModal','trainingDetailsModal','expenseFormModal','holidayFormModal','holidayDeleteModal']);
+  initModalBackdropClose(['empModal','empViewModal','passwordConfirmModal','confirmModal','logoutModal','leaveModal','leaveConfirmModal','trainingFormModal','trainingDetailsModal','expenseFormModal','holidayFormModal','holidayDeleteModal']);
 
   // Login event listeners
   document.getElementById('loginUsername').addEventListener('keydown', (e) => {
@@ -230,12 +232,14 @@ async function init() {
 Object.assign(window, {
   // Auth
   doLogin, doLoginAsGuest, confirmLogout, doLogout,
+  // Password confirm (delete guard)
+  submitPasswordConfirm, closePasswordConfirmModal,
   // Nav
   switchPage, toggleGroup, refreshCurrentPage,
   // Employees
   openAddEmployee, openEditEmployee, saveEmployee, closeEmpModal,
   openDeleteEmployee, executeDelete, closeConfirmModal,
-  openViewEmployee,
+  openViewEmployee, closeEmpViewModal,
   onSearch, filterEmployees, goToEmployeePage, setEmployeePageSize, onDepartmentFilterChange,
   // Training
   openTrainingHistory, closeTrainingHistory,

@@ -317,6 +317,20 @@ ipcMain.handle('login', async (event, { username, password }) => {
 
 
 
+// Verify password (used for delete confirmation)
+ipcMain.handle('verify-password', async (event, { username, password }) => {
+  if (!db) return { success: false };
+  try {
+    const [rows] = await db.execute(
+      'SELECT ad_id FROM admin_login WHERE ad_user = ? AND ad_pass = ? LIMIT 1',
+      [username, password]
+    );
+    return { success: rows.length > 0 };
+  } catch (error) {
+    return { success: false };
+  }
+});
+
 // Get employees with server-side pagination
 
 

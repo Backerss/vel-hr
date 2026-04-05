@@ -1,5 +1,6 @@
 // ===================== HOLIDAY MANAGEMENT PAGE =====================
-import { escHtml, showToast, showModal, closeModal } from './utils.js';
+import { escHtml, showToast, showModal, closeModal, requirePasswordConfirm } from './utils.js';
+import { currentUser } from './auth.js';
 
 let allHolidays = [];      // all holidays for selected year
 let filteredHolidays = []; // after search filter
@@ -407,16 +408,19 @@ export function hdCloseDeleteModal() {
 
 export async function hdExecuteDelete() {
   if (!hdDeletingId) return;
-  try {
-    const result = await window.api.deleteHoliday(hdDeletingId);
-    if (result?.success) {
-      showToast('ลบวันหยุดสำเร็จ', 'success');
-      hdCloseDeleteModal();
-      await hdRefresh();
-    } else {
-      showToast(result?.message || 'ลบไม่สำเร็จ', 'danger');
+  const id = hdDeletingId;
+  hdCloseDeleteModal();
+  requirePasswordConfirm(currentUser?.username || '', async () => {
+    try {
+      const result = await window.api.deleteHoliday(id);
+      if (result?.success) {
+        showToast('ลบวันหยุดสำเร็จ', 'success');
+        await hdRefresh();
+      } else {
+        showToast(result?.message || 'ลบไม่สำเร็จ', 'danger');
+      }
+    } catch (e) {
+      showToast('เกิดข้อผิดพลาด: ' + e.message, 'danger');
     }
-  } catch (e) {
-    showToast('เกิดข้อผิดพลาด: ' + e.message, 'danger');
-  }
+  });
 }

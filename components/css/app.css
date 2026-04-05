@@ -930,6 +930,21 @@ body {
 
 .form-divider { height: 1px; background: var(--gray-100); margin: 20px 0; }
 
+/* read-only view field (used in emp-view-modal) */
+.view-field {
+  border: 1.5px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 9px 13px;
+  font-size: 13.5px;
+  font-family: 'Sarabun', sans-serif;
+  width: 100%;
+  background: var(--gray-50);
+  color: var(--gray-800);
+  min-height: 38px;
+  user-select: text;
+  word-break: break-word;
+}
+
 .form-section-title {
   font-size: 12px;
   font-weight: 700;

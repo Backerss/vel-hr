@@ -1,5 +1,5 @@
 // ===================== EMPLOYEES PAGE =====================
-import { escHtml, formatDate, formatDateInput, showToast, showModal, closeModal } from './utils.js';
+import { escHtml, formatDate, formatDateInput, showToast, showModal, closeModal, requirePasswordConfirm } from './utils.js';
 import { currentUser } from './auth.js';
 
 export let allEmployees = [];
@@ -437,10 +437,6 @@ export async function openEditEmployee(empId) {
 }
 
 export async function openViewEmployee(empId) {
-  editingEmpId = null;
-  document.getElementById('empModalTitle').textContent = 'รายละเอียดพนักงาน';
-  await populateModalDropdowns();
-
   const res = await window.api.getEmployeeById(empId);
   if (!res.success) {
     showToast('ไม่พบข้อมูลพนักงาน', 'error');
@@ -448,29 +444,35 @@ export async function openViewEmployee(empId) {
   }
 
   const emp = res.data;
-  document.getElementById('fEmpID').value = emp.Emp_ID;
-  document.getElementById('fEmpSname').value = emp.Emp_Sname || 'นาย';
-  document.getElementById('fEmpFirstname').value = emp.Emp_Firstname || '';
-  document.getElementById('fEmpLastname').value = emp.Emp_Lastname || '';
-  document.getElementById('fSubID').value = emp.Sub_ID || '';
-  document.getElementById('fPositionID').value = emp.Position_ID || '';
-  document.getElementById('fEmpStartDate').value = formatDateInput(emp.Emp_Start_date);
-  document.getElementById('fEmpPackingDate').value = formatDateInput(emp.Emp_Packing_date);
-  document.getElementById('fEmpStatus').value = emp.Emp_Status || 'Activated';
-  document.getElementById('fEmpVsth').value = emp.Emp_Vsth || 'Vel';
 
-  // Hide sensitive fields (IDCard, Level) and save button
-  const rowIDCardLevel = document.getElementById('rowIDCardLevel');
-  if (rowIDCardLevel) rowIDCardLevel.style.display = 'none';
-  const saveBtn = document.getElementById('btnSaveEmp');
-  if (saveBtn) saveBtn.style.display = 'none';
+  // Resolve subdivision name and department name from loaded data
+  const sub = subdivisions.find(s => String(s.Sub_ID) === String(emp.Sub_ID));
+  const pos = positions.find(p => String(p.Position_ID) === String(emp.Position_ID));
 
-  // Disable all inputs — read-only view
-  const modal = document.getElementById('empModal');
-  if (modal) modal.querySelectorAll('input, select, textarea').forEach(el => el.disabled = true);
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val || '-';
+  };
 
-  showModal('empModal');
+  set('vEmpID',         emp.Emp_ID);
+  set('vEmpSname',      emp.Emp_Sname);
+  set('vEmpFirstname',  emp.Emp_Firstname);
+  set('vEmpLastname',   emp.Emp_Lastname);
+  set('vDptName',       sub?.Dpt_Name || '-');
+  set('vSubName',       sub?.Sub_Name || '-');
+  set('vPositionName',  pos?.Position_Name || '-');
+  set('vEmpVsth',       emp.Emp_Vsth);
+  set('vEmpStartDate',  emp.Emp_Start_date ? formatDate(emp.Emp_Start_date) : '-');
+  set('vEmpPackingDate',emp.Emp_Packing_date ? formatDate(emp.Emp_Packing_date) : '-');
+  set('vEmpStatus',     emp.Emp_Status);
+
+  showModal('empViewModal');
 }
+
+export function closeEmpViewModal() {
+  closeModal('empViewModal');
+}
+
 
 async function populateModalDropdowns() {
   await loadSubdivisions();
@@ -556,24 +558,17 @@ export function openDeleteEmployee(empId, fullname) {
 
 export async function executeDelete() {
   if (!deletingEmpId) return;
-
-  const btn = document.getElementById('btnConfirmDelete');
-  btn.innerHTML = '<span class="spinner" style="display:inline-block;width:16px;height:16px;margin:0 8px -3px 0;"></span> กำลังลบ...';
-  btn.disabled = true;
-
-  const res = await window.api.deleteEmployee(deletingEmpId);
-
-  btn.innerHTML = '<i class="bi bi-trash3"></i> ลบข้อมูล';
-  btn.disabled = false;
-
-  if (res.success) {
-    showToast(res.message, 'success');
-    closeConfirmModal();
-    await loadEmployeesPage();
-  } else {
-    showToast(res.message || 'เกิดข้อผิดพลาด', 'error');
-  }
-  deletingEmpId = null;
+  const id = deletingEmpId;
+  closeConfirmModal();
+  requirePasswordConfirm(currentUser?.username || '', async () => {
+    const res = await window.api.deleteEmployee(id);
+    if (res.success) {
+      showToast(res.message, 'success');
+      await loadEmployeesPage();
+    } else {
+      showToast(res.message || 'เกิดข้อผิดพลาด', 'error');
+    }
+  });
 }
 
 export function closeConfirmModal() {
