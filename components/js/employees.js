@@ -351,7 +351,12 @@ export function renderEmployeeTable(employees) {
             </button>
             <button class="btn-action delete" title="ลบ" onclick="openDeleteEmployee('${escHtml(emp.Emp_ID)}', '${escHtml(emp.Fullname || '')}')">
               <i class="bi bi-trash3-fill"></i>
-            </button>` : ''}
+            </button>` : `
+            <button class="btn-action" title="ดูรายละเอียด"
+              style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;"
+              onclick="openViewEmployee('${escHtml(emp.Emp_ID)}')">
+              <i class="bi bi-eye-fill"></i>
+            </button>`}
           </div>
         </td>
       </tr>`;
@@ -382,9 +387,19 @@ export async function setEmployeePageSize() {
   await fetchAndRenderEmployees(1);
 }
 
-// ===================== ADD / EDIT EMPLOYEE =====================
+// ===================== ADD / EDIT / VIEW EMPLOYEE =====================
+function _restoreModalEditMode() {
+  const rowIDCardLevel = document.getElementById('rowIDCardLevel');
+  if (rowIDCardLevel) rowIDCardLevel.style.display = '';
+  const saveBtn = document.getElementById('btnSaveEmp');
+  if (saveBtn) saveBtn.style.display = '';
+  const modal = document.getElementById('empModal');
+  if (modal) modal.querySelectorAll('input, select, textarea').forEach(el => el.disabled = false);
+}
+
 export async function openAddEmployee() {
   editingEmpId = null;
+  _restoreModalEditMode();
   document.getElementById('empModalTitle').textContent = 'เพิ่มพนักงานใหม่';
   clearEmpForm();
   await populateModalDropdowns();
@@ -393,6 +408,7 @@ export async function openAddEmployee() {
 
 export async function openEditEmployee(empId) {
   editingEmpId = empId;
+  _restoreModalEditMode();
   document.getElementById('empModalTitle').textContent = 'แก้ไขข้อมูลพนักงาน';
   await populateModalDropdowns();
 
@@ -416,6 +432,42 @@ export async function openEditEmployee(empId) {
   document.getElementById('fEmpPackingDate').value = formatDateInput(emp.Emp_Packing_date);
   document.getElementById('fEmpStatus').value = emp.Emp_Status || 'Activated';
   document.getElementById('fEmpVsth').value = emp.Emp_Vsth || 'Vel';
+
+  showModal('empModal');
+}
+
+export async function openViewEmployee(empId) {
+  editingEmpId = null;
+  document.getElementById('empModalTitle').textContent = 'รายละเอียดพนักงาน';
+  await populateModalDropdowns();
+
+  const res = await window.api.getEmployeeById(empId);
+  if (!res.success) {
+    showToast('ไม่พบข้อมูลพนักงาน', 'error');
+    return;
+  }
+
+  const emp = res.data;
+  document.getElementById('fEmpID').value = emp.Emp_ID;
+  document.getElementById('fEmpSname').value = emp.Emp_Sname || 'นาย';
+  document.getElementById('fEmpFirstname').value = emp.Emp_Firstname || '';
+  document.getElementById('fEmpLastname').value = emp.Emp_Lastname || '';
+  document.getElementById('fSubID').value = emp.Sub_ID || '';
+  document.getElementById('fPositionID').value = emp.Position_ID || '';
+  document.getElementById('fEmpStartDate').value = formatDateInput(emp.Emp_Start_date);
+  document.getElementById('fEmpPackingDate').value = formatDateInput(emp.Emp_Packing_date);
+  document.getElementById('fEmpStatus').value = emp.Emp_Status || 'Activated';
+  document.getElementById('fEmpVsth').value = emp.Emp_Vsth || 'Vel';
+
+  // Hide sensitive fields (IDCard, Level) and save button
+  const rowIDCardLevel = document.getElementById('rowIDCardLevel');
+  if (rowIDCardLevel) rowIDCardLevel.style.display = 'none';
+  const saveBtn = document.getElementById('btnSaveEmp');
+  if (saveBtn) saveBtn.style.display = 'none';
+
+  // Disable all inputs — read-only view
+  const modal = document.getElementById('empModal');
+  if (modal) modal.querySelectorAll('input, select, textarea').forEach(el => el.disabled = true);
 
   showModal('empModal');
 }

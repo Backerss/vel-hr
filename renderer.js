@@ -10,7 +10,8 @@ import {
   fetchAndRenderEmployees, renderEmployeeTable,
   onSearch, filterEmployees, goToEmployeePage, setEmployeePageSize, onDepartmentFilterChange,
   openAddEmployee, openEditEmployee, saveEmployee, closeEmpModal,
-  openDeleteEmployee, executeDelete, closeConfirmModal
+  openDeleteEmployee, executeDelete, closeConfirmModal,
+  openViewEmployee
 } from './components/js/employees.js';
 import {
   openTrainingHistory, closeTrainingHistory,
@@ -234,6 +235,7 @@ Object.assign(window, {
   // Employees
   openAddEmployee, openEditEmployee, saveEmployee, closeEmpModal,
   openDeleteEmployee, executeDelete, closeConfirmModal,
+  openViewEmployee,
   onSearch, filterEmployees, goToEmployeePage, setEmployeePageSize, onDepartmentFilterChange,
   // Training
   openTrainingHistory, closeTrainingHistory,
