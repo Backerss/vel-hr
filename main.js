@@ -1,321 +1,105 @@
 ﻿const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
-
-
 const path = require('path');
-
-
 const mysql = require('mysql2/promise');
-
-
 const ExcelJS = require('exceljs');
 
-
-
-
-
 let mainWindow;
-
-
 let db;
 
-
-
-
-
 // Database connection
-
-
 async function createConnection() {
-
-
   try {
-
-
     db = await mysql.createConnection({
-
-
       host: 'localhost',
-
-
       user: 'root',
-
-
       password: '',
-
-
       database: 'training_v_1_1',
-
-
       charset: 'utf8'
-
-
     });
-
-
     console.log('Connected to MySQL database');
-
-
     return true;
-
-
   } catch (error) {
-
-
     console.error('Database connection failed:', error.message);
-
-
     return false;
-
-
   }
-
-
 }
-
-
-
-
-
-
-
 
 function createWindow() {
-
-
   mainWindow = new BrowserWindow({
-
-
     width: 1280,
-
-
     height: 800,
-
-
     minWidth: 1024,
-
-
     minHeight: 600,
-
-
     webPreferences: {
-
-
       nodeIntegration: false,
-
-
       contextIsolation: true,
-
-
       preload: path.join(__dirname, 'preload.js')
-
-
     },
 
-
     frame: true,
-
-
     show: false,
-
-
     backgroundColor: '#f8fafc',
-
-
     icon: path.join(__dirname, 'assets', 'icon.png')
-
-
   });
-
-
-
-
 
   Menu.setApplicationMenu(null);
-
-
-
-
-
   mainWindow.loadFile('index.html');
-
-
-  mainWindow.webContents.openDevTools()
-
-
-
-
-
+  //mainWindow.webContents.openDevTools()
   mainWindow.once('ready-to-show', () => {
-
-
     mainWindow.show();
-
-
   });
-
-
-
-
 
   mainWindow.on('closed', () => {
-
-
     mainWindow = null;
-
-
   });
-
-
 }
 
-
-
-
-
 app.whenReady().then(async () => {
-
-
   await createConnection();
-
-
   createWindow();
-
-
-
-
-
   app.on('activate', () => {
-
-
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-
-
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
-
-
 });
-
-
-
-
 
 app.on('window-all-closed', () => {
-
-
   if (process.platform !== 'darwin') app.quit();
-
-
 });
-
-
-
-
-
 // ===================== IPC HANDLERS =====================
-
-
-
-
-
 // Login handler
-
-
 ipcMain.handle('login', async (event, { username, password }) => {
-
-
   if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
-
-
   try {
-
-
     if (!username || !password) {
-
-
       return { success: false, message: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' };
-
-
     }
-
-
     // Admin login
-
-
     const [admins] = await db.execute(
-
-
-
       'SELECT ad_id, ad_firstname, ad_lastname, ad_user, ad_status, ad_permission FROM admin_login WHERE ad_user = ? AND ad_pass = ? LIMIT 1',
-
-
       [username, password]
-
-
     );
-
-
     if (admins.length > 0) {
-
-
       return {
-
-
         success: true,
-
-
         role: 'admin',
-
-
         user: {
-
-
           id: admins[0].ad_id,
-
-
           name: `${admins[0].ad_firstname} ${admins[0].ad_lastname}`,
-
-
           username: admins[0].ad_user,
-
-
           status: admins[0].ad_status,
-
-
           permission: admins[0].ad_permission
-
-
         }
-
-
       };
 
 
     }
 
-
-
-
-
     return { success: false, message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
-
-
   } catch (error) {
-
-
     console.error('Login error:', error);
-
-
     return { success: false, message: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ: ' + error.message };
-
-
   }
-
-
 });
-
-
-
-
 
 // Verify password (used for delete confirmation)
 ipcMain.handle('verify-password', async (event, { username, password }) => {
@@ -332,335 +116,113 @@ ipcMain.handle('verify-password', async (event, { username, password }) => {
 });
 
 // Get employees with server-side pagination
-
-
 ipcMain.handle('get-employees', async (event, filters = {}) => {
-
-
   const { search = '', status = '', subdivision = '', department = '', page = 1, perPage = 50 } = filters;
-
-
   if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
-
-
   try {
-
-
     const conditions = ['1=1'];
-
-
     const params = [];
-
-
-
-
-
     const normalizedSearch = String(search || '').trim();
-
-
     if (normalizedSearch) {
-
-
       const searchLike = `%${normalizedSearch}%`;
-
-
       const compactSearchLike = `%${normalizedSearch.replace(/\s+/g, '')}%`;
-
-
       conditions.push(`(
-
-
         e.Emp_ID LIKE ?
-
-
         OR e.Emp_Firstname LIKE ?
-
-
         OR e.Emp_Lastname LIKE ?
-
-
         OR e.Emp_IDCard LIKE ?
-
-
         OR e.Emp_Sname LIKE ?
-
-
         OR CONCAT(IFNULL(e.Emp_Sname,''), IFNULL(e.Emp_Firstname,''), ' ', IFNULL(e.Emp_Lastname,'')) LIKE ?
-
-
         OR CONCAT(IFNULL(e.Emp_Firstname,''), ' ', IFNULL(e.Emp_Lastname,'')) LIKE ?
-
-
         OR REPLACE(CONCAT(IFNULL(e.Emp_Sname,''), IFNULL(e.Emp_Firstname,''), IFNULL(e.Emp_Lastname,'')), ' ', '') LIKE ?
-
-
         OR s.Sub_Name LIKE ?
-
-
         OR d.Dpt_Name LIKE ?
-
-
         OR p.Position_Name LIKE ?
-
-
         OR IFNULL(e.Emp_Vsth,'') LIKE ?
-
-
       )`);
-
-
       params.push(
-
-
         searchLike,
-
-
         searchLike,
-
-
         searchLike,
-
-
         searchLike,
-
-
         searchLike,
-
-
         searchLike,
-
-
         searchLike,
-
-
         compactSearchLike,
-
-
         searchLike,
-
-
         searchLike,
-
-
         searchLike,
-
-
         searchLike
-
-
       );
-
-
     }
 
 
     if (status) {
-
-
       conditions.push(`e.Emp_Status = ?`);
-
-
       params.push(status);
-
-
     }
-
 
     if (department) {
-
-
       conditions.push(`s.Dpt_ID = ?`);
-
-
       params.push(department);
-
-
     }
-
-
     if (subdivision) {
-
-
       conditions.push(`e.Sub_ID = ?`);
-
-
       params.push(subdivision);
-
-
     }
 
-
-
-
-
-  const joins = `FROM employees e INNER JOIN subdivision s ON s.Sub_ID = e.Sub_ID INNER JOIN department d ON d.Dpt_ID = s.Dpt_ID INNER JOIN position p ON p.Position_ID = e.Position_ID`;
-
-
+    const joins = `FROM employees e INNER JOIN subdivision s ON s.Sub_ID = e.Sub_ID INNER JOIN department d ON d.Dpt_ID = s.Dpt_ID INNER JOIN position p ON p.Position_ID = e.Position_ID`;
     const where = `WHERE ${conditions.join(' AND ')}`;
-
-
-
-
-
     const [countRows] = await db.execute(`SELECT COUNT(*) as total ${joins} ${where}`, params);
-
-
     const total = countRows[0].total;
-
-
-
-
-
     const safePerPage = Math.max(1, Math.min(Number(perPage) || 50, 100));
-
-
     const safePage = Math.max(1, Number(page) || 1);
-
-
     const offset = (safePage - 1) * safePerPage;
-
-
-
-
-
     const [rows] = await db.execute(
-
-
       `SELECT e.Emp_ID, CONCAT(e.Emp_Sname, e.Emp_Firstname, ' ', e.Emp_Lastname) AS Fullname,
-
-
         e.Emp_Start_date, e.Emp_Packing_date, e.Emp_IDCard, e.Emp_Level,
-
-
         s.Sub_Name, d.Dpt_Name, p.Position_Name, e.Emp_Status, e.Emp_Vsth,
-
-
         s.Sub_ID, s.Dpt_ID, p.Position_ID, e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname
-
-
         ${joins} ${where}
-
-
         ORDER BY e.Emp_ID ASC
-
-
         LIMIT ${safePerPage} OFFSET ${offset}`,
-
-
       params
-
-
     );
-
-
     return { success: true, data: rows, total, page: safePage, perPage: safePerPage };
-
-
   } catch (error) {
-
-
     console.error('Get employees error:', error);
-
-
     return { success: false, message: error.message };
-
-
   }
-
-
 });
-
-
-
-
-
 // Search employees for autocomplete (lightweight)
-
-
 ipcMain.handle('search-employees', async (event, { keyword = '', limit = 20 } = {}) => {
-
-
   if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
-
-
   try {
-
-
     const q = String(keyword || '').trim();
-
-
     const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 50));
-
-
-
-
-
     if (!q) return { success: true, data: [] };
-
-
-
-
-
     const [rows] = await db.execute(
-
-
       `SELECT e.Emp_ID, e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname,
-
-
         CONCAT(e.Emp_Sname, e.Emp_Firstname, ' ', e.Emp_Lastname) AS Fullname,
-
-
         s.Sub_Name, e.Emp_Status
-
-
       FROM employees e
-
-
       LEFT JOIN subdivision s ON s.Sub_ID = e.Sub_ID
-
-
       WHERE e.Emp_ID LIKE ?
-
-
          OR e.Emp_Firstname LIKE ?
-
-
          OR e.Emp_Lastname LIKE ?
-
-
          OR CONCAT(e.Emp_Sname, e.Emp_Firstname, ' ', e.Emp_Lastname) LIKE ?
-
-
          OR s.Sub_Name LIKE ?
-
-
       ORDER BY e.Emp_ID ASC
-
-
       LIMIT ${safeLimit}`,
-
-
       [`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`]
-
-
     );
-
-
     return { success: true, data: rows };
 
 
   } catch (error) {
-
-
     console.error('Search employees error:', error);
-
-
     return { success: false, message: error.message };
-
-
   }
-
-
 });
 
 
@@ -668,317 +230,110 @@ ipcMain.handle('search-employees', async (event, { keyword = '', limit = 20 } = 
 
 
 // Get employee count
-
-
 ipcMain.handle('get-employee-count', async () => {
-
-
   if (!db) return { success: false };
-
-
   try {
-
-
     const [all] = await db.execute('SELECT COUNT(*) as total FROM employees');
-
-
     const [active] = await db.execute('SELECT COUNT(*) as total FROM employees WHERE Emp_Status = "Activated"');
-
-
     const [inactive] = await db.execute('SELECT COUNT(*) as total FROM employees WHERE Emp_Status != "Activated"');
-
-
     return {
-
-
       success: true,
-
-
       total: all[0].total,
-
-
       active: active[0].total,
-
-
       inactive: inactive[0].total
-
-
     };
-
-
   } catch (error) {
-
-
     return { success: false, message: error.message };
-
-
   }
-
-
 });
-
-
-
-
 
 // Get employee by ID
-
-
 ipcMain.handle('get-employee-by-id', async (event, id) => {
-
-
   if (!db) return { success: false };
-
-
   try {
-
-
     const [rows] = await db.execute(
-
-
       `SELECT e.*, s.Sub_Name, p.Position_Name FROM employees e
-
-
        LEFT JOIN subdivision s ON s.Sub_ID = e.Sub_ID
-
-
        LEFT JOIN position p ON p.Position_ID = e.Position_ID
-
-
        WHERE e.Emp_ID = ?`,
-
-
       [id]
-
-
     );
-
-
     if (rows.length > 0) return { success: true, data: rows[0] };
-
-
     return { success: false, message: 'ไม่พบพนักงาน' };
-
-
   } catch (error) {
-
-
     return { success: false, message: error.message };
-
-
   }
-
-
 });
-
-
-
-
 
 // Get subdivisions
-
-
 ipcMain.handle('get-subdivisions', async () => {
-
-
   if (!db) return { success: false };
-
-
   try {
-
-
     const [rows] = await db.execute(`SELECT s.Sub_ID, s.Sub_Name, s.Dpt_ID, d.Dpt_Name
-
-
       FROM subdivision s
-
-
       LEFT JOIN department d ON d.Dpt_ID = s.Dpt_ID
-
-
       ORDER BY d.Dpt_Name ASC, s.Sub_Name ASC`);
-
-
     return { success: true, data: rows };
-
-
   } catch (error) {
-
-
     return { success: false, message: error.message };
-
-
   }
-
-
 });
-
-
-
 
 
 // Get positions
-
-
 ipcMain.handle('get-positions', async () => {
-
-
   if (!db) return { success: false };
-
-
   try {
-
-
     const [rows] = await db.execute('SELECT Position_ID, Position_Name FROM position ORDER BY Position_Name');
-
-
     return { success: true, data: rows };
-
-
   } catch (error) {
-
-
     return { success: false, message: error.message };
-
-
   }
-
-
 });
-
-
-
-
-
 // Add employee
-
-
 ipcMain.handle('add-employee', async (event, data) => {
-
-
   if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
-
-
   try {
-
-
     await db.execute(
-
-
       `INSERT INTO employees (Emp_ID, Emp_Sname, Emp_Firstname, Emp_Lastname, Emp_IDCard, Emp_Start_date,
-
-
        Emp_Packing_date, Emp_Level, Sub_ID, Position_ID, Emp_Status, Emp_Vsth)
-
-
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-
-
       [
-
-
         data.Emp_ID, data.Emp_Sname, data.Emp_Firstname, data.Emp_Lastname,
-
-
         data.Emp_IDCard || '', data.Emp_Start_date || null,
-
-
         data.Emp_Packing_date || null, data.Emp_Level || '',
-
-
         data.Sub_ID, data.Position_ID,
-
-
         data.Emp_Status || 'Activated', data.Emp_Vsth || 'Vel'
-
-
       ]
-
-
     );
-
-
     return { success: true, message: 'เพิ่มพนักงานสำเร็จ' };
-
-
   } catch (error) {
-
-
     return { success: false, message: 'เกิดข้อผิดพลาด: ' + error.message };
-
-
   }
-
-
 });
-
-
-
 
 
 // Update employee
-
-
 ipcMain.handle('update-employee', async (event, data) => {
-
-
   if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
-
-
   try {
-
-
     await db.execute(
-
-
       `UPDATE employees SET Emp_Sname=?, Emp_Firstname=?, Emp_Lastname=?, Emp_IDCard=?,
-
-
        Emp_Start_date=?, Emp_Packing_date=?, Emp_Level=?, Sub_ID=?, Position_ID=?,
-
-
        Emp_Status=?, Emp_Vsth=? WHERE Emp_ID=?`,
-
-
       [
-
-
         data.Emp_Sname, data.Emp_Firstname, data.Emp_Lastname,
-
-
         data.Emp_IDCard || '', data.Emp_Start_date || null,
-
-
         data.Emp_Packing_date || null, data.Emp_Level || '',
-
-
         data.Sub_ID, data.Position_ID,
-
-
         data.Emp_Status || 'Activated', data.Emp_Vsth || 'Vel',
-
-
         data.Emp_ID
-
-
       ]
-
-
     );
-
-
     return { success: true, message: 'แก้ไขข้อมูลพนักงานสำเร็จ' };
-
-
   } catch (error) {
-
-
     return { success: false, message: 'เกิดข้อผิดพลาด: ' + error.message };
-
-
   }
-
-
 });
 
 
@@ -986,665 +341,220 @@ ipcMain.handle('update-employee', async (event, data) => {
 
 
 // Delete employee
-
-
 ipcMain.handle('delete-employee', async (event, id) => {
-
-
   if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
-
-
   try {
-
-
     await db.execute('DELETE FROM employees WHERE Emp_ID = ?', [id]);
-
-
     return { success: true, message: 'ลบข้อมูลพนักงานสำเร็จ' };
-
-
   } catch (error) {
-
-
     return { success: false, message: 'เกิดข้อผิดพลาด: ' + error.message };
-
-
   }
-
-
 });
-
-
-
-
 
 // ===================== LEAVE RECORD IPC =====================
-
-
-
-
-
 // Get leave types
-
-
 ipcMain.handle('get-leave-types', async () => {
-
-
   if (!db) return { success: false };
-
-
   try {
-
-
     const [rows] = await db.execute('SELECT leave_abbreviation, leave_name FROM leave_type ORDER BY leave_abbreviation');
-
-
     return { success: true, data: rows };
-
-
   } catch (e) { return { success: false, message: e.message }; }
-
-
 });
-
-
-
-
 
 // Get daily reports with optional filters
-
-
-ipcMain.handle('get-daily-reports', async (event, { search='', dateFrom='', dateTo='', subID='', leaveType='' } = {}) => {
-
-
+ipcMain.handle('get-daily-reports', async (event, { search = '', dateFrom = '', dateTo = '', subID = '', leaveType = '' } = {}) => {
   if (!db) return { success: false };
-
-
   try {
-
-
     let q = `SELECT dr.drp_id, dr.drp_empID, dr.drp_record, dr.drp_Type,
-
-
       dr.drp_Communicate, dr.drp_Communicate1,
-
-
       dr.drp_Sdate, TIME_FORMAT(dr.drp_Stime,'%H:%i') AS drp_Stime,
-
-
       dr.drp_Edate, TIME_FORMAT(dr.drp_Etime,'%H:%i') AS drp_Etime,
-
-
       dr.drp_status, dr.drp_Remark,
-
-
       CONCAT(IFNULL(e.Emp_Sname,''),IFNULL(e.Emp_Firstname,''),' ',IFNULL(e.Emp_Lastname,'')) AS Fullname,
-
-
       e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname,
-
-
       s.Sub_Name, s.Sub_ID,
-
-
       lt.leave_name
-
-
       FROM daily_report dr
-
-
       LEFT JOIN employees e ON e.Emp_ID = dr.drp_empID
-
-
       LEFT JOIN subdivision s ON s.Sub_ID = e.Sub_ID
-
-
       LEFT JOIN leave_type lt ON lt.leave_abbreviation = dr.drp_Type
-
-
       WHERE 1=1`;
-
-
     const params = [];
-
-
     if (search) {
-
-
       q += ` AND (dr.drp_empID LIKE ? OR e.Emp_Firstname LIKE ? OR e.Emp_Lastname LIKE ?)`;
-
-
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-
-
     }
-
-
-    if (dateFrom) { q += ` AND dr.drp_Sdate >= ?`; params.push(dateFrom.replace(/-/g,'/')); }
-
-
-    if (dateTo)   { q += ` AND dr.drp_Sdate <= ?`; params.push(dateTo.replace(/-/g,'/')); }
-
-
-    if (subID)    { q += ` AND e.Sub_ID = ?`;       params.push(subID); }
-
-
-    if (leaveType){ q += ` AND dr.drp_Type = ?`;    params.push(leaveType); }
-
-
+    if (dateFrom) { q += ` AND dr.drp_Sdate >= ?`; params.push(dateFrom.replace(/-/g, '/')); }
+    if (dateTo) { q += ` AND dr.drp_Sdate <= ?`; params.push(dateTo.replace(/-/g, '/')); }
+    if (subID) { q += ` AND e.Sub_ID = ?`; params.push(subID); }
+    if (leaveType) { q += ` AND dr.drp_Type = ?`; params.push(leaveType); }
     q += ` ORDER BY dr.drp_id DESC LIMIT 1000`;
-
-
     const [rows] = await db.execute(q, params);
-
-
     return { success: true, data: rows };
-
-
   } catch (e) { return { success: false, message: e.message }; }
-
-
 });
-
-
-
-
-
 // Add daily report
-
-
 ipcMain.handle('add-daily-report', async (event, d) => {
-
-
   if (!db) return { success: false };
-
-
   try {
-
-
     await db.execute(
-
-
       `INSERT INTO daily_report
-
-
        (drp_empID,drp_record,drp_Type,drp_Communicate,drp_Communicate1,
-
-
         drp_Sdate,drp_Stime,drp_Edate,drp_Etime,drp_status,drp_Remark)
-
-
        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-
-
-      [d.drp_empID,d.drp_record,d.drp_Type,d.drp_Communicate,d.drp_Communicate1,
-
-
-       d.drp_Sdate,d.drp_Stime,d.drp_Edate,d.drp_Etime,d.drp_status,d.drp_Remark]
-
-
+      [d.drp_empID, d.drp_record, d.drp_Type, d.drp_Communicate, d.drp_Communicate1,
+      d.drp_Sdate, d.drp_Stime, d.drp_Edate, d.drp_Etime, d.drp_status, d.drp_Remark]
     );
-
-
     return { success: true, message: 'บันทึกการลาสำเร็จ' };
-
-
   } catch (e) { return { success: false, message: e.message }; }
-
-
 });
-
-
-
-
 
 // Update daily report
-
-
 ipcMain.handle('update-daily-report', async (event, d) => {
-
-
   if (!db) return { success: false };
-
-
   try {
-
-
     await db.execute(
-
-
       `UPDATE daily_report SET
-
-
        drp_empID=?,drp_record=?,drp_Type=?,drp_Communicate=?,drp_Communicate1=?,
-
-
        drp_Sdate=?,drp_Stime=?,drp_Edate=?,drp_Etime=?,drp_status=?,drp_Remark=?,
-
-
        drp_TimeStamp=NOW()
-
-
        WHERE drp_id=?`,
-
-
-      [d.drp_empID,d.drp_record,d.drp_Type,d.drp_Communicate,d.drp_Communicate1,
-
-
-       d.drp_Sdate,d.drp_Stime,d.drp_Edate,d.drp_Etime,d.drp_status,d.drp_Remark,d.drp_id]
-
-
+      [d.drp_empID, d.drp_record, d.drp_Type, d.drp_Communicate, d.drp_Communicate1,
+      d.drp_Sdate, d.drp_Stime, d.drp_Edate, d.drp_Etime, d.drp_status, d.drp_Remark, d.drp_id]
     );
-
-
     return { success: true, message: 'แก้ไขข้อมูลการลาสำเร็จ' };
-
-
   } catch (e) { return { success: false, message: e.message }; }
-
-
 });
-
-
-
-
 
 // Delete daily report
-
-
 ipcMain.handle('delete-daily-report', async (event, id) => {
-
-
   if (!db) return { success: false };
-
-
   try {
-
-
     await db.execute('DELETE FROM daily_report WHERE drp_id=?', [id]);
-
-
     return { success: true, message: 'ลบข้อมูลการลาสำเร็จ' };
-
-
   } catch (e) { return { success: false, message: e.message }; }
-
-
 });
-
-
-
-
 
 // Get employee training history
-
-
 ipcMain.handle('get-employee-training', async (event, empId) => {
-
-
   if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
-
-
   try {
-
-
     const [rows] = await db.execute(
-
-
       `SELECT
-
-
         c.Courses_ID,
-
-
         c.Courses_Name,
-
-
         DATE_FORMAT(tp.Plan_StartDate, '%Y-%m-%d') AS Plan_StartDate,
-
-
         DATE_FORMAT(tp.Plan_EndDate,   '%Y-%m-%d') AS Plan_EndDate,
-
-
         TIME_FORMAT(tp.Plan_TimeStart, '%H:%i') AS Plan_TimeStart,
-
-
         TIME_FORMAT(tp.Plan_TimeEnd, '%H:%i') AS Plan_TimeEnd,
-
-
         tp.Plan_Hour,
-
-
         tp.Plan_Location,
-
-
         tp.Plan_Lecturer,
-
-
         tp.Plan_Remark,
-
-
         ht.Plan_ID,
-
-
         ht.his_state,
-
-
         ht.his_remark
-
-
       FROM history_training ht
-
-
       INNER JOIN training_plan tp ON tp.Plan_ID = ht.Plan_ID
-
-
       INNER JOIN courses c ON c.Courses_ID = ht.Courses_ID
-
-
       WHERE ht.Emp_ID = ?
-
-
       ORDER BY tp.Plan_StartDate DESC`,
-
-
       [empId]
-
-
     );
 
-
     return { success: true, data: rows };
-
-
   } catch (e) { return { success: false, message: e.message }; }
 
 
 });
-
-
-
 
 
 // Get daily report by specific date (for absence report page)
-
-
 ipcMain.handle('get-daily-report-by-date', async (event, dateStr) => {
-
-
   if (!db) return { success: false };
-
-
   try {
-
-
     const dbDate = dateStr.replace(/-/g, '/');
-
-
     const [rows] = await db.execute(
-
-
       `SELECT dr.drp_id, dr.drp_empID, dr.drp_record, dr.drp_Type,
-
-
         dr.drp_Communicate, dr.drp_Communicate1,
-
-
         dr.drp_Sdate, TIME_FORMAT(dr.drp_Stime,'%H:%i') AS drp_Stime,
-
-
         dr.drp_Edate, TIME_FORMAT(dr.drp_Etime,'%H:%i') AS drp_Etime,
-
-
         dr.drp_status, dr.drp_Remark,
-
-
         CONCAT(IFNULL(e.Emp_Sname,''),IFNULL(e.Emp_Firstname,''),' ',IFNULL(e.Emp_Lastname,'')) AS Fullname,
-
-
         e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname,
-
-
         IFNULL(e.Emp_Vsth, dr.drp_status) AS Emp_Vsth,
-
-
         s.Sub_Name,
-
-
         lt.leave_name, lt.leave_abbreviation
-
-
         FROM daily_report dr
-
-
         LEFT JOIN employees e ON e.Emp_ID = dr.drp_empID
-
-
         LEFT JOIN subdivision s ON s.Sub_ID = e.Sub_ID
-
-
         LEFT JOIN leave_type lt ON lt.leave_abbreviation = dr.drp_Type
-
-
         WHERE dr.drp_record = ?
-
-
         ORDER BY FIELD(IFNULL(e.Emp_Vsth,dr.drp_status),'Vel','SK','TBS','CWS'), dr.drp_empID ASC`,
-
-
       [dbDate]
-
-
     );
-
-
     return { success: true, data: rows };
-
-
   } catch (e) { return { success: false, message: e.message }; }
-
-
 });
 
 
-
-
-
 // Export daily absence report to Excel (using template)
-
-
 ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
-
-
   if (!data || !date) return { success: false, message: 'à¹„à¸¡à¹ˆà¸¡à¸µà¸‚à¹‰อมูล' };
-
-
   try {
-
-
     const ExcelJS = require('exceljs');
-
-
     const path = require('path');
-
-
-
-
-
     const templatePath = path.join(__dirname, 'data', 'รายงานการหยุดงานประจำวัน.xlsx');
-
-
-
-
-
     // Group data by company
-
-
     const grouped = { Vel: [], SK: [], TBS: [], CWS: [] };
-
-
     data.forEach(r => {
-
-
       const vsth = (r.Emp_Vsth || r.drp_status || 'Vel').trim();
-
-
       if (grouped[vsth] !== undefined) grouped[vsth].push(r);
-
-
       else grouped['Vel'].push(r);
-
-
     });
-
-
     const outsourceList = [...grouped.SK, ...grouped.TBS, ...grouped.CWS];
-
-
     const pageCount = Math.max(Math.ceil(grouped.Vel.length / 20), Math.ceil(outsourceList.length / 20), 1);
-
-
-
-
-
     // Total employees per company
-
-
     const totalByGroup = { Vel: 0, SK: 0, TBS: 0, CWS: 0 };
-
-
     try {
-
-
       const [empRows] = await db.execute(
-
-
         `SELECT IFNULL(Emp_Vsth,'Vel') AS grp, COUNT(*) AS cnt FROM employees WHERE Emp_Status='Activated' GROUP BY IFNULL(Emp_Vsth,'Vel')`
-
-
       );
-
-
       empRows.forEach(r => { if (totalByGroup[r.grp] !== undefined) totalByGroup[r.grp] = r.cnt; });
-
-
-    } catch(e) {}
-
-
-
-
-
+    } catch (e) { }
     // Format date label (Thai month name, CE year)
-
-
-    const thMonths = ['à¸¡à¸à¸£à¸²à¸„ม','กุมภาพันธ์','à¸¡à¸µà¸™à¸²à¸„ม','เมษายน','à¸žà¸¤à¸©à¸ à¸²à¸„ม','มิถุนายน',
-
-
-                      'à¸à¸£à¸à¸Žà¸²à¸„ม','à¸ªà¸´à¸‡à¸«à¸²à¸„ม','กันยายน','à¸•à¸¸à¸¥à¸²à¸„ม','พฤศจิกายน','à¸˜à¸±à¸™à¸§à¸²à¸„ม'];
-
-
+    const thMonths = ['à¸¡à¸à¸£à¸²à¸„ม', 'กุมภาพันธ์', 'à¸¡à¸µà¸™à¸²à¸„ม', 'เมษายน', 'à¸žà¸¤à¸©à¸ à¸²à¸„ม', 'มิถุนายน',
+      'à¸à¸£à¸à¸Žà¸²à¸„ม', 'à¸ªà¸´à¸‡à¸«à¸²à¸„ม', 'กันยายน', 'à¸•à¸¸à¸¥à¸²à¸„ม', 'พฤศจิกายน', 'à¸˜à¸±à¸™à¸§à¸²à¸„ม'];
     const dObj = new Date(date + 'T00:00:00');
-
-
     const thDateLabel = `${dObj.getDate()} ${thMonths[dObj.getMonth()]} ${dObj.getFullYear()}`;
-
-
-
-
-
     // Show save dialog
-
-
     const saveResult = await dialog.showSaveDialog({
-
-
       title: 'บันทึกรายงาน Excel',
-
-
       defaultPath: `รายงานการหยุดงาน_${date}.xlsx`,
-
-
       filters: [{ name: 'Excel Files', extensions: ['xlsx'] }]
-
-
     });
-
-
     if (saveResult.canceled || !saveResult.filePath) return { success: false, message: 'à¸¢à¸à¹€ลิก' };
-
-
     const outputPath = saveResult.filePath;
-
-
-
-
-
     // Load template workbook
-
-
     const wb = new ExcelJS.Workbook();
-
-
     await wb.xlsx.readFile(templatePath);
-
-
     const tmplSheet = wb.getWorksheet('Sheet1');
-
-
-
-
-
     // Snapshot template state before any modification (for copying to extra sheets)
-
-
     const tmplMerges = tmplSheet.model.merges ? [...tmplSheet.model.merges] : [];
-
-
     const tmplRows = [];
-
-
     tmplSheet.eachRow({ includeEmpty: true }, (row, rn) => {
-
-
       const cells = [];
-
-
       row.eachCell({ includeEmpty: true }, (cell, cn) => {
-
-
         cells.push({ cn, value: JSON.parse(JSON.stringify(cell.value ?? null)), style: JSON.parse(JSON.stringify(cell.style ?? {})) });
-
-
       });
-
-
       tmplRows.push({ rn, height: row.height, cells });
-
-
     });
-
-
     const tmplColWidths = [];
-
-
     for (let c = 1; c <= 30; c++) {
-
-
       const col = tmplSheet.getColumn(c);
-
-
       if (col.width) tmplColWidths.push({ c, width: col.width });
-
-
     }
-
-
-
-
-
     // Apply template snapshot to a blank sheet
-
-
     // ── helper: copy a template row (by rowNum) to any target row on sheet
     function copyTmplRow(sheet, tmplRowNum, targetRowNum) {
       const tr = tmplRows.find(r => r.rn === tmplRowNum);
@@ -1667,7 +577,7 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
         const r1 = parseInt(match[2]);
         const r2 = parseInt(match[4]);
         if (r1 >= srcStart && r2 <= srcEnd) {
-          try { sheet.mergeCells(`${match[1]}${r1 + rowOffset}:${match[3]}${r2 + rowOffset}`); } catch (e) {}
+          try { sheet.mergeCells(`${match[1]}${r1 + rowOffset}:${match[3]}${r2 + rowOffset}`); } catch (e) { }
         }
       });
     }
@@ -1682,7 +592,7 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
         const r1 = parseInt(match[1]);
         const r2 = parseInt(match[2]);
         if (r1 >= minRow && r2 <= maxRow) {
-          try { sheet.mergeCells(m); } catch (e) {}
+          try { sheet.mergeCells(m); } catch (e) { }
         }
       });
       tmplRows.forEach(({ rn, height, cells }) => {
@@ -1701,17 +611,17 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
 
     // ── helper: get communicate label
     function commLabel(r) {
-      if (r.drp_Communicate  && r.drp_Communicate.trim())  return '\u0E42\u0E17\u0E23';           // โทร
+      if (r.drp_Communicate && r.drp_Communicate.trim()) return '\u0E42\u0E17\u0E23';           // โทร
       if (r.drp_Communicate1 && r.drp_Communicate1.trim()) return '\u0E41\u0E08\u0E49\u0E07\u0E25\u0E48\u0E27\u0E07\u0E2B\u0E19\u0E49\u0E32'; // แจ้งล่วงหน้า
       return '';
     }
 
     // ── constants
-    const ROWS_PER_SECTION   = 20;
-    const DATA_TMPL_START    = 6;   // first data row in template
-    const DATA_TMPL_END      = 25;  // last  data row in template
+    const ROWS_PER_SECTION = 20;
+    const DATA_TMPL_START = 6;   // first data row in template
+    const DATA_TMPL_END = 25;  // last  data row in template
     const SUMMARY_TMPL_START = 26;  // first summary row in template
-    const SUMMARY_TMPL_END   = tmplRows.length > 0
+    const SUMMARY_TMPL_END = tmplRows.length > 0
       ? Math.max.apply(null, tmplRows.map(r => r.rn))
       : 36;
 
@@ -1738,7 +648,7 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
     let currentRow = DATA_TMPL_START;
 
     for (let sec = 0; sec < sections; sec++) {
-      const offset   = sec * ROWS_PER_SECTION;
+      const offset = sec * ROWS_PER_SECTION;
       const velChunk = grouped.Vel.slice(offset, offset + ROWS_PER_SECTION);
       const outChunk = outsourceList.slice(offset, offset + ROWS_PER_SECTION);
 
@@ -1747,8 +657,8 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
         //    row 1 = title + date,  rows 3-5 = section/column headers
         //    (row 2 is blank spacer)
         currentRow += 4;
-        const HEADER_ROWS   = [1, 2, 3, 4, 5];
-        const headerOffset  = currentRow - HEADER_ROWS[0]; // same for all
+        const HEADER_ROWS = [1, 2, 3, 4, 5];
+        const headerOffset = currentRow - HEADER_ROWS[0]; // same for all
         // shift ALL header merges in one call so multi-row spans (A4:A5, B4:D5…) are handled
         shiftMerges(sheet, HEADER_ROWS[0], HEADER_ROWS[HEADER_ROWS.length - 1], headerOffset);
         HEADER_ROWS.forEach((tmplHR, idx) => {
@@ -1770,12 +680,12 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
       for (let i = 0; i < ROWS_PER_SECTION; i++) {
         const rowNum = currentRow + i;
         if (i < velChunk.length) {
-          const r    = velChunk[i];
+          const r = velChunk[i];
           const comm = commLabel(r);
           sheet.getCell(rowNum, 1).value = offset + i + 1;
           sheet.getCell(rowNum, 2).value = (r.Fullname || '').trim();
-          sheet.getCell(rowNum, 5).value = r.Sub_Name  || '';
-          sheet.getCell(rowNum, 6).value = r.drp_Type  || '';
+          sheet.getCell(rowNum, 5).value = r.Sub_Name || '';
+          sheet.getCell(rowNum, 6).value = r.drp_Type || '';
           sheet.getCell(rowNum, 7).value = comm === '\u0E42\u0E17\u0E23' ? '\u2713' : '';
           sheet.getCell(rowNum, 8).value = comm === '\u0E41\u0E08\u0E49\u0E07\u0E25\u0E48\u0E27\u0E07\u0E2B\u0E19\u0E49\u0E32' ? '\u2713' : '';
           sheet.getCell(rowNum, 9).value = (r.drp_Remark || '').trim();
@@ -1788,13 +698,13 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
       for (let i = 0; i < ROWS_PER_SECTION; i++) {
         const rowNum = currentRow + i;
         if (i < outChunk.length) {
-          const r    = outChunk[i];
+          const r = outChunk[i];
           const comm = commLabel(r);
           const vsth = (r.Emp_Vsth || r.drp_status || '').trim();
           sheet.getCell(rowNum, 12).value = offset + i + 1;
           sheet.getCell(rowNum, 13).value = (r.Fullname || '').trim();
-          sheet.getCell(rowNum, 17).value = r.Sub_Name  || '';
-          sheet.getCell(rowNum, 18).value = r.drp_Type  || '';
+          sheet.getCell(rowNum, 17).value = r.Sub_Name || '';
+          sheet.getCell(rowNum, 18).value = r.drp_Type || '';
           sheet.getCell(rowNum, 19).value = comm === '\u0E42\u0E17\u0E23' ? '\u2713' : '';
           sheet.getCell(rowNum, 20).value = comm === '\u0E41\u0E08\u0E49\u0E07\u0E25\u0E48\u0E27\u0E07\u0E2B\u0E19\u0E49\u0E32' ? '\u2713' : '';
           sheet.getCell(rowNum, 21).value = vsth;
@@ -1823,9 +733,9 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
     const S = summaryOffset;
 
     // company totals
-    sheet.getCell(26 + S,  5).value = totalByGroup.Vel || 0;
-    sheet.getCell(26 + S,  9).value = grouped.Vel.length;
-    sheet.getCell(26 + S, 17).value = totalByGroup.SK  || 0;
+    sheet.getCell(26 + S, 5).value = totalByGroup.Vel || 0;
+    sheet.getCell(26 + S, 9).value = grouped.Vel.length;
+    sheet.getCell(26 + S, 17).value = totalByGroup.SK || 0;
     sheet.getCell(26 + S, 21).value = grouped.SK.length;
     sheet.getCell(27 + S, 17).value = totalByGroup.TBS || 0;
     sheet.getCell(27 + S, 21).value = grouped.TBS.length;
@@ -1833,8 +743,8 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
     sheet.getCell(28 + S, 21).value = grouped.CWS.length;
 
     // leave-type matrix (rows 31-35)
-    const LT_MAP   = { 'A':2,'B':3,'S':4,'H':5,'D':6,'F':8,'C':10,'O':12,'x':14 };
-    const COMPANIES = ['Vel','SK','TBS','CWS'];
+    const LT_MAP = { 'A': 2, 'B': 3, 'S': 4, 'H': 5, 'D': 6, 'F': 8, 'C': 10, 'O': 12, 'x': 14 };
+    const COMPANIES = ['Vel', 'SK', 'TBS', 'CWS'];
 
     COMPANIES.forEach((co, ci) => {
       const rd = grouped[co] || [];
@@ -1850,13 +760,13 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
     });
 
     // right summary
-    const totalEmp    = Object.values(totalByGroup).reduce((a, b) => a + b, 0);
+    const totalEmp = Object.values(totalByGroup).reduce((a, b) => a + b, 0);
     const totalAbsent = data.length;
     sheet.getCell(31 + S, 18).value = totalEmp;
     sheet.getCell(32 + S, 18).value = Math.max(0, totalEmp - totalAbsent);
     sheet.getCell(33 + S, 18).value = totalAbsent;
 
-        await wb.xlsx.writeFile(outputPath);
+    await wb.xlsx.writeFile(outputPath);
 
 
     return { success: true, filePath: outputPath };
@@ -2228,13 +1138,13 @@ ipcMain.handle('save-training-plan', async (event, data) => {
     const endTime = normalizePlanTime(data.Plan_TimeEnd);
 
 
-    
+
 
 
     let planId;
 
 
-    
+
 
 
     if (data.Plan_ID) {
@@ -2387,7 +1297,7 @@ ipcMain.handle('save-training-plan', async (event, data) => {
     }
 
 
-    
+
 
 
     // Add participants to history_training
@@ -2414,7 +1324,7 @@ ipcMain.handle('save-training-plan', async (event, data) => {
         );
 
 
-        
+
 
 
         if (existing.length === 0) {
@@ -2444,7 +1354,7 @@ ipcMain.handle('save-training-plan', async (event, data) => {
     }
 
 
-    
+
 
 
     return { success: true, message: 'บันทึกแผนการฝึกอบรมสำเร็จ', data: { Plan_ID: planId } };
@@ -2750,7 +1660,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
       const ts = plan.Plan_TimeStart ? plan.Plan_TimeStart.substring(0, 5) : '';
 
 
-      const te = plan.Plan_TimeEnd   ? plan.Plan_TimeEnd.substring(0, 5)   : '';
+      const te = plan.Plan_TimeEnd ? plan.Plan_TimeEnd.substring(0, 5) : '';
 
 
       timeLabel = ts && te ? `${ts} - ${te} น.` : (ts || te || '');
@@ -2762,10 +1672,10 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
 
 
 
-  const thMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+    const thMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
 
 
-            'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
 
     const dObj = plan.Plan_StartDate ? new Date(plan.Plan_StartDate + 'T00:00:00') : new Date();
@@ -2810,7 +1720,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
 
 
 
-    const HEADER_ROWS    = 8;   // rows 1-8 = header block (title, date/time, subject, etc.)
+    const HEADER_ROWS = 8;   // rows 1-8 = header block (title, date/time, subject, etc.)
 
 
     const FIRST_DATA_ROW = 9;   // data starts at row 9
@@ -2819,16 +1729,16 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
     const ROWS_PER_BLOCK = 30;  // 30 participants per block (rows 9-38)
 
 
-    const SPACER_ROWS    = 2;   // blank rows between repeated blocks
+    const SPACER_ROWS = 2;   // blank rows between repeated blocks
 
 
 
 
 
-  const sheet0 = wb.worksheets[0]; // Sheet 1: รายชื่อ
+    const sheet0 = wb.worksheets[0]; // Sheet 1: รายชื่อ
 
 
-  const sheet1 = wb.worksheets[1]; // Sheet 2: แบบบันทึก
+    const sheet1 = wb.worksheets[1]; // Sheet 2: แบบบันทึก
 
 
     if (!sheet0) throw new Error('ไม่พบ sheet ในไฟล์ template');
@@ -2939,7 +1849,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
           );
 
 
-        } catch(e) {}
+        } catch (e) { }
 
 
       });
@@ -2993,13 +1903,13 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
       sheet.getCell(startRow + 1, 9).value = timeLabel;           // I2: time
 
 
-      sheet.getCell(startRow + 2, 5).value = plan.Courses_Name  || ''; // E3: subject
+      sheet.getCell(startRow + 2, 5).value = plan.Courses_Name || ''; // E3: subject
 
 
       sheet.getCell(startRow + 3, 4).value = plan.Plan_Lecturer || ''; // D4: trainer
 
 
-      sheet.getCell(startRow + 4, 4).value = plan.Plan_Company  || ''; // D5: company
+      sheet.getCell(startRow + 4, 4).value = plan.Plan_Company || ''; // D5: company
 
 
       sheet.getCell(startRow + 4, 9).value = plan.Plan_Location || ''; // I5: location
@@ -3026,7 +1936,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
       let firstname = p.Emp_Firstname || '';
 
 
-      let lastname  = p.Emp_Lastname  || '';
+      let lastname = p.Emp_Lastname || '';
 
 
       if (firstname && firstname === lastname) {
@@ -3062,13 +1972,13 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
       for (let i = 0; i < ROWS_PER_BLOCK; i++) {
 
 
-        const pIdx   = globalOffset + i;
+        const pIdx = globalOffset + i;
 
 
         const rowNum = dataStartRow + i;
 
 
-        const row    = sheet.getRow(rowNum);
+        const row = sheet.getRow(rowNum);
 
 
         // Apply data-row style for rows outside the template's original 9-38 range
@@ -3104,25 +2014,25 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
           const { firstname, lastname } = resolveNames(p);
 
 
-          row.getCell(1).value  = pIdx + 1;           // continuous sequence
+          row.getCell(1).value = pIdx + 1;           // continuous sequence
 
 
-          row.getCell(2).value  = p.Emp_ID || '';
+          row.getCell(2).value = p.Emp_ID || '';
 
 
-          row.getCell(3).value  = p.Emp_Sname || '';  // à¸„à¸³à¸™à¸³à¸«à¸™à¹‰า
+          row.getCell(3).value = p.Emp_Sname || '';  // à¸„à¸³à¸™à¸³à¸«à¸™à¹‰า
 
 
-          row.getCell(4).value  = firstname;           // à¸Šà¸·à¹ˆอ
+          row.getCell(4).value = firstname;           // à¸Šà¸·à¹ˆอ
 
 
-          row.getCell(5).value  = lastname;            // à¸™ามสกุล
+          row.getCell(5).value = lastname;            // à¸™ามสกุล
 
 
-          row.getCell(6).value  = p.Position_Name || '';
+          row.getCell(6).value = p.Position_Name || '';
 
 
-          row.getCell(7).value  = p.Sub_Name || '';
+          row.getCell(7).value = p.Sub_Name || '';
 
 
           row.getCell(11).value = p.his_remark || '';
@@ -3164,7 +2074,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
       // Snapshot header and one data-row style BEFORE modifying anything
 
 
-      const headerSnap  = snapRows(sheet, 1, HEADER_ROWS);
+      const headerSnap = snapRows(sheet, 1, HEADER_ROWS);
 
 
       const dataRowSnap = snapRows(sheet, FIRST_DATA_ROW, FIRST_DATA_ROW); // row 9 style
@@ -3458,10 +2368,10 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
     const safePerPage = Math.max(10, Math.min(25, Number(perPage) || 15));
 
 
-    const safePage    = Math.max(1, Number(page) || 1);
+    const safePage = Math.max(1, Number(page) || 1);
 
 
-    const offset      = (safePage - 1) * safePerPage;
+    const offset = (safePage - 1) * safePerPage;
 
 
 
@@ -3470,7 +2380,7 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
     const conditions = ['1=1'];
 
 
-    const params     = [];
+    const params = [];
 
 
     if (search) {
@@ -3608,16 +2518,16 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
       stats: {
 
 
-        total:     Number(statsRow.totalAll)  || 0,
+        total: Number(statsRow.totalAll) || 0,
 
 
-        sumAll:    Number(statsRow.sumAll)    || 0,
+        sumAll: Number(statsRow.sumAll) || 0,
 
 
         thisMonth: Number(statsRow.thisMonth) || 0,
 
 
-        sumMonth:  Number(statsRow.sumMonth)  || 0,
+        sumMonth: Number(statsRow.sumMonth) || 0,
 
 
       }
@@ -3650,10 +2560,10 @@ ipcMain.handle('save-expense', async (event, data) => {
     const { Expenses_ID, Plan_ID, Courses_ID,
 
 
-            Expenses_Lecturer, Expenses_Tools, Expenses_Food,
+      Expenses_Lecturer, Expenses_Tools, Expenses_Food,
 
 
-            Expenses_Snack, Expenses_Travel, Expenses_Sum, Expenses_Remarks } = data;
+      Expenses_Snack, Expenses_Travel, Expenses_Sum, Expenses_Remarks } = data;
 
 
 
@@ -3719,10 +2629,10 @@ ipcMain.handle('save-expense', async (event, data) => {
         [Expenses_Lecturer, Expenses_Tools, Expenses_Food,
 
 
-         Expenses_Snack, Expenses_Travel, Expenses_Sum, Expenses_Remarks || '',
+          Expenses_Snack, Expenses_Travel, Expenses_Sum, Expenses_Remarks || '',
 
 
-         Expenses_ID]
+          Expenses_ID]
 
 
       );
@@ -3746,10 +2656,10 @@ ipcMain.handle('save-expense', async (event, data) => {
       );
 
 
-      const nextNum     = Number(nextRow.nextId) || 1;
+      const nextNum = Number(nextRow.nextId) || 1;
 
 
-      const newId       = 'THB' + String(nextNum).padStart(7, '0');
+      const newId = 'THB' + String(nextNum).padStart(7, '0');
 
 
 
@@ -3791,10 +2701,10 @@ ipcMain.handle('save-expense', async (event, data) => {
         [newId, Plan_ID, Courses_ID,
 
 
-         Expenses_Lecturer, Expenses_Tools, Expenses_Food,
+          Expenses_Lecturer, Expenses_Tools, Expenses_Food,
 
 
-         Expenses_Snack, Expenses_Travel, Expenses_Sum, Expenses_Remarks || '']
+          Expenses_Snack, Expenses_Travel, Expenses_Sum, Expenses_Remarks || '']
 
 
       );
@@ -4045,8 +2955,8 @@ ipcMain.handle('export-ot-excel', async (event, { forms, ceYear, month }) => {
     'พฤศจิกายน',
     'ธันวาคม'];
 
-  const beYear     = ceYear + 543;
-  const monthName  = THAI_MONTHS_XL[month];
+  const beYear = ceYear + 543;
+  const monthName = THAI_MONTHS_XL[month];
   const daysInMonth = new Date(ceYear, month, 0).getDate();
 
   // ── Load the original template once ──────────────────────────────────────
@@ -4054,7 +2964,7 @@ ipcMain.handle('export-ot-excel', async (event, { forms, ceYear, month }) => {
   const templateWb = new ExcelJS.Workbook();
   await templateWb.xlsx.readFile(templatePath);
   const templateWs = templateWb.worksheets[0]
-                  || templateWb.worksheets.find(Boolean);
+    || templateWb.worksheets.find(Boolean);
   if (!templateWs) {
     console.error('[OT Export] sheets in template:', templateWb.worksheets.map(s => s && s.name));
     return { success: false, message: `ไม่พบ sheet ใน template: ${templatePath}` };
@@ -4095,7 +3005,7 @@ ipcMain.handle('export-ot-excel', async (event, { forms, ceYear, month }) => {
     // Merge cells
     const merges = srcWs.model && srcWs.model.merges;
     if (Array.isArray(merges)) {
-      merges.forEach(m => { try { dstWs.mergeCells(m); } catch {} });
+      merges.forEach(m => { try { dstWs.mergeCells(m); } catch { } });
     }
 
     return dstWs;
@@ -4132,7 +3042,7 @@ ipcMain.handle('export-ot-excel', async (event, { forms, ceYear, month }) => {
 
     // Clear leftover day cells if month is shorter than template (< 30 days)
     for (let extra = days.length + 1; extra <= 30; extra++) {
-      ws.getCell(5 + extra, 1).value  = null;
+      ws.getCell(5 + extra, 1).value = null;
       ws.getCell(5 + extra, 10).value = null;
     }
   }

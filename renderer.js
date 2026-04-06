@@ -3,7 +3,12 @@
  * โหลด HTML components ผ่าน fetch แล้ว wire ทุก function ขึ้น global window
  */
 
-import { escHtml, showToast, showModal, closeModal, initModalBackdropClose, submitPasswordConfirm, closePasswordConfirmModal } from './components/js/utils.js';
+import {
+  escHtml, showToast, showModal, closeModal, initModalBackdropClose,
+  submitPasswordConfirm, closePasswordConfirmModal,
+  formatThaiDateField, autoFormatThaiDateField
+} from './components/js/utils.js';
+import { initThaiDatePicker, initAllThaiDatePickers } from './components/js/thai-datepicker.js';
 import { checkDBStatus, doLogin, doLoginAsGuest, initAutoLogin, applyMenuForRole, confirmLogout, doLogout, currentUser } from './components/js/auth.js';
 import {
   loadEmployeesPage, loadSubdivisions, loadPositions,
@@ -211,6 +216,9 @@ async function init() {
   // Setup modal backdrop close
   initModalBackdropClose(['empModal','empViewModal','passwordConfirmModal','confirmModal','logoutModal','leaveModal','leaveConfirmModal','trainingFormModal','trainingDetailsModal','expenseFormModal','holidayFormModal','holidayDeleteModal']);
 
+  // Init date pickers on all modal date inputs
+  initAllThaiDatePickers();
+
   // Login event listeners
   document.getElementById('loginUsername').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') document.getElementById('loginPassword').focus();
@@ -234,6 +242,10 @@ Object.assign(window, {
   doLogin, doLoginAsGuest, confirmLogout, doLogout,
   // Password confirm (delete guard)
   submitPasswordConfirm, closePasswordConfirmModal,
+  // Shared date helpers
+  formatThaiDateField, autoFormatThaiDateField,
+  // Date picker
+  initThaiDatePicker, initAllThaiDatePickers,
   // Nav
   switchPage, toggleGroup, refreshCurrentPage,
   // Employees

@@ -1,5 +1,5 @@
 // ===================== EMPLOYEES PAGE =====================
-import { escHtml, formatDate, formatDateInput, showToast, showModal, closeModal, requirePasswordConfirm } from './utils.js';
+import { escHtml, formatDate, isoDateToDisplayDate, displayDateToIso, showToast, showModal, closeModal, requirePasswordConfirm } from './utils.js';
 import { currentUser } from './auth.js';
 
 export let allEmployees = [];
@@ -400,8 +400,8 @@ export async function openEditEmployee(empId) {
   document.getElementById('fEmpLevel').value = emp.Emp_Level || '';
   document.getElementById('fSubID').value = emp.Sub_ID || '';
   document.getElementById('fPositionID').value = emp.Position_ID || '';
-  document.getElementById('fEmpStartDate').value = formatDateInput(emp.Emp_Start_date);
-  document.getElementById('fEmpPackingDate').value = formatDateInput(emp.Emp_Packing_date);
+  document.getElementById('fEmpStartDate').value = isoDateToDisplayDate(emp.Emp_Start_date);
+  document.getElementById('fEmpPackingDate').value = isoDateToDisplayDate(emp.Emp_Packing_date);
   document.getElementById('fEmpStatus').value = emp.Emp_Status || 'Activated';
   document.getElementById('fEmpVsth').value = emp.Emp_Vsth || 'Vel';
 
@@ -470,12 +470,20 @@ export async function saveEmployee() {
   const lastname = document.getElementById('fEmpLastname').value.trim();
   const subId = document.getElementById('fSubID').value;
   const posId = document.getElementById('fPositionID').value;
+  const startDateText = document.getElementById('fEmpStartDate').value.trim();
+  const packingDateText = document.getElementById('fEmpPackingDate').value.trim();
 
   if (!empId) { showToast('กรุณากรอกรหัสพนักงาน', 'error'); return; }
   if (!firstname) { showToast('กรุณากรอกชื่อพนักงาน', 'error'); return; }
   if (!lastname) { showToast('กรุณากรอกนามสกุลพนักงาน', 'error'); return; }
   if (!subId) { showToast('กรุณาเลือกแผนก', 'error'); return; }
   if (!posId) { showToast('กรุณาเลือกตำแหน่ง', 'error'); return; }
+
+  const startDateDb = startDateText ? displayDateToIso(startDateText) : null;
+  const packingDateDb = packingDateText ? displayDateToIso(packingDateText) : null;
+
+  if (startDateText && !startDateDb) { showToast('วันที่เริ่มงานไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
+  if (packingDateText && !packingDateDb) { showToast('วันที่บรรจุไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
 
   const data = {
     Emp_ID: empId,
@@ -486,8 +494,8 @@ export async function saveEmployee() {
     Emp_Level: document.getElementById('fEmpLevel').value.trim(),
     Sub_ID: subId,
     Position_ID: posId,
-    Emp_Start_date: document.getElementById('fEmpStartDate').value || null,
-    Emp_Packing_date: document.getElementById('fEmpPackingDate').value || null,
+    Emp_Start_date: startDateDb,
+    Emp_Packing_date: packingDateDb,
     Emp_Status: document.getElementById('fEmpStatus').value,
     Emp_Vsth: document.getElementById('fEmpVsth').value
   };

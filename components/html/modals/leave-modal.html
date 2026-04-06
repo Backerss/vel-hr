@@ -80,18 +80,28 @@
       <div class="form-row">
         <div class="form-group">
           <label>วันที่ลา (วันและเวลาเริ่มต้น) <span class="required">*</span></label>
-          <input type="datetime-local" id="fLeaveStartDT" class="form-control-m" step="7200" onchange="onLeaveStartDTChange()" />
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) 118px;gap:8px;">
+            <input type="text" id="fLeaveStartDate" class="form-control-m"
+              placeholder="DD/MM/YYYY (พ.ศ.)" maxlength="10" inputmode="numeric" autocomplete="off"
+              data-tdp oninput="autoFormatThaiDateField(this)" onblur="formatThaiDateField(this); onLeaveStartDTChange()" />
+            <input type="time" id="fLeaveStartTime" class="form-control-m" step="7200" onchange="onLeaveStartDTChange()" />
+          </div>
         </div>
         <div class="form-group">
           <label>ถึงวันที่ (วันและเวลาสิ้นสุด) <span class="required">*</span></label>
-          <input type="datetime-local" id="fLeaveEndDT" class="form-control-m" step="7200" />
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) 118px;gap:8px;">
+            <input type="text" id="fLeaveEndDate" class="form-control-m"
+              placeholder="DD/MM/YYYY (พ.ศ.)" maxlength="10" inputmode="numeric" autocomplete="off"
+              data-tdp oninput="autoFormatThaiDateField(this)" onblur="formatThaiDateField(this)" />
+            <input type="time" id="fLeaveEndTime" class="form-control-m" step="7200" />
+          </div>
         </div>
       </div>
 
       <div class="form-row">
         <div class="form-group">
           <label>วันที่บันทึก</label>
-          <input type="date" id="fLeaveRecordDate" class="form-control-m leave-readonly" readonly />
+          <input type="text" id="fLeaveRecordDate" class="form-control-m leave-readonly" readonly />
         </div>
         <div class="form-group"></div>
       </div>

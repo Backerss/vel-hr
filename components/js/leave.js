@@ -1,5 +1,9 @@
 // ===================== LEAVE RECORD & DAILY ABSENCE =====================
-import { escHtml, showToast, showModal, closeModal, requirePasswordConfirm } from './utils.js';
+import {
+  escHtml, showToast, showModal, closeModal, requirePasswordConfirm,
+  displayDateToDbSlash, isoDateToDisplayDate, todayDisplayDate, displayDateToIso
+} from './utils.js';
+import { initAllThaiDatePickers } from './thai-datepicker.js';
 import { currentUser } from './auth.js';
 
 export let leaveTypes = [];
@@ -24,13 +28,13 @@ export function dbDateToDisplay(d) {
     return dt.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
   } catch { return d; }
 }
-export function dateInputToDb(v) { return v ? v.replace(/-/g, '/') : ''; }
-export function dbDateToInput(v) { return v ? v.replace(/\//g, '-') : ''; }
+export function dateInputToDb(v) { return displayDateToDbSlash(v); }
+export function dbDateToInput(v) { return isoDateToDisplayDate(v); }
 export function todayDbFormat() {
   const n = new Date();
   return `${n.getFullYear()}/${String(n.getMonth()+1).padStart(2,'0')}/${String(n.getDate()).padStart(2,'0')}`;
 }
-export function todayInputFormat() { return todayDbFormat().replace(/\//g, '-'); }
+export function todayInputFormat() { return todayDisplayDate(); }
 export function getCommunicateLabel(r) {
   if (r.drp_Communicate && r.drp_Communicate.trim()) return 'โทร';
   if (r.drp_Communicate1 && r.drp_Communicate1.trim()) return 'แจ้งล่วงหน้า';
@@ -69,11 +73,15 @@ export async function loadLeaveRecordPage() {
         </div>
         <div style="display:flex;align-items:center;gap:5px;">
           <span style="font-size:12px;color:var(--gray-500);white-space:nowrap;">ตั้งแต่</span>
-          <input type="date" class="filter-select" id="leaveDateFrom" onchange="applyLeaveFilter()" style="min-width:130px;">
+          <input type="text" class="filter-select" id="leaveDateFrom" data-tdp
+            placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" autocomplete="off"
+            oninput="autoFormatThaiDateField(this)" onblur="formatThaiDateField(this); applyLeaveFilter()" style="min-width:130px;">
         </div>
         <div style="display:flex;align-items:center;gap:5px;">
           <span style="font-size:12px;color:var(--gray-500);white-space:nowrap;">ถึง</span>
-          <input type="date" class="filter-select" id="leaveDateTo" onchange="applyLeaveFilter()" style="min-width:130px;">
+          <input type="text" class="filter-select" id="leaveDateTo" data-tdp
+            placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" autocomplete="off"
+            oninput="autoFormatThaiDateField(this)" onblur="formatThaiDateField(this); applyLeaveFilter()" style="min-width:130px;">
         </div>
         <select class="filter-select" id="leaveFilterSub" onchange="applyLeaveFilter()">
           <option value="">ทุกแผนก</option>${subOptions}
@@ -123,6 +131,7 @@ export async function loadLeaveRecordPage() {
       </div>
     </div>`;
 
+  initAllThaiDatePickers();
   await fetchAndRenderLeave();
 }
 
@@ -141,8 +150,10 @@ export async function fetchAndRenderLeave() {
 
 export function applyLeaveFilter() {
   const search = (document.getElementById('leaveSearch')?.value || '').toLowerCase();
-  const dateFrom = document.getElementById('leaveDateFrom')?.value || '';
-  const dateTo   = document.getElementById('leaveDateTo')?.value   || '';
+  const dateFromRaw = document.getElementById('leaveDateFrom')?.value || '';
+  const dateToRaw   = document.getElementById('leaveDateTo')?.value   || '';
+  const dateFrom = displayDateToDbSlash(dateFromRaw) || '';
+  const dateTo   = displayDateToDbSlash(dateToRaw) || '';
   const sub      = document.getElementById('leaveFilterSub')?.value  || '';
   const ltype    = document.getElementById('leaveFilterType')?.value || '';
 
@@ -151,8 +162,8 @@ export function applyLeaveFilter() {
       const hay = [(r.drp_empID||''),(r.Emp_Firstname||''),(r.Emp_Lastname||''),(r.Fullname||'')].join(' ').toLowerCase();
       if (!hay.includes(search)) return false;
     }
-    if (dateFrom && (r.drp_Sdate||'') < dateFrom.replace(/-/g,'/')) return false;
-    if (dateTo   && (r.drp_Sdate||'') > dateTo.replace(/-/g,'/'))   return false;
+    if (dateFrom && (r.drp_Sdate||'') < dateFrom) return false;
+    if (dateTo   && (r.drp_Sdate||'') > dateTo)   return false;
     if (sub && String(r.Sub_ID) !== sub) return false;
     if (ltype && r.drp_Type !== ltype) return false;
     return true;
@@ -298,11 +309,13 @@ export function onLeaveTypeChange() {
 }
 
 export function onLeaveStartDTChange() {
-  const startEl = document.getElementById('fLeaveStartDT');
-  const endEl   = document.getElementById('fLeaveEndDT');
-  if (!startEl || !endEl || !startEl.value) return;
-  const datePart = startEl.value.split('T')[0];
-  endEl.value = `${datePart}T17:00`;
+  const startDateEl = document.getElementById('fLeaveStartDate');
+  const endDateEl   = document.getElementById('fLeaveEndDate');
+  const endTimeEl   = document.getElementById('fLeaveEndTime');
+  if (!startDateEl || !endDateEl || !startDateEl.value) return;
+  if (!displayDateToIso(startDateEl.value)) return;
+  endDateEl.value = startDateEl.value;
+  if (endTimeEl && !endTimeEl.value) endTimeEl.value = '17:00';
 }
 
 function clearLeaveForm() {
@@ -317,10 +330,14 @@ function clearLeaveForm() {
   const lt = document.getElementById('fLeaveType');
   if (lt) lt.value = '';
   const base = todayInputFormat();
-  const sd = document.getElementById('fLeaveStartDT');
-  if (sd) sd.value = `${base}T08:00`;
-  const ed = document.getElementById('fLeaveEndDT');
-  if (ed) ed.value = `${base}T17:00`;
+  const startDate = document.getElementById('fLeaveStartDate');
+  if (startDate) startDate.value = base;
+  const startTime = document.getElementById('fLeaveStartTime');
+  if (startTime) startTime.value = '08:00';
+  const endDate = document.getElementById('fLeaveEndDate');
+  if (endDate) endDate.value = base;
+  const endTime = document.getElementById('fLeaveEndTime');
+  if (endTime) endTime.value = '17:00';
   document.getElementById('fLeaveRecordDate').value = base;
   const rem = document.getElementById('fLeaveRemark');
   if (rem) rem.value = '';
@@ -337,10 +354,12 @@ function fillLeaveForm(r) {
   const comm = getCommunicateLabel(r);
   document.getElementById('fLeaveComm').value = (comm !== '-') ? comm : 'โทร';
   if (r.drp_Sdate) {
-    document.getElementById('fLeaveStartDT').value = `${dbDateToInput(r.drp_Sdate)}T${r.drp_Stime||'08:00'}`;
+    document.getElementById('fLeaveStartDate').value = dbDateToInput(r.drp_Sdate);
+    document.getElementById('fLeaveStartTime').value = r.drp_Stime || '08:00';
   }
   if (r.drp_Edate) {
-    document.getElementById('fLeaveEndDT').value = `${dbDateToInput(r.drp_Edate)}T${r.drp_Etime||'17:00'}`;
+    document.getElementById('fLeaveEndDate').value = dbDateToInput(r.drp_Edate);
+    document.getElementById('fLeaveEndTime').value = r.drp_Etime || '17:00';
   }
   document.getElementById('fLeaveRecordDate').value = dbDateToInput(r.drp_record) || todayInputFormat();
   document.getElementById('fLeaveRemark').value = (r.drp_Remark||'').replace(/\r\n/g,'\n').trim();
@@ -373,8 +392,10 @@ export async function lookupEmployee() {
 export async function saveLeaveRecord() {
   const empId   = (document.getElementById('fLeaveEmpID')?.value || '').trim();
   const ltype   = document.getElementById('fLeaveType')?.value || '';
-  const startDT = document.getElementById('fLeaveStartDT')?.value || '';
-  const endDT   = document.getElementById('fLeaveEndDT')?.value   || '';
+  const startDate = document.getElementById('fLeaveStartDate')?.value || '';
+  const startTime = document.getElementById('fLeaveStartTime')?.value || '';
+  const endDate   = document.getElementById('fLeaveEndDate')?.value   || '';
+  const endTime   = document.getElementById('fLeaveEndTime')?.value   || '';
   const recDate = document.getElementById('fLeaveRecordDate')?.value || todayInputFormat();
   const comm    = document.getElementById('fLeaveComm')?.value || 'โทร';
   const sub     = document.getElementById('fLeaveSub')?.value || '';
@@ -382,19 +403,27 @@ export async function saveLeaveRecord() {
 
   if (!empId)  { showToast('กรุณากรอกรหัสพนักงาน', 'error'); return; }
   if (!ltype)  { showToast('กรุณาเลือกประเภทการลา', 'error'); return; }
-  if (!startDT){ showToast('กรุณาเลือกวันที่ลา', 'error'); return; }
-  if (!endDT)  { showToast('กรุณาเลือกวันที่สิ้นสุด', 'error'); return; }
+  if (!startDate || !startTime) { showToast('กรุณากรอกวันและเวลาเริ่มต้น', 'error'); return; }
+  if (!endDate || !endTime)     { showToast('กรุณากรอกวันและเวลาสิ้นสุด', 'error'); return; }
+
+  const recordDateDb = dateInputToDb(recDate);
+  const startDateDb = dateInputToDb(startDate);
+  const endDateDb = dateInputToDb(endDate);
+
+  if (!recordDateDb) { showToast('วันที่บันทึกไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
+  if (!startDateDb)  { showToast('วันที่ลาไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
+  if (!endDateDb)    { showToast('วันที่สิ้นสุดไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
 
   const d = {
     drp_empID:        empId,
-    drp_record:       dateInputToDb(recDate),
+    drp_record:       recordDateDb,
     drp_Type:         ltype,
     drp_Communicate:  comm === 'โทร' ? 'ü' : '',
     drp_Communicate1: comm === 'แจ้งล่วงหน้า' ? 'ü' : '',
-    drp_Sdate:        dateInputToDb(startDT.split('T')[0]),
-    drp_Stime:        (startDT.split('T')[1] || '08:00') + ':00',
-    drp_Edate:        dateInputToDb(endDT.split('T')[0]),
-    drp_Etime:        (endDT.split('T')[1]   || '17:00') + ':00',
+    drp_Sdate:        startDateDb,
+    drp_Stime:        `${startTime}:00`,
+    drp_Edate:        endDateDb,
+    drp_Etime:        `${endTime}:00`,
     drp_status:       sub,
     drp_Remark:       remark
   };
@@ -460,7 +489,9 @@ export async function loadDailyAbsencePage() {
         <div style="flex:1;"></div>
         <div style="display:flex;align-items:center;gap:8px;">
           <label style="font-size:13px;font-weight:600;color:var(--gray-700);white-space:nowrap;">เลือกวันที่:</label>
-          <input type="date" id="absenceDate" class="filter-select" value="${today}" style="min-width:140px;">
+          <input type="text" id="absenceDate" class="filter-select" data-tdp value="${today}"
+            placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" autocomplete="off"
+            oninput="autoFormatThaiDateField(this)" onblur="formatThaiDateField(this)" style="min-width:140px;">
         </div>
         <button class="btn-primary-custom" onclick="loadAbsenceReport()">
           <i class="bi bi-search"></i> แสดงรายงาน
@@ -479,14 +510,21 @@ export async function loadDailyAbsencePage() {
       </div>
     </div>`;
 
+  initAllThaiDatePickers();
   await loadAbsenceReport();
 }
 
 export async function loadAbsenceReport() {
   const dateInput = document.getElementById('absenceDate');
-  const dateVal = dateInput?.value || todayInputFormat();
+  const dateRaw = dateInput?.value || todayInputFormat();
+  const dateVal = displayDateToIso(dateRaw);
   const area = document.getElementById('absenceReportArea');
   if (!area) return;
+
+  if (!dateVal) {
+    area.innerHTML = `<div class="empty-state"><div class="empty-icon"><i class="bi bi-exclamation-triangle"></i></div><div class="empty-text" style="color:var(--danger);">โปรดระบุวันที่ในรูปแบบ DD/MM/YYYY</div></div>`;
+    return;
+  }
 
   area.innerHTML = `<div class="text-center py-5"><div class="spinner" style="margin:0 auto;"></div><p class="mt-3 text-muted">กำลังดึงข้อมูล...</p></div>`;
 
@@ -508,7 +546,7 @@ export async function loadAbsenceReport() {
     grouped[vsth].push(r);
   });
 
-  const thDate = new Date(dateVal).toLocaleDateString('th-TH', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  const thDate = new Date(`${dateVal}T00:00:00`).toLocaleDateString('th-TH', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
   const totalCount = data.length;
   const velCount   = grouped['Vel'].length;
   const outerCount = totalCount - velCount;
@@ -549,7 +587,7 @@ export async function loadAbsenceReport() {
               <td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;">
                 ${comm==='โทร'?'📞 โทร':comm==='แจ้งล่วงหน้า'?'🔔 แจ้งล่วงหน้า':'-'}
               </td>
-              <td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:11.5px;">${escHtml(r.drp_Sdate||'')} ${timeStr}</td>
+              <td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:11.5px;">${escHtml(dbDateToDisplay(r.drp_Sdate) || '-')} ${timeStr}</td>
               <td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;max-width:200px;">${escHtml(remark||'-')}</td>
             </tr>`;
           }).join('')}
