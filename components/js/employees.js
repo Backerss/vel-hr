@@ -101,41 +101,13 @@ export async function loadEmployeesPage() {
   }
 
   container.innerHTML = `
-    <!-- STAT CARDS -->
-    <div class="row g-3 mb-4">
-      <div class="col-md-4">
-        <div class="stat-card">
-          <div class="stat-icon blue"><i class="bi bi-people-fill"></i></div>
-          <div>
-            <div class="stat-value" id="statTotal">${totalCount.toLocaleString()}</div>
-            <div class="stat-label">พนักงานทั้งหมด</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="stat-card">
-          <div class="stat-icon green"><i class="bi bi-person-check-fill"></i></div>
-          <div>
-            <div class="stat-value" id="statActive">${activeCount.toLocaleString()}</div>
-            <div class="stat-label">พนักงานที่ทำงานอยู่</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="stat-card">
-          <div class="stat-icon amber"><i class="bi bi-person-x-fill"></i></div>
-          <div>
-            <div class="stat-value" id="statInactive">${inactiveCount.toLocaleString()}</div>
-            <div class="stat-label">พนักงานที่ไม่ทำงานแล้ว</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- TABLE -->
     <div class="table-section">
       <div class="table-header">
         <span class="table-title">รายชื่อพนักงาน</span>
+        <span style="font-size:12px;color:var(--gray-500);background:var(--gray-100);border-radius:20px;padding:3px 10px;font-weight:600;">
+          <i class="bi bi-people-fill" style="margin-right:4px;color:var(--primary);"></i>ทั้งหมด ${activeCount.toLocaleString()} คน
+        </span>
 
         <div class="search-box">
           <i class="bi bi-search"></i>
@@ -155,7 +127,7 @@ export async function loadEmployeesPage() {
 
         <select class="filter-select" id="filterStatus" onchange="filterEmployees()">
           <option value="">ทุกสถานะ</option>
-          <option value="Activated">Activated</option>
+          <option value="Activated" selected>Activated</option>
           <option value="Resigned">Resigned</option>
           <option value="Terminated">Terminated</option>
         </select>

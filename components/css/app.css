@@ -44,7 +44,9 @@ body {
 #loginOverlay {
   position: fixed;
   inset: 0;
-  background: linear-gradient(135deg, #1a56db 0%, #0f3a8a 60%, #061a4a 100%);
+  background:
+    linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.65)),
+    url('.../../../../data/img/banner.jpg') center/cover no-repeat;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -58,12 +60,13 @@ body {
 }
 
 .login-card {
-  background: white;
+  background: rgba(255,255,255,0.97);
   border-radius: 20px;
   padding: 48px 44px;
   width: 420px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.45);
   animation: slideUp 0.5s ease;
+  backdrop-filter: blur(4px);
 }
 
 @keyframes slideUp {
@@ -72,18 +75,15 @@ body {
 }
 
 .login-logo {
-  width: 60px;
-  height: 60px;
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-  border-radius: 16px;
+  width: 90px;
+  height: 90px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 20px;
-  box-shadow: 0 8px 24px rgba(26, 86, 219, 0.35);
 }
 
-.login-logo i { font-size: 28px; color: white; }
+.login-logo img { width: 90px; height: 90px; object-fit: contain; }
 
 .login-title {
   font-size: 22px;
