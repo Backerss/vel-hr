@@ -3055,4 +3055,49 @@ ipcMain.handle('export-ot-excel', async (event, { forms, ceYear, month }) => {
   }
 });
 
+// ===================== EXPORT OT PDF =====================
+ipcMain.handle('export-ot-pdf', async (event, { xlsxPath, pdfPath }) => {
+  const fs = require('fs');
+  const os = require('os');
+  const { execFile } = require('child_process');
+
+  // PowerShell script: open xlsx with Excel COM and export as PDF
+  const psLines = [
+    'param([string]$xlPath, [string]$pdfPath)',
+    '$ErrorActionPreference = "Stop"',
+    '$excel = New-Object -ComObject Excel.Application',
+    '$excel.Visible = $false',
+    '$excel.DisplayAlerts = $false',
+    'try {',
+    '  $wb = $excel.Workbooks.Open($xlPath)',
+    '  $wb.ExportAsFixedFormat(0, $pdfPath)',
+    '  $wb.Close($false)',
+    '} finally {',
+    '  $excel.Quit()',
+    '  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null',
+    '}',
+  ];
+
+  const tempScript = path.join(os.tmpdir(), `ot_topdf_${Date.now()}.ps1`);
+  try {
+    fs.writeFileSync(tempScript, psLines.join('\r\n'), 'utf-8');
+
+    await new Promise((resolve, reject) => {
+      execFile('powershell', [
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-File', tempScript, xlsxPath, pdfPath
+      ], { timeout: 60000 }, (err, stdout, stderr) => {
+        if (err) reject(new Error(stderr ? stderr.trim() : err.message));
+        else resolve();
+      });
+    });
+
+    return { success: true, filePath: pdfPath };
+  } catch (e) {
+    return { success: false, message: `แปลง PDF ไม่สำเร็จ (ต้องการ Microsoft Excel): ${e.message}` };
+  } finally {
+    try { fs.unlinkSync(tempScript); } catch {}
+  }
+});
+
 

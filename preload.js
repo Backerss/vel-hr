@@ -46,4 +46,5 @@ contextBridge.exposeInMainWorld('api', {
   // OT
   getHolidaysForMonth: (payload) => ipcRenderer.invoke('get-holidays-for-month', payload),
   exportOtExcel: (data) => ipcRenderer.invoke('export-ot-excel', data),
+  exportOtPdf: (data) => ipcRenderer.invoke('export-ot-pdf', data),
 });

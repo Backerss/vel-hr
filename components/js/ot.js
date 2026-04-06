@@ -483,22 +483,29 @@ export async function otExport() {
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;margin:0 4px -2px 0;"></span>กำลัง Export...'; }
 
   try {
-    const res = await window.api.exportOtExcel({
-      forms: otGeneratedForms,
-      ceYear,
-      month
-    });
-    if (res?.success) {
-      showToast(`บันทึกไฟล์ Excel สำเร็จ (${otGeneratedForms.length} ชีท)`, 'success');
-    } else if (!res?.canceled) {
-      showToast(res?.message || 'Export ไม่สำเร็จ', 'danger');
+    // Step 1: Export Excel (opens Save dialog, user picks location)
+    const xlsxRes = await window.api.exportOtExcel({ forms: otGeneratedForms, ceYear, month });
+    if (xlsxRes?.canceled) return;
+    if (!xlsxRes?.success) {
+      showToast(xlsxRes?.message || 'Export Excel ไม่สำเร็จ', 'danger');
+      return;
     }
+
+    // Step 2: Open the saved xlsx with Excel COM and export as PDF (same folder, .pdf extension)
+    const pdfPath = xlsxRes.filePath.replace(/\.xlsx$/i, '.pdf');
+    const pdfRes = await window.api.exportOtPdf({ xlsxPath: xlsxRes.filePath, pdfPath });
+    if (!pdfRes?.success) {
+      showToast(`Excel บันทึกสำเร็จ แต่ PDF ไม่สำเร็จ: ${pdfRes?.message || ''}`, 'warning');
+      return;
+    }
+
+    showToast(`Excel และ PDF บันทึกสำเร็จ (${otGeneratedForms.length} ชีท)`, 'success');
   } catch (e) {
     showToast('Export ไม่สำเร็จ: ' + e.message, 'danger');
   } finally {
     if (btn) {
       btn.disabled = otGeneratedForms.length === 0;
-      btn.innerHTML = '<i class="bi bi-file-earmark-excel-fill"></i> Export Excel (<span id="otExportCount">' + otGeneratedForms.length + '</span> ชีท)';
+      btn.innerHTML = `<i class="bi bi-file-earmark-arrow-down-fill"></i> Export Excel + PDF (<span id="otExportCount">${otGeneratedForms.length}</span> ชีท)`;
     }
   }
 }
