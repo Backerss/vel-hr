@@ -34,6 +34,11 @@
       ],
       "icon": "data/img/icon.ico"
     },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true
+    },
     "extraResources":[
       ".env"
     ]

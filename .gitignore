@@ -1,3 +1,4 @@
 node_modules/*
 dist/*
 .env
+data/training_v_1_1.sql
