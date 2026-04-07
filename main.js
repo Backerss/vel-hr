@@ -1,4 +1,5 @@
-﻿const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
+﻿require('dotenv').config();
+const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
 const path = require('path');
 const mysql = require('mysql2/promise');
 const ExcelJS = require('exceljs');
@@ -10,10 +11,10 @@ let db;
 async function createConnection() {
   try {
     db = mysql.createPool({
-      host: '192.168.66.147',
-      user: 'root',
-      password: '5bf3c58a84ecc09eb99f4e5f3381e97dvsth',
-      database: 'training.v.1.1',
+      host: process.env.DB_HOST || 'localhost',
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'training_v_1_1',
       charset: 'utf8',
       waitForConnections: true,
       connectionLimit: 10,
