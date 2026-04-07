@@ -6,20 +6,26 @@ const ExcelJS = require('exceljs');
 let mainWindow;
 let db;
 
-// Database connection
+// Database connection pool
 async function createConnection() {
   try {
-    db = await mysql.createConnection({
+    db = mysql.createPool({
       host: 'localhost',
       user: 'root',
       password: '',
       database: 'training_v_1_1',
-      charset: 'utf8'
+      charset: 'utf8',
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0
     });
-    console.log('Connected to MySQL database');
+    // Verify the pool can actually reach the server
+    await db.execute('SELECT 1');
+    console.log('Connected to MySQL database (pool)');
     return true;
   } catch (error) {
     console.error('Database connection failed:', error.message);
+    db = null;
     return false;
   }
 }
@@ -64,6 +70,10 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('will-quit', async () => {
+  if (db) { try { await db.end(); } catch { } }
 });
 // ===================== IPC HANDLERS =====================
 // Login handler
@@ -2781,44 +2791,17 @@ ipcMain.handle('save-expense', async (event, data) => {
 
 
 // Table: holiday  Columns: ID (INT PK AUTO_INCREMENT), `Date` (VARCHAR YYYY/MM/DD), `Important Day` (VARCHAR)
-
-
-
-
-
 // Get holidays by year (CE year)
-
-
 ipcMain.handle('get-holidays', async (event, { year } = {}) => {
-
-
   if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
-
-
   try {
-
-
     const ceYear = year ? parseInt(year, 10) : new Date().getFullYear();
-
-
     const [rows] = await db.execute(
-
-
       "SELECT `ID`, `Date`, `Important Day` FROM `holiday` WHERE SUBSTRING(`Date`, 1, 4) = ? ORDER BY `Date` ASC",
-
-
       [String(ceYear)]
-
-
     );
-
-
     return { success: true, data: rows };
-
-
   } catch (e) { return { success: false, message: e.message }; }
-
-
 });
 
 
@@ -2826,86 +2809,31 @@ ipcMain.handle('get-holidays', async (event, { year } = {}) => {
 
 
 // Save holiday (INSERT or UPDATE)
-
-
 ipcMain.handle('save-holiday', async (event, data) => {
-
-
   if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
-
-
   try {
-
-
     const { Holiday_ID, Holiday_Date, Holiday_Name } = data;
-
-
     if (!Holiday_Date || !Holiday_Name) return { success: false, message: 'ข้อมูลไม่ครบถ้วน' };
-
-
-
-
-
     if (Holiday_ID) {
-
-
       // UPDATE
-
-
       await db.execute(
-
-
         "UPDATE `holiday` SET `Date`=?, `Important Day`=? WHERE `ID`=?",
-
-
         [Holiday_Date, String(Holiday_Name).trim(), Holiday_ID]
-
-
       );
-
-
       return { success: true, message: 'แก้ไขวันหยุดสำเร็จ' };
-
-
     } else {
-
-
       // INSERT — prevent duplicate date
-
-
       const [dup] = await db.execute(
-
-
         "SELECT `ID` FROM `holiday` WHERE `Date`=?", [Holiday_Date]
-
-
       );
-
-
       if (dup.length > 0) return { success: false, message: 'à¸§à¸±à¸™à¸—à¸µà¹ˆà¸™à¸µà¹‰à¸¡à¸µà¸§à¸±à¸™à¸«à¸¢à¸¸à¸”à¸­à¸¢à¸¹à¹ˆà¹à¸¥à¹‰ว' };
-
-
       await db.execute(
-
-
         "INSERT INTO `holiday` (`Date`, `Important Day`) VALUES (?, ?)",
-
-
         [Holiday_Date, String(Holiday_Name).trim()]
-
-
       );
-
-
       return { success: true, message: 'เพิ่มวันหยุดสำเร็จ' };
-
-
     }
-
-
   } catch (e) { return { success: false, message: e.message }; }
-
-
 });
 
 
@@ -2913,26 +2841,12 @@ ipcMain.handle('save-holiday', async (event, data) => {
 
 
 // Delete holiday by ID
-
-
 ipcMain.handle('delete-holiday', async (event, holidayId) => {
-
-
   if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
-
-
   try {
-
-
     await db.execute("DELETE FROM `holiday` WHERE `ID`=?", [parseInt(holidayId, 10)]);
-
-
     return { success: true };
-
-
   } catch (e) { return { success: false, message: e.message }; }
-
-
 });
 
 
@@ -2940,44 +2854,18 @@ ipcMain.handle('delete-holiday', async (event, holidayId) => {
 
 
 // Get holidays by year+month (for OT form)
-
-
 ipcMain.handle('get-holidays-for-month', async (event, { year, month } = {}) => {
-
-
   if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
-
-
   try {
-
-
     const ceYear = year ? parseInt(year, 10) : new Date().getFullYear();
-
-
     const mm = String(month || (new Date().getMonth() + 1)).padStart(2, '0');
-
-
     const prefix = `${ceYear}/${mm}`;
-
-
     const [rows] = await db.execute(
-
-
       "SELECT `ID`, `Date`, `Important Day` FROM `holiday` WHERE SUBSTRING(`Date`, 1, 7) = ? ORDER BY `Date` ASC",
-
-
       [prefix]
-
-
     );
-
-
     return { success: true, data: rows };
-
-
   } catch (e) { return { success: false, message: e.message }; }
-
-
 });
 
 

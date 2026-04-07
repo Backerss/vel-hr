@@ -223,7 +223,7 @@ async function init() {
   }
 
   // Setup modal backdrop close
-  initModalBackdropClose(['empModal','empViewModal','passwordConfirmModal','confirmModal','logoutModal','leaveModal','leaveConfirmModal','trainingFormModal','trainingDetailsModal','expenseFormModal','holidayFormModal','holidayDeleteModal']);
+  initModalBackdropClose(['empModal','empViewModal','passwordConfirmModal','confirmModal','logoutModal','leaveConfirmModal','trainingFormModal','trainingDetailsModal','expenseFormModal','holidayFormModal','holidayDeleteModal']);
 
   // Init date pickers on all modal date inputs
   initAllThaiDatePickers();
