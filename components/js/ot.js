@@ -7,6 +7,7 @@ let otSelectedIds = new Set();      // checked employee IDs (current view)
 let otSelectedEmployees = new Map();// Emp_ID → employee data (persists across filter changes)
 let otHolidays = [];                // holidays for selected month
 let otGeneratedForms = [];          // { emp, days[] } per employee
+let otSubMap = new Map();           // Sub_ID → subdivision row (with supervisor info)
 let otSubTimer = null;
 let otEmpSearchTimer = null;
 
@@ -28,6 +29,7 @@ export async function loadOtPage() {
   otSelectedEmployees = new Map();
   otHolidays = [];
   otGeneratedForms = [];
+  otSubMap = new Map();
 
   try {
     const res = await fetch('components/html/ot.html');
@@ -67,8 +69,7 @@ async function otLoadSubdivisions() {
   if (!sel) return;
   try {
     const res = await window.api.getSubdivisions();
-    if (res?.success) {
-      sel.innerHTML = '<option value="">-- ทั้งหมด --</option>';
+    if (res?.success) {      otSubMap = new Map((res.data || []).map(s => [s.Sub_ID, s]));      sel.innerHTML = '<option value="">-- ทั้งหมด --</option>';
       (res.data || []).forEach(s => {
         const opt = document.createElement('option');
         opt.value = s.Sub_ID;
@@ -452,7 +453,8 @@ function otBuildPrintArea(ceYear, month, forms) {
       <div class="ot-print-sign">
         <div class="ot-print-sign-box">
           ลงชื่อ ................................................<br>
-          <small>( ผู้ตรวจสอบ / เจ้าหน้าที่ HR )</small>
+          (${(() => { const sup = otSubMap.get(emp.Sub_ID); const n = (sup?.Supervisor_Name || '').trim(); return n ? escHtml(n) : '..............................'; })()})<br>
+          <small>( ${(() => { const sup = otSubMap.get(emp.Sub_ID); return escHtml((sup?.Supervisor_Position || '').trim() || 'หัวหน้างาน'); })() } )</small>
         </div>
         <div class="ot-print-sign-box">
           ลงชื่อ ................................................<br>

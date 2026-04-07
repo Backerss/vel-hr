@@ -269,11 +269,28 @@ ipcMain.handle('get-employee-by-id', async (event, id) => {
 ipcMain.handle('get-subdivisions', async () => {
   if (!db) return { success: false };
   try {
-    const [rows] = await db.execute(`SELECT s.Sub_ID, s.Sub_Name, s.Dpt_ID, d.Dpt_Name
-      FROM subdivision s
-      LEFT JOIN department d ON d.Dpt_ID = s.Dpt_ID
-      ORDER BY d.Dpt_Name ASC, s.Sub_Name ASC`);
+    const [rows] = await db.execute(
+      `SELECT s.Sub_ID, s.Sub_Name, s.Dpt_ID, d.Dpt_Name,
+        s.Supervisor_EmpID,
+        TRIM(CONCAT(IFNULL(e.Emp_Sname,''), IFNULL(e.Emp_Firstname,''), ' ', IFNULL(e.Emp_Lastname,''))) AS Supervisor_Name,
+        p.Position_Name AS Supervisor_Position
+       FROM subdivision s
+       LEFT JOIN department d ON d.Dpt_ID = s.Dpt_ID
+       LEFT JOIN employees e ON e.Emp_ID = s.Supervisor_EmpID AND s.Supervisor_EmpID != ''
+       LEFT JOIN position p ON p.Position_ID = e.Position_ID
+       ORDER BY d.Dpt_Name ASC, s.Sub_Name ASC`
+    );
     return { success: true, data: rows };
+  } catch (error) {
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('update-subdivision-supervisor', async (event, { sub_id, emp_id }) => {
+  if (!db) return { success: false };
+  try {
+    await db.execute(`UPDATE subdivision SET Supervisor_EmpID=? WHERE Sub_ID=?`, [emp_id || '', sub_id]);
+    return { success: true, message: 'บันทึกสำเร็จ' };
   } catch (error) {
     return { success: false, message: error.message };
   }
@@ -492,6 +509,41 @@ ipcMain.handle('get-daily-report-by-date', async (event, dateStr) => {
         WHERE dr.drp_record = ?
         ORDER BY FIELD(IFNULL(e.Emp_Vsth,dr.drp_status),'Vel','SK','TBS','CWS'), dr.drp_empID ASC`,
       [dbDate]
+    );
+    return { success: true, data: rows };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Get all leave records where today falls within drp_Sdate..drp_Edate
+ipcMain.handle('get-today-on-leave', async (event) => {
+  if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
+  try {
+    const now = new Date();
+    const y = now.getFullYear();
+    const mo = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${y}/${mo}/${d}`;
+    const [rows] = await db.execute(
+      `SELECT dr.drp_id, dr.drp_empID, dr.drp_record, dr.drp_Type,
+        dr.drp_Communicate, dr.drp_Communicate1,
+        dr.drp_Sdate, TIME_FORMAT(dr.drp_Stime,'%H:%i') AS drp_Stime,
+        dr.drp_Edate, TIME_FORMAT(dr.drp_Etime,'%H:%i') AS drp_Etime,
+        dr.drp_status, dr.drp_Remark,
+        CONCAT(IFNULL(e.Emp_Sname,''),IFNULL(e.Emp_Firstname,''),' ',IFNULL(e.Emp_Lastname,'')) AS Fullname,
+        e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname,
+        IFNULL(e.Emp_Vsth, dr.drp_status) AS Emp_Vsth,
+        s.Sub_Name, p.Position_Name,
+        lt.leave_name
+        FROM daily_report dr
+        LEFT JOIN employees e ON e.Emp_ID = dr.drp_empID
+        LEFT JOIN subdivision s ON s.Sub_ID = e.Sub_ID
+        LEFT JOIN position p ON p.Position_ID = e.Position_ID
+        LEFT JOIN leave_type lt ON lt.leave_abbreviation = dr.drp_Type
+        WHERE dr.drp_Sdate IS NOT NULL AND dr.drp_Sdate != ''
+          AND dr.drp_Sdate <= ?
+          AND (dr.drp_Edate IS NULL OR dr.drp_Edate = '' OR dr.drp_Edate >= ?)
+        ORDER BY FIELD(IFNULL(e.Emp_Vsth,dr.drp_status),'Vel','SK','TBS','CWS'), dr.drp_empID ASC`,
+      [todayStr, todayStr]
     );
     return { success: true, data: rows };
   } catch (e) { return { success: false, message: e.message }; }
@@ -2941,6 +2993,28 @@ ipcMain.handle('export-ot-excel', async (event, { forms, ceYear, month }) => {
   });
   if (canceled || !filePath) return { success: false, canceled: true };
 
+  // ── Fetch supervisor info for each unique Sub_ID used in forms ─────────────
+  const subSupMap = new Map(); // Sub_ID → { name, position }
+  if (db) {
+    try {
+      const uniqueSubIds = [...new Set(forms.map(f => f.emp?.Sub_ID).filter(Boolean))];
+      if (uniqueSubIds.length > 0) {
+        const placeholders = uniqueSubIds.map(() => '?').join(',');
+        const [rows] = await db.execute(
+          `SELECT s.Sub_ID,
+            TRIM(CONCAT(IFNULL(e.Emp_Sname,''), IFNULL(e.Emp_Firstname,''), ' ', IFNULL(e.Emp_Lastname,''))) AS sup_name,
+            p.Position_Name AS sup_pos
+           FROM subdivision s
+           LEFT JOIN employees e ON e.Emp_ID = s.Supervisor_EmpID AND s.Supervisor_EmpID != ''
+           LEFT JOIN position p ON p.Position_ID = e.Position_ID
+           WHERE s.Sub_ID IN (${placeholders})`,
+          uniqueSubIds
+        );
+        rows.forEach(r => subSupMap.set(r.Sub_ID, { name: (r.sup_name || '').trim(), position: r.sup_pos || '' }));
+      }
+    } catch { /* non-fatal — continue export without supervisor */ }
+  }
+
   const THAI_MONTHS_XL = ['',
     'มกราคม',
     'กุมภาพันธ์',
@@ -3044,6 +3118,13 @@ ipcMain.handle('export-ot-excel', async (event, { forms, ceYear, month }) => {
     for (let extra = days.length + 1; extra <= 30; extra++) {
       ws.getCell(5 + extra, 1).value = null;
       ws.getCell(5 + extra, 10).value = null;
+    }
+
+    // ── Signature rows: fill supervisor name/position from subdivision ──────
+    const sup = subSupMap.get(emp.Sub_ID);
+    if (sup && sup.name) {
+      ws.getCell(40, 9).value = `(  ${sup.name}  )`;
+      ws.getCell(41, 9).value = sup.position || 'หัวหน้างาน';
     }
   }
 

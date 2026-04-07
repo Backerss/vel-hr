@@ -71,10 +71,21 @@
     <!-- ── กลุ่ม: OT ── -->
     <div class="nav-section-label" style="margin-top:12px;">ชั่วโมงพิเศษ</div>
 
-    <button class="nav-item-custom" id="navOT" onclick="switchPage('ot')">
-      <i class="bi bi-clock-history"></i>
-      <span>OT</span>
-    </button>
+    <div class="nav-group" id="groupOT">
+      <button class="nav-group-header" onclick="toggleGroup('groupOT')">
+        <i class="bi bi-clock-history group-icon"></i>
+        <span class="group-label">OT ชั่วโมงพิเศษ</span>
+        <i class="bi bi-chevron-down chevron"></i>
+      </button>
+      <div class="nav-submenu" id="subOT">
+        <button class="nav-subitem" id="navOT" onclick="switchPage('ot')">
+          บันทึก OT
+        </button>
+        <button class="nav-subitem" id="navOtSigners" onclick="switchPage('otSigners')">
+          จัดการผู้เซ็นชื่อ OT
+        </button>
+      </div>
+    </div>
 
     <!-- ── กลุ่ม: วันหยุด ── -->
     <div class="nav-section-label" style="margin-top:12px;">วันหยุด</div>

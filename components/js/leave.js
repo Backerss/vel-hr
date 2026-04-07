@@ -16,6 +16,11 @@ const LEAVE_PER_PAGE = 50;
 let leaveSearchTimeout = null;
 let currentAbsenceDate = '';
 let currentAbsenceData = [];
+// ---- Today's Leave (guest-only) ----
+let todayLeaveAllData = [];
+let todayLeaveFiltered = [];
+let todayLeavePage = 1;
+const TODAY_LEAVE_PER_PAGE = 20;
 
 // ---- Date helpers ----
 export function dbDateToDisplay(d) {
@@ -41,9 +46,34 @@ export function getCommunicateLabel(r) {
   return '-';
 }
 
+// ---- Guest time-window check ----
+function _guestInAllowedWindow() {
+  const now = new Date();
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const mins = h * 60 + m;
+  return (mins >= 480 && mins < 600) ||  // 08:00 - 10:00
+         (mins >= 1200 && mins < 1320);  // 20:00 - 22:00
+}
+
+function _guestNextWindowLabel() {
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  if (mins < 480)  return 'วันนี้ 08:00 - 10:00 น.';
+  if (mins < 1200) return 'วันนี้ 20:00 - 22:00 น.';
+  return 'พรุ่งนี้ 08:00 - 10:00 น.';
+}
+
 // ===================== LEAVE RECORD PAGE =====================
 export async function loadLeaveRecordPage() {
   const container = document.getElementById('pageContent');
+
+  // Guest: enforce time window
+  if (currentUser?.role === 'guest' && !_guestInAllowedWindow()) {
+    _renderGuestTimeLock(container);
+    return;
+  }
+
   container.innerHTML = `<div class="text-center py-5"><div class="spinner" style="margin:0 auto;"></div><p class="mt-3 text-muted">กำลังโหลดข้อมูล...</p></div>`;
 
   const [ltRes, subRes] = await Promise.all([
@@ -53,6 +83,7 @@ export async function loadLeaveRecordPage() {
   if (ltRes.success) leaveTypes = ltRes.data;
   let subdivisions = [];
   if (subRes.success) subdivisions = subRes.data;
+  const isGuestUser = currentUser?.role === 'guest';
 
   const ltOptions = leaveTypes.map(lt =>
     `<option value="${escHtml(lt.leave_abbreviation)}">${escHtml(lt.leave_abbreviation)} - ${escHtml(lt.leave_name)}</option>`
@@ -95,6 +126,60 @@ export async function loadLeaveRecordPage() {
       </div>
     </div>
 
+    ${isGuestUser ? `
+    <div id="todayLeaveSection">
+      <div class="table-section" style="padding:16px 20px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <i class="bi bi-person-check-fill" style="font-size:19px;color:#10b981;"></i>
+          <span style="font-size:15px;font-weight:700;color:var(--gray-900);">วันนี้มีใครลาบ้าง</span>
+          <span id="todayLeaveDate" style="font-size:13px;color:var(--gray-500);"></span>
+          <div style="flex:1;min-width:8px;"></div>
+          <div class="search-box" style="max-width:190px;">
+            <i class="bi bi-search"></i>
+            <input type="text" class="search-input" id="todayLeaveSearch"
+              placeholder="ค้นหา รหัส / ชื่อ..." oninput="applyTodayLeaveFilter()">
+          </div>
+          <select class="filter-select" id="todayLeaveFilterSub" onchange="applyTodayLeaveFilter()">
+            <option value="">ทุกแผนก</option>
+          </select>
+          <select class="filter-select" id="todayLeaveFilterPos" onchange="applyTodayLeaveFilter()">
+            <option value="">ทุกตำแหน่ง</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-section" style="margin-bottom:16px;">
+        <div class="table-header" style="padding:13px 20px;">
+          <span class="table-title" style="color:#10b981;"><i class="bi bi-calendar-check" style="margin-right:6px;"></i>รายชื่อผู้ลาวันนี้</span>
+          <span style="margin-left:auto;font-size:12.5px;color:var(--gray-500);">แสดง <strong id="todayLeaveDisplayCount">0</strong> จาก <strong id="todayLeaveTotalCount">0</strong> คน</span>
+        </div>
+        <div class="table-responsive-custom">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:45px;text-align:center;">#</th>
+                <th style="width:80px;">รหัส</th>
+                <th style="min-width:150px;">ชื่อ-นามสกุล</th>
+                <th style="min-width:110px;">แผนก</th>
+                <th style="min-width:110px;">ตำแหน่ง</th>
+                <th style="width:65px;">สังกัด</th>
+                <th style="width:140px;">ประเภทลา</th>
+                <th style="width:120px;">วันที่เริ่ม</th>
+                <th style="width:120px;">ถึงวันที่</th>
+              </tr>
+            </thead>
+            <tbody id="todayLeaveTableBody">
+              <tr class="loading-row"><td colspan="9"><div class="spinner"></div><div>กำลังโหลด...</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-footer" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div class="record-count">หน้า <span id="todayLeavePageInfo" style="font-weight:700;color:var(--gray-800);">1 / 1</span></div>
+          <div id="todayLeavePagination" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;"></div>
+        </div>
+      </div>
+    </div>
+    ` : ''}
+
     <div class="table-section">
       <div class="table-header" style="padding:13px 20px;">
         <span class="table-title">รายการบันทึกลางาน</span>
@@ -133,6 +218,104 @@ export async function loadLeaveRecordPage() {
 
   initAllThaiDatePickers();
   await fetchAndRenderLeave();
+  if (isGuestUser) loadTodayLeave();
+}
+
+// ---- Guest time-lock screen ----
+function _renderGuestTimeLock(container) {
+  container.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;
+      gap:16px;padding:32px 20px 24px;text-align:center;">
+      <div id="_guestClock" style="font-size:56px;font-weight:700;color:var(--primary);
+        letter-spacing:4px;font-variant-numeric:tabular-nums;"></div>
+      <div style="font-size:17px;font-weight:700;color:var(--gray-800);">ขณะนี้อยู่นอกเวลาที่เปิดให้บันทึกลางาน</div>
+      <div style="background:#eff6ff;border-radius:14px;padding:16px 28px;max-width:420px;">
+        <div style="font-size:13.5px;color:var(--gray-700);line-height:2.1;">
+          ⏰ เวลาที่เปิดให้บันทึก:<br>
+          <strong>กะแรก &nbsp; 08:00 – 10:00 น.</strong><br>
+          <strong>กะสอง &nbsp; 20:00 – 22:00 น.</strong>
+        </div>
+      </div>
+      <div style="font-size:13.5px;color:var(--gray-600);">
+        ระบบจะเปิดให้บันทึกอีกครั้ง: <strong id="_guestNext"></strong>
+      </div>
+      <div style="font-size:13px;color:var(--gray-500);">
+        หากพบปัญหาสามารถติดต่อ HR เบอร์ภายใน <strong style="color:var(--primary);">105</strong>
+      </div>
+    </div>
+
+    <div id="todayLeaveSection" style="padding:0 0 24px;">
+      <div class="table-section" style="padding:16px 20px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <i class="bi bi-person-check-fill" style="font-size:19px;color:#10b981;"></i>
+          <span style="font-size:15px;font-weight:700;color:var(--gray-900);">วันนี้มีใครลาบ้าง</span>
+          <span id="todayLeaveDate" style="font-size:13px;color:var(--gray-500);"></span>
+          <div style="flex:1;min-width:8px;"></div>
+          <div class="search-box" style="max-width:190px;">
+            <i class="bi bi-search"></i>
+            <input type="text" class="search-input" id="todayLeaveSearch"
+              placeholder="ค้นหา รหัส / ชื่อ..." oninput="applyTodayLeaveFilter()">
+          </div>
+          <select class="filter-select" id="todayLeaveFilterSub" onchange="applyTodayLeaveFilter()">
+            <option value="">ทุกแผนก</option>
+          </select>
+          <select class="filter-select" id="todayLeaveFilterPos" onchange="applyTodayLeaveFilter()">
+            <option value="">ทุกตำแหน่ง</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-section">
+        <div class="table-header" style="padding:13px 20px;">
+          <span class="table-title" style="color:#10b981;"><i class="bi bi-calendar-check" style="margin-right:6px;"></i>รายชื่อผู้ลาวันนี้</span>
+          <span style="margin-left:auto;font-size:12.5px;color:var(--gray-500);">แสดง <strong id="todayLeaveDisplayCount">0</strong> จาก <strong id="todayLeaveTotalCount">0</strong> คน</span>
+        </div>
+        <div class="table-responsive-custom">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:45px;text-align:center;">#</th>
+                <th style="width:80px;">รหัส</th>
+                <th style="min-width:150px;">ชื่อ-นามสกุล</th>
+                <th style="min-width:110px;">แผนก</th>
+                <th style="min-width:110px;">ตำแหน่ง</th>
+                <th style="width:65px;">สังกัด</th>
+                <th style="width:140px;">ประเภทลา</th>
+                <th style="width:120px;">วันที่เริ่ม</th>
+                <th style="width:120px;">ถึงวันที่</th>
+              </tr>
+            </thead>
+            <tbody id="todayLeaveTableBody">
+              <tr class="loading-row"><td colspan="9"><div class="spinner"></div><div>กำลังโหลด...</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-footer" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div class="record-count">หน้า <span id="todayLeavePageInfo" style="font-weight:700;color:var(--gray-800);">1 / 1</span></div>
+          <div id="todayLeavePagination" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;"></div>
+        </div>
+      </div>
+    </div>`;
+
+  // Auto-refresh to check if the window has opened
+  let _clockTick;
+  function tick() {
+    const now = new Date();
+    const hh  = String(now.getHours()).padStart(2, '0');
+    const mm  = String(now.getMinutes()).padStart(2, '0');
+    const ss  = String(now.getSeconds()).padStart(2, '0');
+    const el  = document.getElementById('_guestClock');
+    const nx  = document.getElementById('_guestNext');
+    if (el) el.textContent = `${hh}:${mm}:${ss}`;
+    if (nx) nx.textContent = _guestNextWindowLabel();
+    // When window opens, reload the leave page
+    if (_guestInAllowedWindow()) {
+      clearInterval(_clockTick);
+      loadLeaveRecordPage();
+    }
+  }
+  tick();
+  _clockTick = setInterval(tick, 1000);
+  loadTodayLeave();
 }
 
 export async function fetchAndRenderLeave() {
@@ -146,6 +329,118 @@ export async function fetchAndRenderLeave() {
   allLeaveRecords = res.data;
   leaveCurrentPage = 1;
   applyLeaveFilter();
+}
+
+// ---- Today's Leave (guest-only) ----
+export async function loadTodayLeave() {
+  const tb = document.getElementById('todayLeaveTableBody');
+  if (!tb) return;
+  tb.innerHTML = `<tr class="loading-row"><td colspan="9"><div class="spinner"></div><div>กำลังโหลด...</div></td></tr>`;
+  const dateEl = document.getElementById('todayLeaveDate');
+  if (dateEl) {
+    const now = new Date();
+    const thDate = now.toLocaleDateString('th-TH', { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' });
+    dateEl.textContent = `— ${thDate}`;
+  }
+  const res = await window.api.getTodayOnLeave();
+  if (!res.success) {
+    tb.innerHTML = `<tr><td colspan="9" class="text-center py-4" style="color:var(--danger);">เกิดข้อผิดพลาด: ${escHtml(res.message || '')}</td></tr>`;
+    return;
+  }
+  todayLeaveAllData = res.data;
+  // Populate dynamic filter dropdowns from actual data
+  const subSel = document.getElementById('todayLeaveFilterSub');
+  const posSel = document.getElementById('todayLeaveFilterPos');
+  if (subSel) {
+    const subs = [...new Set(todayLeaveAllData.map(r => r.Sub_Name || '').filter(Boolean))].sort();
+    subSel.innerHTML = '<option value="">ทุกแผนก</option>' +
+      subs.map(s => `<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('');
+  }
+  if (posSel) {
+    const positions = [...new Set(todayLeaveAllData.map(r => r.Position_Name || '').filter(Boolean))].sort();
+    posSel.innerHTML = '<option value="">ทุกตำแหน่ง</option>' +
+      positions.map(p => `<option value="${escHtml(p)}">${escHtml(p)}</option>`).join('');
+  }
+  todayLeavePage = 1;
+  applyTodayLeaveFilter();
+}
+
+export function applyTodayLeaveFilter() {
+  const search = (document.getElementById('todayLeaveSearch')?.value || '').toLowerCase().trim();
+  const sub    = document.getElementById('todayLeaveFilterSub')?.value || '';
+  const pos    = document.getElementById('todayLeaveFilterPos')?.value || '';
+  todayLeaveFiltered = todayLeaveAllData.filter(r => {
+    if (search) {
+      const hay = [(r.drp_empID || ''), (r.Fullname || '')].join(' ').toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    if (sub && (r.Sub_Name || '') !== sub) return false;
+    if (pos && (r.Position_Name || '') !== pos) return false;
+    return true;
+  });
+  todayLeavePage = 1;
+  renderTodayLeaveTable();
+}
+
+export function renderTodayLeaveTable() {
+  const tbody   = document.getElementById('todayLeaveTableBody');
+  const totalEl = document.getElementById('todayLeaveTotalCount');
+  const dispEl  = document.getElementById('todayLeaveDisplayCount');
+  const pageInfo = document.getElementById('todayLeavePageInfo');
+  const pagDiv  = document.getElementById('todayLeavePagination');
+  if (!tbody) return;
+  const total = todayLeaveFiltered.length;
+  const totalPages = Math.max(1, Math.ceil(total / TODAY_LEAVE_PER_PAGE));
+  if (todayLeavePage > totalPages) todayLeavePage = totalPages;
+  const start = (todayLeavePage - 1) * TODAY_LEAVE_PER_PAGE;
+  const pageData = todayLeaveFiltered.slice(start, start + TODAY_LEAVE_PER_PAGE);
+  if (totalEl) totalEl.textContent = total.toLocaleString();
+  if (dispEl)  dispEl.textContent  = pageData.length.toLocaleString();
+  if (pageInfo) pageInfo.textContent = `${todayLeavePage} / ${totalPages}`;
+  if (total === 0) {
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon"><i class="bi bi-person-check"></i></div><div class="empty-text">ไม่มีพนักงานลาในวันนี้</div></div></td></tr>`;
+  } else {
+    tbody.innerHTML = pageData.map((r, i) => {
+      const num = start + i + 1;
+      const ltBadge = r.leave_name
+        ? `<span style="background:var(--primary-light);color:var(--primary);padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:600;">${escHtml(r.drp_Type || '')} - ${escHtml(r.leave_name)}</span>`
+        : `<span style="color:var(--gray-500);">${escHtml(r.drp_Type || '-')}</span>`;
+      const sdate = r.drp_Sdate ? `${dbDateToDisplay(r.drp_Sdate)}${r.drp_Stime ? ' <span style="color:var(--gray-400);font-size:11px;">' + escHtml(r.drp_Stime) + '</span>' : ''}` : '-';
+      const edate = r.drp_Edate ? `${dbDateToDisplay(r.drp_Edate)}${r.drp_Etime ? ' <span style="color:var(--gray-400);font-size:11px;">' + escHtml(r.drp_Etime) + '</span>' : ''}` : '-';
+      return `<tr>
+        <td style="text-align:center;color:var(--gray-400);font-size:12px;">${num}</td>
+        <td><span class="emp-id">${escHtml(r.drp_empID || '-')}</span></td>
+        <td><span class="emp-name">${escHtml((r.Fullname || '').trim() || '-')}</span></td>
+        <td style="font-size:12.5px;">${escHtml(r.Sub_Name || '-')}</td>
+        <td style="font-size:12.5px;">${escHtml(r.Position_Name || '-')}</td>
+        <td><span style="font-size:11.5px;font-weight:600;color:var(--gray-600);">${escHtml(r.Emp_Vsth || '-')}</span></td>
+        <td>${ltBadge}</td>
+        <td style="font-size:12px;">${sdate}</td>
+        <td style="font-size:12px;">${edate}</td>
+      </tr>`;
+    }).join('');
+  }
+  if (pagDiv) {
+    if (totalPages <= 1) { pagDiv.innerHTML = ''; return; }
+    let btns = '';
+    btns += `<button onclick="goTodayLeavePage(${todayLeavePage - 1})" class="leave-page-btn" ${todayLeavePage === 1 ? 'disabled' : ''}>‹ ก่อน</button>`;
+    for (let p = 1; p <= totalPages; p++) {
+      if (p === 1 || p === totalPages || (p >= todayLeavePage - 2 && p <= todayLeavePage + 2)) {
+        btns += `<button onclick="goTodayLeavePage(${p})" class="leave-page-btn ${p === todayLeavePage ? 'active' : ''}">${p}</button>`;
+      } else if (p === todayLeavePage - 3 || p === todayLeavePage + 3) {
+        btns += `<span style="color:var(--gray-400);padding:0 2px;">…</span>`;
+      }
+    }
+    btns += `<button onclick="goTodayLeavePage(${todayLeavePage + 1})" class="leave-page-btn" ${todayLeavePage === totalPages ? 'disabled' : ''}>ถัดไป ›</button>`;
+    pagDiv.innerHTML = btns;
+  }
+}
+
+export function goTodayLeavePage(p) {
+  const maxP = Math.max(1, Math.ceil(todayLeaveFiltered.length / TODAY_LEAVE_PER_PAGE));
+  todayLeavePage = Math.min(Math.max(1, p), maxP);
+  renderTodayLeaveTable();
+  document.getElementById('todayLeaveSection')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 export function applyLeaveFilter() {
@@ -290,9 +585,12 @@ export async function openLeaveForm(id) {
     if (lookupBtn) { lookupBtn.style.display = ''; }
     if (empNotice) { empNotice.style.display = 'none'; }
   }
-  // ซ่อน/แสดง field เหตุผลตาม role
-  const remarkRow = document.getElementById('leaveRemarkRow');
-  if (remarkRow) remarkRow.style.display = (currentUser?.role === 'guest') ? 'none' : '';
+  // Guest: hide leave details section, show notice
+  const isGuest = currentUser?.role === 'guest';
+  const detailsSection = document.getElementById('leaveDetailsSection');
+  const guestNotice    = document.getElementById('leaveGuestNotice');
+  if (detailsSection) detailsSection.style.display = isGuest ? 'none' : '';
+  if (guestNotice)    guestNotice.style.display    = isGuest ? 'block' : 'none';
 
   showModal('leaveModal');
 }
@@ -302,9 +600,10 @@ export function onLeaveTypeChange() {
   const sel = document.getElementById('fLeaveType');
   const rem = document.getElementById('fLeaveRemark');
   if (!sel || !rem) return;
-  if (sel.value) {
-    const lt = leaveTypes.find(t => t.leave_abbreviation === sel.value);
-    rem.value = lt ? lt.leave_name : sel.options[sel.selectedIndex]?.text || '';
+  // Only auto-fill remark for ขาดงาน (abbreviation 'A')
+  if (sel.value === 'A') {
+    const lt = leaveTypes.find(t => t.leave_abbreviation === 'A');
+    rem.value = lt ? lt.leave_name : 'ขาดงาน';
   }
 }
 
@@ -390,43 +689,67 @@ export async function lookupEmployee() {
 }
 
 export async function saveLeaveRecord() {
+  const isGuest = currentUser?.role === 'guest';
   const empId   = (document.getElementById('fLeaveEmpID')?.value || '').trim();
-  const ltype   = document.getElementById('fLeaveType')?.value || '';
-  const startDate = document.getElementById('fLeaveStartDate')?.value || '';
-  const startTime = document.getElementById('fLeaveStartTime')?.value || '';
-  const endDate   = document.getElementById('fLeaveEndDate')?.value   || '';
-  const endTime   = document.getElementById('fLeaveEndTime')?.value   || '';
   const recDate = document.getElementById('fLeaveRecordDate')?.value || todayInputFormat();
-  const comm    = document.getElementById('fLeaveComm')?.value || 'โทร';
-  const sub     = document.getElementById('fLeaveSub')?.value || '';
-  const remark  = document.getElementById('fLeaveRemark')?.value || '';
 
-  if (!empId)  { showToast('กรุณากรอกรหัสพนักงาน', 'error'); return; }
-  if (!ltype)  { showToast('กรุณาเลือกประเภทการลา', 'error'); return; }
-  if (!startDate || !startTime) { showToast('กรุณากรอกวันและเวลาเริ่มต้น', 'error'); return; }
-  if (!endDate || !endTime)     { showToast('กรุณากรอกวันและเวลาสิ้นสุด', 'error'); return; }
+  if (!empId) { showToast('กรุณากรอกรหัสพนักงาน', 'error'); return; }
 
   const recordDateDb = dateInputToDb(recDate);
-  const startDateDb = dateInputToDb(startDate);
-  const endDateDb = dateInputToDb(endDate);
-
   if (!recordDateDb) { showToast('วันที่บันทึกไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
-  if (!startDateDb)  { showToast('วันที่ลาไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
-  if (!endDateDb)    { showToast('วันที่สิ้นสุดไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
 
-  const d = {
-    drp_empID:        empId,
-    drp_record:       recordDateDb,
-    drp_Type:         ltype,
-    drp_Communicate:  comm === 'โทร' ? 'ü' : '',
-    drp_Communicate1: comm === 'แจ้งล่วงหน้า' ? 'ü' : '',
-    drp_Sdate:        startDateDb,
-    drp_Stime:        `${startTime}:00`,
-    drp_Edate:        endDateDb,
-    drp_Etime:        `${endTime}:00`,
-    drp_status:       sub,
-    drp_Remark:       remark
-  };
+  let d;
+
+  if (isGuest) {
+    // Guest: save only employee ID + record date; leave remaining fields blank for HR to fill
+    const sub = document.getElementById('fLeaveSub')?.value || '';
+    d = {
+      drp_empID:        empId,
+      drp_record:       recordDateDb,
+      drp_Type:         '',
+      drp_Communicate:  '',
+      drp_Communicate1: '',
+      drp_Sdate:        '',
+      drp_Stime:        '',
+      drp_Edate:        '',
+      drp_Etime:        '',
+      drp_status:       sub,
+      drp_Remark:       ''
+    };
+  } else {
+    const ltype   = document.getElementById('fLeaveType')?.value || '';
+    const startDate = document.getElementById('fLeaveStartDate')?.value || '';
+    const startTime = document.getElementById('fLeaveStartTime')?.value || '';
+    const endDate   = document.getElementById('fLeaveEndDate')?.value   || '';
+    const endTime   = document.getElementById('fLeaveEndTime')?.value   || '';
+    const comm    = document.getElementById('fLeaveComm')?.value || 'โทร';
+    const sub     = document.getElementById('fLeaveSub')?.value || '';
+    const remark  = document.getElementById('fLeaveRemark')?.value || '';
+
+    if (!ltype)  { showToast('กรุณาเลือกประเภทการลา', 'error'); return; }
+    if (!startDate || !startTime) { showToast('กรุณากรอกวันและเวลาเริ่มต้น', 'error'); return; }
+    if (!endDate || !endTime)     { showToast('กรุณากรอกวันและเวลาสิ้นสุด', 'error'); return; }
+
+    const startDateDb = dateInputToDb(startDate);
+    const endDateDb = dateInputToDb(endDate);
+
+    if (!startDateDb) { showToast('วันที่ลาไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
+    if (!endDateDb)   { showToast('วันที่สิ้นสุดไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
+
+    d = {
+      drp_empID:        empId,
+      drp_record:       recordDateDb,
+      drp_Type:         ltype,
+      drp_Communicate:  comm === 'โทร' ? 'ü' : '',
+      drp_Communicate1: comm === 'แจ้งล่วงหน้า' ? 'ü' : '',
+      drp_Sdate:        startDateDb,
+      drp_Stime:        `${startTime}:00`,
+      drp_Edate:        endDateDb,
+      drp_Etime:        `${endTime}:00`,
+      drp_status:       sub,
+      drp_Remark:       remark
+    };
+  }
 
   const btn = document.getElementById('btnSaveLeave');
   btn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;margin:0 8px -3px 0;border-width:2px;"></span> กำลังบันทึก...';
@@ -680,15 +1003,6 @@ export async function loadAbsenceReport() {
             </tr>
           </tbody>
         </table>
-      </div>
-
-      <!-- Signature Section -->
-      <div style="border-top:1px dashed var(--gray-300);padding-top:24px;margin-top:8px;">
-        <div style="font-size:13px;font-weight:700;color:var(--gray-700);margin-bottom:16px;">✍️ ลายเซ็นผู้รับรอง</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;">
-          ${buildSignatureBlock('sigReportBy','Report by (ผู้รายงาน)')}
-          ${buildSignatureBlock('sigApproveBy','Approve by (ผู้อนุมัติ)')}
-        </div>
       </div>
 
     </div>`;

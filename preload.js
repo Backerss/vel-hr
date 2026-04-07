@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('api', {
   deleteDailyReport: (id) => ipcRenderer.invoke('delete-daily-report', id),
   // Daily absence report
   getDailyReportByDate: (date) => ipcRenderer.invoke('get-daily-report-by-date', date),
+  getTodayOnLeave: () => ipcRenderer.invoke('get-today-on-leave'),
   exportAbsenceExcel: (d) => ipcRenderer.invoke('export-absence-excel', d),
   // Training record
   getTrainingPlansForRecord: () => ipcRenderer.invoke('get-training-plans-for-record'),
@@ -47,4 +48,5 @@ contextBridge.exposeInMainWorld('api', {
   getHolidaysForMonth: (payload) => ipcRenderer.invoke('get-holidays-for-month', payload),
   exportOtExcel: (data) => ipcRenderer.invoke('export-ot-excel', data),
   exportOtPdf: (data) => ipcRenderer.invoke('export-ot-pdf', data),
+  updateSubdivisionSupervisor: (data) => ipcRenderer.invoke('update-subdivision-supervisor', data),
 });

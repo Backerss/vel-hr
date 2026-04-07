@@ -58,7 +58,8 @@ import {
   openLeaveForm, lookupEmployee, saveLeaveRecord, closeLeaveModal,
   confirmDeleteLeave, executeDeleteLeave,
   onLeaveTypeChange, onLeaveStartDTChange,
-  loadDailyAbsencePage, loadAbsenceReport, clearSignature, printAbsenceReport
+  loadDailyAbsencePage, loadAbsenceReport, clearSignature, printAbsenceReport,
+  loadTodayLeave, applyTodayLeaveFilter, renderTodayLeaveTable, goTodayLeavePage
 } from './components/js/leave.js';
 import {
   loadOtPage,
@@ -66,6 +67,11 @@ import {
   otToggleEmp, otSelectAll, otDeselectAll,
   otGenerate, otExport, otPrint
 } from './components/js/ot.js';
+import {
+  loadOtSignersPage,
+  otsgOpenEdit, otsgEmpSearch, otsgSelectEmp,
+  otsgClearSupervisor, otsgSave
+} from './components/js/ot-signers.js';
 
 // ===================== COMPONENT LOADER =====================
 async function loadComponent(url, targetId) {
@@ -82,7 +88,8 @@ const PAGE_CONFIG = {
   trainingExpense:      { title: 'บันทึกค่าใช้จ่าย',          subtitle: 'บันทึกค่าใช้จ่ายการอบรม',        icon: 'bi-receipt',            group: 'groupTraining' },
   leaveRecord:          { title: 'บันทึกลางาน',                subtitle: 'บันทึกการลาของพนักงาน',           icon: 'bi-calendar-plus',      group: 'groupLeave' },
   dailyAbsence:         { title: 'รายงานการหยุดงานประจำวัน',   subtitle: 'ดูรายงานการขาด/ลา ประจำวัน',     icon: 'bi-calendar-x',         group: 'groupLeave' },
-  ot:                   { title: 'OT',                         subtitle: 'จัดการข้อมูลการทำงานล่วงเวลา',   icon: 'bi-clock-history',      group: null },
+  ot:                   { title: 'OT',                         subtitle: 'จัดการข้อมูลการทำงานล่วงเวลา',   icon: 'bi-clock-history',      group: 'groupOT' },
+  otSigners:            { title: 'จัดการผู้เซ็นชื่อ OT',           subtitle: 'กำหนดหัวหน้างานผู้เซ็นชื่อในแบบฟอร์ม OT',   icon: 'bi-pen-fill',           group: 'groupOT' },
   holiday:              { title: 'วันหยุดบริษัท',                  subtitle: 'กำหนดวันหยุดประจำปีของบริษัท',         icon: 'bi-calendar2-heart',    group: null },
 };
 
@@ -141,6 +148,8 @@ async function switchPage(page) {
     await loadTrainingExpensePage();
   } else if (page === 'ot') {
     await loadOtPage();
+  } else if (page === 'otSigners') {
+    await loadOtSignersPage();
   } else if (page === 'holiday') {
     await loadHolidayPage();
   } else {
@@ -286,11 +295,16 @@ Object.assign(window, {
   confirmDeleteLeave, executeDeleteLeave, applyLeaveFilter, onLeaveSearch,
   onLeaveTypeChange, onLeaveStartDTChange,
   goLeavePage, loadAbsenceReport, clearSignature, printAbsenceReport,
+  loadTodayLeave, applyTodayLeaveFilter, renderTodayLeaveTable, goTodayLeavePage,
   // OT
   loadOtPage,
   otOnSubChange, otOnFilterChange, otOnEmpSearch,
   otToggleEmp, otSelectAll, otDeselectAll,
   otGenerate, otExport, otPrint,
+  // OT Signers (subdivision management)
+  loadOtSignersPage,
+  otsgOpenEdit, otsgEmpSearch, otsgSelectEmp,
+  otsgClearSupervisor, otsgSave,
   // Shared modal util
   closeModal, showModal, showToast,
 });

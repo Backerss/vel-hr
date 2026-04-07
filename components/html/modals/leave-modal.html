@@ -59,6 +59,9 @@
       </div>
 
       <div class="form-divider"></div>
+
+      <!-- ====== รายละเอียดการลา (ซ่อนสำหรับ guest) ====== -->
+      <div id="leaveDetailsSection">
       <div class="form-section-title">รายละเอียดการลา</div>
 
       <div class="form-row">
@@ -98,6 +101,17 @@
         </div>
       </div>
 
+      <div class="form-row full" id="leaveRemarkRow">
+        <div class="form-group">
+          <label>เหตุผลการลา</label>
+          <textarea id="fLeaveRemark" class="form-control-m" rows="3"
+            placeholder="ระบุเหตุผลการลา..."
+            style="resize:vertical;min-height:72px;"></textarea>
+        </div>
+      </div>
+
+      </div><!-- end #leaveDetailsSection -->
+
       <div class="form-row">
         <div class="form-group">
           <label>วันที่บันทึก</label>
@@ -106,13 +120,13 @@
         <div class="form-group"></div>
       </div>
 
-      <div class="form-row full" id="leaveRemarkRow">
-        <div class="form-group">
-          <label>เหตุผลการลา</label>
-          <textarea id="fLeaveRemark" class="form-control-m" rows="3"
-            placeholder="ระบุเหตุผลการลา..."
-            style="resize:vertical;min-height:72px;"></textarea>
-        </div>
+      <!-- guest notice -->
+      <div id="leaveGuestNotice" style="display:none;padding:12px 16px;background:#eff6ff;border-radius:10px;border-left:3px solid var(--primary);margin-top:4px;">
+        <p style="margin:0;font-size:13px;color:#1e40af;line-height:1.6;">
+          <i class="bi bi-info-circle-fill" style="margin-right:6px;"></i>
+          กรอกเฉพาะรหัสพนักงานแล้วกดค้นหา จากนั้นกดบันทึก<br>
+          HR จะมากรอกรายละเอียดการลาในภายหลัง
+        </p>
       </div>
 
     </div>
