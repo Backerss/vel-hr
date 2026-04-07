@@ -10,10 +10,10 @@ let db;
 async function createConnection() {
   try {
     db = mysql.createPool({
-      host: 'localhost',
+      host: '192.168.66.147',
       user: 'root',
-      password: '',
-      database: 'training_v_1_1',
+      password: '5bf3c58a84ecc09eb99f4e5f3381e97dvsth',
+      database: 'training.v.1.1',
       charset: 'utf8',
       waitForConnections: true,
       connectionLimit: 10,
