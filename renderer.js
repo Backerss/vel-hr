@@ -207,6 +207,7 @@ async function init() {
   // loginSlot & sidebarSlot etc. use innerHTML = so only last wins for modalsSlot
   // Fix: load modals sequentially and append
   const modalFiles = [
+    './components/html/modals/db-config-modal.html',
     './components/html/modals/emp-modal.html',
     './components/html/modals/emp-view-modal.html',
     './components/html/modals/confirm-modal.html',
@@ -240,8 +241,101 @@ async function init() {
   // DB status
   await checkDBStatus();
 
+  // Check if DB config is needed (no config file or connection failed at startup)
+  const dbCheck = await window.api.isDbConfigNeeded();
+  if (dbCheck && dbCheck.needed) {
+    showModal('dbConfigModal');
+  }
+
   // ตรวจ session ที่บันทึกไว้ ถ้ายังไม่หมดอายุ จะ auto-login เลย
   await initAutoLogin();
+}
+
+// ===================== DB CONFIG FUNCTIONS =====================
+function dbConfigTogglePassword() {
+  const input = document.getElementById('dbConfigPassword');
+  const icon = document.getElementById('dbConfigPasswordEyeIcon');
+  if (!input || !icon) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.className = 'bi bi-eye-slash';
+  } else {
+    input.type = 'password';
+    icon.className = 'bi bi-eye';
+  }
+}
+
+function _dbConfigGetValues() {
+  return {
+    host: (document.getElementById('dbConfigHost')?.value || '').trim(),
+    port: (document.getElementById('dbConfigPort')?.value || '3306').trim(),
+    user: (document.getElementById('dbConfigUser')?.value || '').trim(),
+    password: document.getElementById('dbConfigPassword')?.value || '',
+    database: (document.getElementById('dbConfigDatabase')?.value || '').trim(),
+  };
+}
+
+function _dbConfigSetStatus(message, type) {
+  const el = document.getElementById('dbConfigStatus');
+  if (!el) return;
+  el.style.display = 'block';
+  const styles = {
+    success: { bg: 'var(--success-light)', color: '#065f46', icon: 'bi-check-circle-fill' },
+    error:   { bg: 'var(--danger-light)',  color: '#7f1d1d', icon: 'bi-x-circle-fill' },
+    info:    { bg: 'var(--primary-light)', color: 'var(--primary-dark)', icon: 'bi-arrow-repeat' },
+  };
+  const s = styles[type] || styles.info;
+  el.style.background = s.bg;
+  el.style.color = s.color;
+  el.innerHTML = `<i class="bi ${s.icon} me-2"></i>${message}`;
+}
+
+async function dbConfigTest() {
+  const config = _dbConfigGetValues();
+  if (!config.host || !config.user || !config.database) {
+    _dbConfigSetStatus('กรุณากรอก Host, User และ Database', 'error'); return;
+  }
+  const testBtn = document.getElementById('dbConfigTestBtn');
+  const saveBtn = document.getElementById('dbConfigSaveBtn');
+  if (testBtn) testBtn.disabled = true;
+  if (saveBtn) saveBtn.disabled = true;
+  _dbConfigSetStatus('กำลังทดสอบการเชื่อมต่อ...', 'info');
+  try {
+    const result = await window.api.testDbConfig(config);
+    _dbConfigSetStatus(result.message, result.success ? 'success' : 'error');
+  } catch (e) {
+    _dbConfigSetStatus('เกิดข้อผิดพลาด: ' + e.message, 'error');
+  } finally {
+    if (testBtn) testBtn.disabled = false;
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+async function dbConfigSave() {
+  const config = _dbConfigGetValues();
+  if (!config.host || !config.user || !config.database) {
+    _dbConfigSetStatus('กรุณากรอก Host, User และ Database', 'error'); return;
+  }
+  const testBtn = document.getElementById('dbConfigTestBtn');
+  const saveBtn = document.getElementById('dbConfigSaveBtn');
+  if (testBtn) testBtn.disabled = true;
+  if (saveBtn) saveBtn.disabled = true;
+  _dbConfigSetStatus('กำลังบันทึกและเชื่อมต่อ...', 'info');
+  try {
+    const result = await window.api.saveDbConfig(config);
+    if (result.success) {
+      _dbConfigSetStatus('บันทึกสำเร็จ! เชื่อมต่อฐานข้อมูลแล้ว', 'success');
+      await checkDBStatus();
+      setTimeout(() => closeModal('dbConfigModal'), 1200);
+    } else {
+      _dbConfigSetStatus(result.message, 'error');
+    }
+  } catch (e) {
+    _dbConfigSetStatus('เกิดข้อผิดพลาด: ' + e.message, 'error');
+  } finally {
+    if (testBtn) testBtn.disabled = false;
+    if (saveBtn) saveBtn.disabled = false;
+  }
 }
 
 // ===================== EXPOSE GLOBALS (for inline onclick in HTML) =====================
@@ -307,6 +401,8 @@ Object.assign(window, {
   otsgClearSupervisor, otsgSave,
   // Shared modal util
   closeModal, showModal, showToast,
+  // DB config
+  dbConfigSave, dbConfigTest, dbConfigTogglePassword,
 });
 
 // ===================== START =====================

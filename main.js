@@ -1,20 +1,45 @@
-﻿require('dotenv').config();
-const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
+﻿const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const mysql = require('mysql2/promise');
 const ExcelJS = require('exceljs');
 
 let mainWindow;
 let db;
+let dbConfigNeeded = false;
+
+// ===================== DB CONFIG (AppData) =====================
+function getConfigPath() {
+  return path.join(app.getPath('userData'), 'db-config.json');
+}
+
+function loadDbConfig() {
+  try {
+    const configPath = getConfigPath();
+    if (fs.existsSync(configPath)) {
+      const raw = fs.readFileSync(configPath, 'utf8');
+      return JSON.parse(raw);
+    }
+  } catch (e) {
+    console.error('Failed to load db-config.json:', e.message);
+  }
+  return null;
+}
+
+function saveDbConfigFile(config) {
+  const configPath = getConfigPath();
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+}
 
 // Database connection pool
-async function createConnection() {
+async function createConnection(config) {
   try {
     db = mysql.createPool({
-      host: process.env.DB_HOST || 'localhost',
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'training_v_1_1',
+      host: config.host,
+      port: Number(config.port) || 3306,
+      user: config.user,
+      password: config.password || '',
+      database: config.database,
       charset: 'utf8',
       waitForConnections: true,
       connectionLimit: 10,
@@ -62,10 +87,16 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  await createConnection();
+  const config = loadDbConfig();
+  if (config) {
+    const connected = await createConnection(config);
+    dbConfigNeeded = !connected;
+  } else {
+    dbConfigNeeded = true;
+  }
   createWindow();
   app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
@@ -77,6 +108,59 @@ app.on('will-quit', async () => {
   if (db) { try { await db.end(); } catch { } }
 });
 // ===================== IPC HANDLERS =====================
+
+// DB config IPC handlers
+ipcMain.handle('is-db-config-needed', () => ({ needed: dbConfigNeeded }));
+
+ipcMain.handle('test-db-config', async (event, config) => {
+  const { host, port, user, password, database } = config || {};
+  if (!host || !user || !database) {
+    return { success: false, message: 'กรุณากรอก Host, User และ Database ให้ครบถ้วน' };
+  }
+  let testPool;
+  try {
+    testPool = mysql.createPool({
+      host: String(host).trim(),
+      port: Number(port) || 3306,
+      user: String(user).trim(),
+      password: String(password || ''),
+      database: String(database).trim(),
+      charset: 'utf8',
+      connectionLimit: 1,
+      queueLimit: 0
+    });
+    await testPool.execute('SELECT 1');
+    return { success: true, message: 'เชื่อมต่อสำเร็จ!' };
+  } catch (error) {
+    return { success: false, message: 'เชื่อมต่อไม่ได้: ' + error.message };
+  } finally {
+    if (testPool) { try { await testPool.end(); } catch {} }
+  }
+});
+
+ipcMain.handle('save-db-config', async (event, config) => {
+  const { host, port, user, password, database } = config || {};
+  if (!host || !user || !database) {
+    return { success: false, message: 'กรุณากรอก Host, User และ Database ให้ครบถ้วน' };
+  }
+  const safeConfig = {
+    host: String(host).trim(),
+    port: Number(port) || 3306,
+    user: String(user).trim(),
+    password: String(password || ''),
+    database: String(database).trim()
+  };
+  // Close existing pool before reconnecting
+  if (db) { try { await db.end(); } catch {} db = null; }
+  const connected = await createConnection(safeConfig);
+  if (!connected) {
+    return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาตรวจสอบข้อมูลอีกครั้ง' };
+  }
+  saveDbConfigFile(safeConfig);
+  dbConfigNeeded = false;
+  return { success: true };
+});
+
 // Login handler
 ipcMain.handle('login', async (event, { username, password }) => {
   if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };

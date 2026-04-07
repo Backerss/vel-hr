@@ -1080,6 +1080,49 @@ body {
 }
 .modal-overlay.show .modal-card-lg { transform: scale(1) translateY(0); }
 
+/* ========== DB CONFIG MODAL ========== */
+.db-config-overlay {
+  z-index: 10001; /* above login overlay (9999) */
+}
+
+.db-config-notice {
+  background: var(--warning-light);
+  border: 1px solid #fde68a;
+  border-left: 4px solid var(--warning);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+
+.db-config-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--gray-600);
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
+
+.db-config-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 1.5px solid var(--gray-200);
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-family: 'Sarabun', sans-serif;
+  color: var(--gray-800);
+  background: var(--white);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+
+.db-config-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(26,86,219,0.12);
+}
+
+
 .leave-readonly { background: var(--gray-100) !important; color: var(--gray-500) !important; cursor: default; }
 .guest-hide-remark #leaveColRemark,
 .guest-hide-remark .leave-remark-cell { display: none !important; }

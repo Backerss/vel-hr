@@ -49,4 +49,8 @@ contextBridge.exposeInMainWorld('api', {
   exportOtExcel: (data) => ipcRenderer.invoke('export-ot-excel', data),
   exportOtPdf: (data) => ipcRenderer.invoke('export-ot-pdf', data),
   updateSubdivisionSupervisor: (data) => ipcRenderer.invoke('update-subdivision-supervisor', data),
+  // DB config
+  isDbConfigNeeded: () => ipcRenderer.invoke('is-db-config-needed'),
+  testDbConfig: (config) => ipcRenderer.invoke('test-db-config', config),
+  saveDbConfig: (config) => ipcRenderer.invoke('save-db-config', config),
 });
