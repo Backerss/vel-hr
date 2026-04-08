@@ -13,7 +13,7 @@ const DEFAULT_DB_CONFIG = {
   host: '192.168.66.11',
   port: 3306,
   user: 'root',
-  password: '',
+  password: '5bf3c58a84ecc09eb99f4e5f3381e97dvsth',
   database: 'training.v.1.1'
 };
 
