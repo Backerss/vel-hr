@@ -828,6 +828,7 @@ export async function saveLeaveRecord() {
     if (!ltype)  { showToast('กรุณาเลือกประเภทการลา', 'error'); return; }
     if (!startDate || !startTime) { showToast('กรุณากรอกวันและเวลาเริ่มต้น', 'error'); return; }
     if (!endDate || !endTime)     { showToast('กรุณากรอกวันและเวลาสิ้นสุด', 'error'); return; }
+    if (!remark) { showToast('กรุณากรอกเหตุผลการลา', 'error'); return; }
 
     const startDateDb = dateInputToDb(startDate);
     const endDateDb = dateInputToDb(endDate);
