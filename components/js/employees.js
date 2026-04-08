@@ -320,9 +320,6 @@ export function renderEmployeeTable(employees) {
             ${isAdmin ? `
             <button class="btn-action edit" title="แก้ไข" onclick="openEditEmployee('${escHtml(emp.Emp_ID)}')">
               <i class="bi bi-pencil-fill"></i>
-            </button>
-            <button class="btn-action delete" title="ลบ" onclick="openDeleteEmployee('${escHtml(emp.Emp_ID)}', '${escHtml(emp.Fullname || '')}')">
-              <i class="bi bi-trash3-fill"></i>
             </button>` : `
             <button class="btn-action" title="ดูรายละเอียด"
               style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;"

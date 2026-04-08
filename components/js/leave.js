@@ -103,7 +103,7 @@ export async function loadLeaveRecordPage() {
           <input type="text" class="search-input" id="leaveSearch" placeholder="ค้นหา รหัส / ชื่อ..." oninput="onLeaveSearch()">
         </div>
         <div style="display:flex;align-items:center;gap:5px;">
-          <span style="font-size:12px;color:var(--gray-500);white-space:nowrap;">ตั้งแต่</span>
+          <span style="font-size:12px;color:var(--gray-500);white-space:nowrap;">วันที่บันทึก ตั้งแต่</span>
           <input type="text" class="filter-select" id="leaveDateFrom" data-tdp
             placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" autocomplete="off"
             oninput="autoFormatThaiDateField(this)" onblur="formatThaiDateField(this); applyLeaveFilter()" style="min-width:130px;">
@@ -457,12 +457,24 @@ export function applyLeaveFilter() {
       const hay = [(r.drp_empID||''),(r.Emp_Firstname||''),(r.Emp_Lastname||''),(r.Fullname||'')].join(' ').toLowerCase();
       if (!hay.includes(search)) return false;
     }
-    if (dateFrom && (r.drp_Sdate||'') < dateFrom) return false;
-    if (dateTo   && (r.drp_Sdate||'') > dateTo)   return false;
+    // Filter by drp_record (date recorded), not drp_Sdate
+    if (dateFrom && (r.drp_record||'') < dateFrom) return false;
+    if (dateTo   && (r.drp_record||'') > dateTo)   return false;
     if (sub && String(r.Sub_ID) !== sub) return false;
     if (ltype && r.drp_Type !== ltype) return false;
     return true;
   });
+
+  // HR only: sort incomplete records (no leave type or no start date) to the top
+  if (currentUser?.role !== 'guest') {
+    filteredLeaveRecords.sort((a, b) => {
+      const aIncomplete = !a.drp_Type || !a.drp_Sdate ? 0 : 1;
+      const bIncomplete = !b.drp_Type || !b.drp_Sdate ? 0 : 1;
+      if (aIncomplete !== bIncomplete) return aIncomplete - bIncomplete;
+      // Within same group keep original order (most recent first by drp_id desc)
+      return (b.drp_id || 0) - (a.drp_id || 0);
+    });
+  }
   leaveCurrentPage = 1;
   renderLeaveTable();
 }
@@ -503,9 +515,13 @@ export function renderLeaveTable() {
     tbody.innerHTML = pageData.map((r, i) => {
       const num  = start + i + 1;
       const comm = getCommunicateLabel(r);
+      const isIncomplete = currentUser?.role !== 'guest' && (!r.drp_Type || !r.drp_Sdate);
+      const rowStyle = isIncomplete ? ' style="background:#fffbeb;border-left:3px solid #f59e0b;"' : '';
       const ltBadge = r.leave_name
         ? `<span style="background:var(--primary-light);color:var(--primary);padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:600;">${escHtml(r.drp_Type)} - ${escHtml(r.leave_name)}</span>`
-        : `<span style="color:var(--gray-500);">${escHtml(r.drp_Type||'-')}</span>`;
+        : isIncomplete
+          ? `<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:600;"><i class="bi bi-exclamation-circle-fill me-1"></i>รอบันทึกรายละเอียด</span>`
+          : `<span style="color:var(--gray-500);">${escHtml(r.drp_Type||'-')}</span>`;
       const commBadge = comm === 'โทร'
         ? `<span style="color:var(--success);font-size:12px;"><i class="bi bi-telephone-fill me-1"></i>โทร</span>`
         : comm === 'แจ้งล่วงหน้า'
@@ -514,7 +530,7 @@ export function renderLeaveTable() {
       const sdate = r.drp_Sdate ? `${dbDateToDisplay(r.drp_Sdate)}${r.drp_Stime ? ' <span style="color:var(--gray-400);font-size:11px;">'+escHtml(r.drp_Stime)+'</span>' : ''}` : '-';
       const edate = r.drp_Edate ? `${dbDateToDisplay(r.drp_Edate)}${r.drp_Etime ? ' <span style="color:var(--gray-400);font-size:11px;">'+escHtml(r.drp_Etime)+'</span>' : ''}` : '-';
       const remarkTrimmed = (r.drp_Remark||'').replace(/\r\n/g,' ').replace(/\n/g,' ').trim();
-      return `<tr>
+      return `<tr${rowStyle}>
         <td style="text-align:center;color:var(--gray-400);font-size:12px;">${num}</td>
         <td><span class="emp-id">${escHtml(r.drp_empID||'-')}</span></td>
         <td><span class="emp-name">${escHtml((r.Fullname||'').trim()||'-')}</span></td>
