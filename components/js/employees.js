@@ -1,5 +1,5 @@
 // ===================== EMPLOYEES PAGE =====================
-import { escHtml, formatDate, isoDateToDisplayDate, displayDateToIso, showToast, showModal, closeModal, requirePasswordConfirm } from './utils.js';
+import { escHtml, formatDate, isoDateToDisplayDate, displayDateToIso, showToast, showModal, closeModal, requirePasswordConfirm, formatIDCard } from './utils.js';
 import { currentUser } from './auth.js';
 
 export let allEmployees = [];
@@ -393,7 +393,7 @@ export async function openEditEmployee(empId) {
   document.getElementById('fEmpSname').value = emp.Emp_Sname || 'นาย';
   document.getElementById('fEmpFirstname').value = emp.Emp_Firstname || '';
   document.getElementById('fEmpLastname').value = emp.Emp_Lastname || '';
-  document.getElementById('fEmpIDCard').value = emp.Emp_IDCard || '';
+  document.getElementById('fEmpIDCard').value = formatIDCard(emp.Emp_IDCard || '');
   document.getElementById('fEmpLevel').value = emp.Emp_Level || '';
   document.getElementById('fSubID').value = emp.Sub_ID || '';
   document.getElementById('fPositionID').value = emp.Position_ID || '';
@@ -487,7 +487,7 @@ export async function saveEmployee() {
     Emp_Sname: document.getElementById('fEmpSname').value,
     Emp_Firstname: firstname,
     Emp_Lastname: lastname,
-    Emp_IDCard: document.getElementById('fEmpIDCard').value.trim(),
+    Emp_IDCard: document.getElementById('fEmpIDCard').value.replace(/-/g, '').trim(),
     Emp_Level: document.getElementById('fEmpLevel').value.trim(),
     Sub_ID: subId,
     Position_ID: posId,

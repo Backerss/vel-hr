@@ -6,7 +6,7 @@
 import {
   escHtml, showToast, showModal, closeModal, initModalBackdropClose,
   submitPasswordConfirm, closePasswordConfirmModal,
-  formatThaiDateField, autoFormatThaiDateField
+  formatThaiDateField, autoFormatThaiDateField, autoFormatIDCard
 } from './components/js/utils.js';
 import { initThaiDatePicker, initAllThaiDatePickers, initThaiTimePicker, initAllThaiTimePickers, autoFormatLeaveTimeField, formatLeaveTimeField } from './components/js/thai-datepicker.js';
 import { checkDBStatus, doLogin, doLoginAsGuest, initAutoLogin, applyMenuForRole, confirmLogout, doLogout, currentUser } from './components/js/auth.js';
@@ -489,7 +489,7 @@ Object.assign(window, {
   // Password confirm (delete guard)
   submitPasswordConfirm, closePasswordConfirmModal,
   // Shared date helpers
-  formatThaiDateField, autoFormatThaiDateField,
+  formatThaiDateField, autoFormatThaiDateField, autoFormatIDCard,
   // Date picker
   initThaiDatePicker, initAllThaiDatePickers,
   // Time picker

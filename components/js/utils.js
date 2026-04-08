@@ -125,6 +125,20 @@ export function autoFormatThaiDateField(el) {
   if (el) el.value = value;
 }
 
+export function formatIDCard(raw) {
+  const d = String(raw || '').replace(/[^0-9]/g, '').slice(0, 13);
+  let result = d.slice(0, 1);
+  if (d.length > 1) result += '-' + d.slice(1, 5);
+  if (d.length > 5) result += '-' + d.slice(5, 10);
+  if (d.length > 10) result += '-' + d.slice(10, 12);
+  if (d.length > 12) result += '-' + d.slice(12, 13);
+  return result;
+}
+
+export function autoFormatIDCard(el) {
+  if (el) el.value = formatIDCard(el.value);
+}
+
 // ===================== TOAST =====================
 export function showToast(msg, type = 'info') {
   const container = document.getElementById('toastContainer');

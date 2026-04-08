@@ -39,11 +39,11 @@
       <div class="form-row" id="rowIDCardLevel">
         <div class="form-group">
           <label>เลขบัตรประชาชน</label>
-          <input type="text" id="fEmpIDCard" class="form-control-m" placeholder="13 หลัก" maxlength="13" />
+          <input type="text" id="fEmpIDCard" class="form-control-m" placeholder="X-XXXX-XXXXX-XX-X" maxlength="17" inputmode="numeric" autocomplete="off" oninput="autoFormatIDCard(this)" />
         </div>
         <div class="form-group">
           <label>ระดับ (Level)</label>
-          <input type="text" id="fEmpLevel" class="form-control-m" placeholder="เช่น L1, L2" />
+          <input type="text" id="fEmpLevel" class="form-control-m" placeholder="เช่น 1, 2" />
         </div>
       </div>
 

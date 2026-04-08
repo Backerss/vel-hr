@@ -351,7 +351,12 @@ ipcMain.handle('get-employee-by-id', async (event, id) => {
   if (!db) return { success: false };
   try {
     const [rows] = await db.execute(
-      `SELECT e.*, s.Sub_Name, p.Position_Name FROM employees e
+      `SELECT e.Emp_ID, e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname, e.Emp_IDCard, e.Emp_Level,
+              e.Sub_ID, e.Position_ID, e.Emp_Status, e.Emp_Vsth,
+              DATE_FORMAT(e.Emp_Start_date, '%Y-%m-%d') AS Emp_Start_date,
+              DATE_FORMAT(e.Emp_Packing_date, '%Y-%m-%d') AS Emp_Packing_date,
+              s.Sub_Name, p.Position_Name
+       FROM employees e
        LEFT JOIN subdivision s ON s.Sub_ID = e.Sub_ID
        LEFT JOIN position p ON p.Position_ID = e.Position_ID
        WHERE e.Emp_ID = ?`,
@@ -417,7 +422,7 @@ ipcMain.handle('add-employee', async (event, data) => {
       [
         data.Emp_ID, data.Emp_Sname, data.Emp_Firstname, data.Emp_Lastname,
         data.Emp_IDCard || '', data.Emp_Start_date || null,
-        data.Emp_Packing_date || null, data.Emp_Level || '',
+        data.Emp_Packing_date || '0000-00-00', data.Emp_Level || '',
         data.Sub_ID, data.Position_ID,
         data.Emp_Status || 'Activated', data.Emp_Vsth || 'Vel'
       ]
@@ -440,7 +445,7 @@ ipcMain.handle('update-employee', async (event, data) => {
       [
         data.Emp_Sname, data.Emp_Firstname, data.Emp_Lastname,
         data.Emp_IDCard || '', data.Emp_Start_date || null,
-        data.Emp_Packing_date || null, data.Emp_Level || '',
+        data.Emp_Packing_date || '0000-00-00', data.Emp_Level || '',
         data.Sub_ID, data.Position_ID,
         data.Emp_Status || 'Activated', data.Emp_Vsth || 'Vel',
         data.Emp_ID
