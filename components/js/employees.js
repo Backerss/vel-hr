@@ -97,7 +97,7 @@ export async function loadEmployeesPage() {
     totalCount = countRes.total;
     activeCount = countRes.active;
     inactiveCount = countRes.inactive;
-    document.getElementById('sidebarCount').textContent = totalCount;
+    document.getElementById('sidebarCount').textContent = activeCount;
   }
 
   container.innerHTML = `
