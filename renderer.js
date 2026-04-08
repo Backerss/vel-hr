@@ -244,6 +244,14 @@ async function init() {
   // Check if DB config is needed (no config file or connection failed at startup)
   const dbCheck = await window.api.isDbConfigNeeded();
   if (dbCheck && dbCheck.needed) {
+    // Pre-fill modal with default values so IT staff can adjust if needed
+    const d = dbCheck.defaults || {};
+    const _set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+    _set('dbConfigHost',     d.host     ?? '');
+    _set('dbConfigPort',     d.port     ?? 3306);
+    _set('dbConfigUser',     d.user     ?? '');
+    _set('dbConfigPassword', d.password ?? '');
+    _set('dbConfigDatabase', d.database ?? '');
     showModal('dbConfigModal');
   }
 

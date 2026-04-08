@@ -32,7 +32,7 @@
       "target": [
         "nsis"
       ],
-      "icon": "data/img/icon.ico"
+      "icon": "build/ico.ico"
     },
     "nsis": {
       "oneClick": false,

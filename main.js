@@ -9,6 +9,14 @@ let db;
 let dbConfigNeeded = false;
 
 // ===================== DB CONFIG (AppData) =====================
+const DEFAULT_DB_CONFIG = {
+  host: '192.168.66.11',
+  port: 3306,
+  user: 'root',
+  password: '',
+  database: 'training.v.1.1'
+};
+
 function getConfigPath() {
   return path.join(app.getPath('userData'), 'db-config.json');
 }
@@ -87,13 +95,9 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  const config = loadDbConfig();
-  if (config) {
-    const connected = await createConnection(config);
-    dbConfigNeeded = !connected;
-  } else {
-    dbConfigNeeded = true;
-  }
+  const config = loadDbConfig() || DEFAULT_DB_CONFIG;
+  const connected = await createConnection(config);
+  dbConfigNeeded = !connected;
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -110,7 +114,7 @@ app.on('will-quit', async () => {
 // ===================== IPC HANDLERS =====================
 
 // DB config IPC handlers
-ipcMain.handle('is-db-config-needed', () => ({ needed: dbConfigNeeded }));
+ipcMain.handle('is-db-config-needed', () => ({ needed: dbConfigNeeded, defaults: DEFAULT_DB_CONFIG }));
 
 ipcMain.handle('test-db-config', async (event, config) => {
   const { host, port, user, password, database } = config || {};
