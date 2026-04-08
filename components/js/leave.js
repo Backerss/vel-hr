@@ -180,6 +180,8 @@ export async function loadLeaveRecordPage() {
     </div>
     ` : ''}
 
+    <div id="leaveSummaryPanel" style="display:none;margin-bottom:12px;"></div>
+
     <div class="table-section">
       <div class="table-header" style="padding:13px 20px;">
         <span class="table-title">รายการบันทึกลางาน</span>
@@ -443,6 +445,94 @@ export function goTodayLeavePage(p) {
   document.getElementById('todayLeaveSection')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+function _leaveDurationMinutes(r) {
+  // Returns total duration in minutes for a leave record using Sdate/Stime → Edate/Etime
+  if (!r.drp_Sdate || !r.drp_Edate) return 0;
+  const [sy, sm, sd] = r.drp_Sdate.split('/').map(Number);
+  const [ey, em, ed] = r.drp_Edate.split('/').map(Number);
+  if (!sy || !ey) return 0;
+  const sTime = (r.drp_Stime || '08:00').split(':').map(Number);
+  const eTime = (r.drp_Etime || '17:00').split(':').map(Number);
+  const start = new Date(sy, sm - 1, sd, sTime[0] || 0, sTime[1] || 0);
+  const end   = new Date(ey, em - 1, ed, eTime[0] || 0, eTime[1] || 0);
+  const diffMs = end - start;
+  if (diffMs <= 0) return 0;
+  return Math.round(diffMs / 60000);
+}
+
+function _renderLeaveSummary(records, search) {
+  const panel = document.getElementById('leaveSummaryPanel');
+  if (!panel) return;
+  if (!search || currentUser?.role === 'guest') {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+    return;
+  }
+
+  // Only show summary when all visible records are for same employee
+  const empIDs = [...new Set(records.map(r => r.drp_empID).filter(Boolean))];
+  if (empIDs.length !== 1) {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+    return;
+  }
+
+  const sample = records.find(r => r.drp_empID === empIDs[0]);
+  const empName = (sample ? ((sample.Fullname || '').trim() || `${sample.Emp_Firstname || ''} ${sample.Emp_Lastname || ''}`.trim()) : '') || empIDs[0];
+
+  // Compute total time (minutes) and count by type — only complete records
+  const completeRecords = records.filter(r => r.drp_Type && r.drp_Sdate);
+  let totalMinutes = 0;
+  const byType = {};
+  for (const r of completeRecords) {
+    const mins = _leaveDurationMinutes(r);
+    totalMinutes += mins;
+    const key = r.drp_Type || '-';
+    if (!byType[key]) byType[key] = { type: key, name: r.leave_name || key, minutes: 0, count: 0 };
+    byType[key].minutes += mins;
+    byType[key].count++;
+  }
+
+  const totalDays = totalMinutes > 0 ? (totalMinutes / 60 / 8).toFixed(2) : '0.00';
+  const totalHours = totalMinutes > 0 ? (totalMinutes / 60).toFixed(1) : '0.0';
+  const incompleteCount = records.length - completeRecords.length;
+
+  const typeColors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#84cc16','#f97316'];
+  const typeEntries = Object.values(byType);
+
+  const typeBadges = typeEntries.map((t, i) => {
+    const days = (t.minutes / 60 / 8).toFixed(2);
+    const col = typeColors[i % typeColors.length];
+    return `<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:${col}18;border:1px solid ${col}40;border-radius:10px;min-width:0;">
+      <span style="font-size:12px;font-weight:700;color:${col};">${escHtml(t.type)}</span>
+      <span style="font-size:12px;color:var(--gray-600);">${escHtml(t.name)}</span>
+      <span style="font-size:12px;font-weight:600;color:${col};white-space:nowrap;">${days} วัน</span>
+    </div>`;
+  }).join('');
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="background:var(--bg-card,#fff);border:1.5px solid var(--primary-light,#dbeafe);border-radius:14px;padding:14px 18px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <i class="bi bi-person-lines-fill" style="font-size:17px;color:var(--primary);"></i>
+        <span style="font-size:14px;font-weight:700;color:var(--gray-900);">${escHtml(empName)}</span>
+        <span style="font-size:12px;color:var(--gray-500);">· ${escHtml(empIDs[0])}</span>
+        <span style="margin-left:auto;font-size:12px;color:var(--gray-400);">รายการทั้งหมด ${records.length} รายการ${incompleteCount ? ` (ยังไม่บันทึก ${incompleteCount})` : ''}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:baseline;gap:4px;">
+          <span style="font-size:28px;font-weight:800;color:var(--primary);line-height:1;">${totalDays}</span>
+          <span style="font-size:13px;color:var(--gray-600);">วัน</span>
+          <span style="font-size:13px;color:var(--gray-400);margin-left:4px;">(${totalHours} ชม.)</span>
+        </div>
+        <div style="width:1px;height:32px;background:var(--gray-200,#e5e7eb);"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          ${typeBadges || '<span style="font-size:12.5px;color:var(--gray-400);">ยังไม่มีข้อมูลประเภทการลา</span>'}
+        </div>
+      </div>
+    </div>`;
+}
+
 export function applyLeaveFilter() {
   const search = (document.getElementById('leaveSearch')?.value || '').toLowerCase();
   const dateFromRaw = document.getElementById('leaveDateFrom')?.value || '';
@@ -476,6 +566,7 @@ export function applyLeaveFilter() {
     });
   }
   leaveCurrentPage = 1;
+  _renderLeaveSummary(filteredLeaveRecords, search);
   renderLeaveTable();
 }
 
@@ -623,15 +714,7 @@ export function onLeaveTypeChange() {
   }
 }
 
-export function onLeaveStartDTChange() {
-  const startDateEl = document.getElementById('fLeaveStartDate');
-  const endDateEl   = document.getElementById('fLeaveEndDate');
-  const endTimeEl   = document.getElementById('fLeaveEndTime');
-  if (!startDateEl || !endDateEl || !startDateEl.value) return;
-  if (!displayDateToIso(startDateEl.value)) return;
-  endDateEl.value = startDateEl.value;
-  if (endTimeEl && !endTimeEl.value) endTimeEl.value = '17:00';
-}
+export function onLeaveStartDTChange() {}
 
 function clearLeaveForm() {
   ['fLeaveEmpID','fLeaveFirstname','fLeaveLastname','fLeaveDept','fLeaveSub'].forEach(f => {
@@ -646,13 +729,13 @@ function clearLeaveForm() {
   if (lt) lt.value = '';
   const base = todayInputFormat();
   const startDate = document.getElementById('fLeaveStartDate');
-  if (startDate) startDate.value = base;
+  if (startDate) startDate.value = '';
   const startTime = document.getElementById('fLeaveStartTime');
-  if (startTime) startTime.value = '08:00';
+  if (startTime) { startTime.value = ''; startTime.style.borderColor = ''; }
   const endDate = document.getElementById('fLeaveEndDate');
-  if (endDate) endDate.value = base;
+  if (endDate) endDate.value = '';
   const endTime = document.getElementById('fLeaveEndTime');
-  if (endTime) endTime.value = '17:00';
+  if (endTime) { endTime.value = ''; endTime.style.borderColor = ''; }
   document.getElementById('fLeaveRecordDate').value = base;
   const rem = document.getElementById('fLeaveRemark');
   if (rem) rem.value = '';

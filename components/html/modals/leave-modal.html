@@ -17,7 +17,8 @@
       <div style="margin-bottom:14px;">
         <label style="font-size:12.5px;font-weight:600;color:var(--gray-700);display:block;margin-bottom:6px;">รหัสพนักงาน <span class="required">*</span></label>
         <div class="lookup-group">
-          <input type="text" id="fLeaveEmpID" class="form-control-m" placeholder="กรอกรหัสพนักงาน เช่น 0001" />
+          <input type="text" id="fLeaveEmpID" class="form-control-m" placeholder="กรอกรหัสพนักงาน เช่น 0001"
+            onkeydown="if(event.key==='Enter'&&!this.readOnly){event.preventDefault();lookupEmployee();}" />
           <button class="btn-lookup" id="btnLookupEmp" onclick="lookupEmployee()">
             <i class="bi bi-search"></i> ค้นหา
           </button>
@@ -87,7 +88,11 @@
             <input type="text" id="fLeaveStartDate" class="form-control-m"
               placeholder="DD/MM/YYYY (พ.ศ.)" maxlength="10" inputmode="numeric" autocomplete="off"
               data-tdp oninput="autoFormatThaiDateField(this)" onblur="formatThaiDateField(this); onLeaveStartDTChange()" />
-            <input type="time" id="fLeaveStartTime" class="form-control-m" step="7200" onchange="onLeaveStartDTChange()" />
+            <input type="text" id="fLeaveStartTime" class="form-control-m"
+              placeholder="08:00" maxlength="5" inputmode="numeric" autocomplete="off"
+              data-ttp
+              oninput="autoFormatLeaveTimeField(this)"
+              onblur="formatLeaveTimeField(this); onLeaveStartDTChange()" />
           </div>
         </div>
         <div class="form-group">
@@ -96,7 +101,11 @@
             <input type="text" id="fLeaveEndDate" class="form-control-m"
               placeholder="DD/MM/YYYY (พ.ศ.)" maxlength="10" inputmode="numeric" autocomplete="off"
               data-tdp oninput="autoFormatThaiDateField(this)" onblur="formatThaiDateField(this)" />
-            <input type="time" id="fLeaveEndTime" class="form-control-m" step="7200" />
+            <input type="text" id="fLeaveEndTime" class="form-control-m"
+              placeholder="17:00" maxlength="5" inputmode="numeric" autocomplete="off"
+              data-ttp
+              oninput="autoFormatLeaveTimeField(this)"
+              onblur="formatLeaveTimeField(this)" />
           </div>
         </div>
       </div>

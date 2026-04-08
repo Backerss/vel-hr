@@ -8,7 +8,7 @@ import {
   submitPasswordConfirm, closePasswordConfirmModal,
   formatThaiDateField, autoFormatThaiDateField
 } from './components/js/utils.js';
-import { initThaiDatePicker, initAllThaiDatePickers } from './components/js/thai-datepicker.js';
+import { initThaiDatePicker, initAllThaiDatePickers, initThaiTimePicker, initAllThaiTimePickers, autoFormatLeaveTimeField, formatLeaveTimeField } from './components/js/thai-datepicker.js';
 import { checkDBStatus, doLogin, doLoginAsGuest, initAutoLogin, applyMenuForRole, confirmLogout, doLogout, currentUser } from './components/js/auth.js';
 import {
   loadEmployeesPage, loadSubdivisions, loadPositions,
@@ -215,6 +215,7 @@ async function init() {
     './components/html/modals/logout-modal.html',
     './components/html/modals/leave-modal.html',
     './components/html/modals/leave-confirm-modal.html',
+    './components/html/modals/leave-save-confirm-modal.html',
   ];
   const modalsSlot = document.getElementById('modalsSlot');
   modalsSlot.innerHTML = '';
@@ -228,6 +229,12 @@ async function init() {
 
   // Init date pickers on all modal date inputs
   initAllThaiDatePickers();
+
+  // Init time pickers on all modal time inputs
+  initAllThaiTimePickers();
+
+  // Global Enter-key navigation (move to next field / trigger search)
+  initEnterKeyNavigation();
 
   // Login event listeners
   document.getElementById('loginUsername').addEventListener('keydown', (e) => {
@@ -346,6 +353,134 @@ async function dbConfigSave() {
   }
 }
 
+// ===================== GLOBAL ENTER-KEY NAVIGATION =====================
+// Rule:
+//   search inputs  → fire search immediately (skip debounce)
+//   lookup inputs  → trigger the lookup action
+//   filter date inputs → apply filter
+//   all other form inputs → move focus to next visible/enabled field
+//   textarea / button / select → do nothing (natural browser behaviour)
+
+function _nextFocusable(current) {
+  const candidates = [...document.querySelectorAll(
+    'input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]), select, textarea'
+  )].filter(el => {
+    if (el === current)  return false;
+    if (el.disabled)     return false;
+    if (el.readOnly)     return false;
+    if (el.tabIndex < 0) return false;
+    // Skip invisible elements
+    if (!el.offsetParent && el.type !== 'hidden') return false;
+    let p = el.parentElement;
+    while (p) {
+      if (p.style && p.style.display === 'none') return false;
+      p = p.parentElement;
+    }
+    return true;
+  });
+  const idx = candidates.indexOf(current);
+  // idx === -1 when current is readonly (not in list) – find next after it by DOM order
+  if (idx === -1) {
+    const allInDom = [...document.querySelectorAll(
+      'input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]), select, textarea'
+    )];
+    const domIdx = allInDom.indexOf(current);
+    return candidates.find(el => allInDom.indexOf(el) > domIdx) || null;
+  }
+  return candidates[idx + 1] || null;
+}
+
+function _leaveFormIsComplete() {
+  const get = (id) => (document.getElementById(id)?.value || '').trim();
+  return !!(
+    get('fLeaveEmpID') &&
+    get('fLeaveType') &&
+    get('fLeaveStartDate') &&
+    get('fLeaveStartTime') &&
+    get('fLeaveEndDate') &&
+    get('fLeaveEndTime')
+  );
+}
+
+function _handleEnterKey(e) {
+  if (e.key !== 'Enter') return;
+  const el  = e.target;
+  const tag = el.tagName;
+
+  // Textarea: Enter = newline, never intercept
+  if (tag === 'TEXTAREA') return;
+  // Buttons / selects: browser default
+  if (tag === 'BUTTON' || tag === 'SELECT') return;
+  // Inputs inside contenteditable → ignore
+  if (el.closest('[contenteditable="true"]')) return;
+
+  const id = el.id || '';
+
+  // ── 1. Employee ID lookup field in leave modal ──────────────────────────
+  if (id === 'fLeaveEmpID' && !el.readOnly) {
+    e.preventDefault();
+    window.lookupEmployee?.();
+    return;
+  }
+
+  // ── 2. Search inputs → fire immediately (bypass debounce) ───────────────
+  // Detected by class or id convention (*Search* / *search*)
+  if (el.classList.contains('search-input') || /search/i.test(id)) {
+    e.preventDefault();
+    // Map known input IDs directly to their immediate search function
+    const SEARCH_FN = {
+      searchInput:        () => window.filterEmployees?.(),
+      leaveSearch:        () => window.applyLeaveFilter?.(),
+      trainingSearchInput:() => window.filterTrainingList?.(),
+      expSearchInput:     () => window.refreshExpenseData?.(),
+      hdSearchInput:      () => window.hdRefresh?.(),
+      recordPlanSearch:   () => window.onRecordPlanSearch?.(),
+      todayLeaveSearch:   () => window.applyTodayLeaveFilter?.(),
+    };
+    const fn = SEARCH_FN[id];
+    if (fn) { fn(); }
+    else {
+      // Fall back: trigger oninput to run the wired handler
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    return;
+  }
+
+  // ── 3. Filter date range inputs → fire blur handler (apply filter) ──────
+  if (id === 'leaveDateFrom' || id === 'leaveDateTo') {
+    e.preventDefault();
+    el.dispatchEvent(new Event('blur', { bubbles: false }));
+    return;
+  }
+
+  // ── 4. All other visible form inputs → Tab-like next-field navigation ───
+  e.preventDefault();
+  const next = _nextFocusable(el);
+
+  // If inside leave modal and there's no next focusable field (or next is textarea/button)
+  // and all required leave fields are filled → show save confirm
+  if (el.closest('#leaveModal') && currentUser?.role !== 'guest') {
+    const filled = _leaveFormIsComplete();
+    const nextIsActionable = next && next.tagName !== 'TEXTAREA' && next.tagName !== 'BUTTON' && next.tagName !== 'SELECT';
+    if (filled && !nextIsActionable) {
+      showModal('leaveSaveConfirmModal');
+      return;
+    }
+  }
+
+  if (next) {
+    next.focus();
+    // For text inputs, select all text for quick overwrite
+    if (next.tagName === 'INPUT' && next.type !== 'time' && next.type !== 'date') {
+      next.select?.();
+    }
+  }
+}
+
+function initEnterKeyNavigation() {
+  document.addEventListener('keydown', _handleEnterKey, true);
+}
+
 // ===================== EXPOSE GLOBALS (for inline onclick in HTML) =====================
 // These are needed because HTML component files use onclick="..." which requires globals.
 Object.assign(window, {
@@ -357,6 +492,8 @@ Object.assign(window, {
   formatThaiDateField, autoFormatThaiDateField,
   // Date picker
   initThaiDatePicker, initAllThaiDatePickers,
+  // Time picker
+  initThaiTimePicker, initAllThaiTimePickers, autoFormatLeaveTimeField, formatLeaveTimeField,
   // Nav
   switchPage, toggleGroup, refreshCurrentPage,
   // Employees

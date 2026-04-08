@@ -238,3 +238,170 @@ export function initAllThaiDatePickers() {
     if (!el.dataset.tdpInit) initThaiDatePicker(el);
   });
 }
+
+// ===================== THAI TIME PICKER (24-hour) =====================
+// Singleton dropdown for [data-ttp] text inputs (HH:MM format).
+
+let _ttpPopup = null;
+let _ttpActiveInput = null;
+
+const _TTP_GROUPS = [
+  { label: 'เช้า',    hours: [6, 7, 8, 9, 10, 11] },
+  { label: 'บ่าย',    hours: [12, 13, 14, 15, 16, 17] },
+  { label: 'เย็น / ค่ำ', hours: [18, 19, 20, 21, 22] },
+];
+
+function _ttpGetPopup() {
+  if (_ttpPopup) return _ttpPopup;
+  _ttpPopup = document.createElement('div');
+  _ttpPopup.id = 'thaiTimePickerPopup';
+  _ttpPopup.className = 'ttp-popup';
+  _ttpPopup.style.display = 'none';
+  _ttpPopup.innerHTML = `<div class="ttp-scroll" id="ttpList"></div>`;
+  document.body.appendChild(_ttpPopup);
+
+  document.addEventListener('mousedown', (e) => {
+    if (!_ttpPopup || _ttpPopup.style.display === 'none') return;
+    if (!_ttpPopup.contains(e.target) && !e.target.closest('.ttp-btn')) {
+      _ttpClose();
+    }
+  });
+  return _ttpPopup;
+}
+
+function _ttpOpen(inputEl, anchorEl) {
+  _ttpActiveInput = inputEl;
+  const p = _ttpGetPopup();
+  const cur = inputEl.value || '';
+
+  let html = '';
+  for (const g of _TTP_GROUPS) {
+    html += `<div class="ttp-group-label">${g.label}</div>`;
+    for (const h of g.hours) {
+      for (const m of [0, 30]) {
+        const val = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        html += `<div class="ttp-item${val === cur ? ' selected' : ''}" data-v="${val}">${val}</div>`;
+      }
+    }
+  }
+
+  const list = p.querySelector('#ttpList');
+  list.innerHTML = html;
+  list.querySelectorAll('.ttp-item').forEach(el => {
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      _ttpPick(el.dataset.v);
+    });
+  });
+
+  p.style.display    = 'block';
+  p.style.visibility = 'hidden';
+
+  const rect = anchorEl.getBoundingClientRect();
+  const pw   = p.offsetWidth  || 120;
+  const ph   = p.offsetHeight || 240;
+  let left = rect.right - pw;
+  let top  = rect.bottom + 4;
+
+  if (left + pw > window.innerWidth  - 8) left = window.innerWidth  - pw - 8;
+  if (left < 8) left = 8;
+  if (top  + ph > window.innerHeight - 8) top  = rect.top - ph - 4;
+  if (top  < 8) top  = 8;
+
+  p.style.left       = `${left}px`;
+  p.style.top        = `${top}px`;
+  p.style.visibility = '';
+
+  // Scroll selected item into view
+  const sel = list.querySelector('.ttp-item.selected');
+  if (sel) sel.scrollIntoView({ block: 'center' });
+}
+
+function _ttpPick(val) {
+  if (!_ttpActiveInput) return;
+  _ttpActiveInput.value = val;
+  _ttpActiveInput.style.borderColor = '';
+  _ttpActiveInput.dispatchEvent(new Event('change', { bubbles: true }));
+  _ttpClose();
+  _ttpActiveInput.focus();
+}
+
+function _ttpClose() {
+  if (_ttpPopup) _ttpPopup.style.display = 'none';
+  _ttpActiveInput = null;
+}
+
+/**
+ * Auto-insert ':' after the 2nd digit while the user is typing.
+ * Attach to oninput.
+ */
+export function autoFormatLeaveTimeField(el) {
+  let v = el.value.replace(/[^0-9]/g, '');
+  if (v.length > 4) v = v.slice(0, 4);
+  if (v.length >= 3) v = v.slice(0, 2) + ':' + v.slice(2);
+  el.value = v;
+}
+
+/**
+ * Validate and normalise to HH:MM on blur.
+ * Clears the field and highlights red on invalid input.
+ */
+export function formatLeaveTimeField(el) {
+  const raw = (el.value || '').replace(/[^0-9:]/g, '').trim();
+  if (!raw) { el.style.borderColor = ''; return; }
+  let h, m;
+  if      (/^\d{4}$/.test(raw))           { h = raw.slice(0, 2); m = raw.slice(2); }
+  else if (/^\d{1,2}:\d{1,2}$/.test(raw)) { [h, m] = raw.split(':'); }
+  else if (/^\d{1,2}$/.test(raw))         { h = raw; m = '00'; }
+  else { el.style.borderColor = '#ef4444'; return; }
+
+  const hNum = parseInt(h, 10);
+  const mNum = parseInt(m, 10);
+  if (isNaN(hNum) || isNaN(mNum) || hNum < 0 || hNum > 23 || mNum < 0 || mNum > 59) {
+    el.style.borderColor = '#ef4444';
+    el.value = '';
+    return;
+  }
+  el.value = `${String(hNum).padStart(2, '0')}:${String(mNum).padStart(2, '0')}`;
+  el.style.borderColor = '';
+}
+
+/**
+ * Initialise time picker on a single [data-ttp] input.
+ * Safe to call multiple times — skips already-initialised inputs.
+ */
+export function initThaiTimePicker(inputEl) {
+  if (!inputEl || inputEl.dataset.ttpInit) return;
+  inputEl.dataset.ttpInit = '1';
+  inputEl.classList.add('ttp-input');
+
+  const wrapper = document.createElement('span');
+  wrapper.className = 'ttp-wrapper';
+  inputEl.parentNode.insertBefore(wrapper, inputEl);
+  wrapper.appendChild(inputEl);
+
+  const btn = document.createElement('button');
+  btn.type      = 'button';
+  btn.className = 'ttp-btn';
+  btn.tabIndex  = -1;
+  btn.setAttribute('aria-label', 'เลือกเวลา');
+  btn.innerHTML = '<i class="bi bi-clock"></i>';
+  wrapper.appendChild(btn);
+
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const isOpen = _ttpPopup && _ttpPopup.style.display !== 'none' && _ttpActiveInput === inputEl;
+    if (isOpen) { _ttpClose(); } else { _ttpOpen(inputEl, btn); }
+  });
+}
+
+/**
+ * Scan the DOM for [data-ttp] inputs and initialise pickers on all that
+ * haven't been initialised yet. Call after dynamic page/modal content is inserted.
+ */
+export function initAllThaiTimePickers() {
+  document.querySelectorAll('[data-ttp]').forEach(el => {
+    if (!el.dataset.ttpInit) initThaiTimePicker(el);
+  });
+}

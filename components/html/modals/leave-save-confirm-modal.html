@@ -1,0 +1,22 @@
+<!-- ========== LEAVE SAVE CONFIRM MODAL ========== -->
+<div class="modal-overlay" id="leaveSaveConfirmModal" style="z-index:10050;">
+  <div class="modal-card" style="width:400px;">
+    <div class="modal-body">
+      <div class="confirm-content">
+        <div class="confirm-icon" style="background:var(--primary-light);">
+          <i class="bi bi-check2-circle" style="color:var(--primary);"></i>
+        </div>
+        <div class="confirm-title">ยืนยันการบันทึก</div>
+        <div class="confirm-text" id="leaveSaveConfirmText">
+          ตรวจสอบข้อมูลเรียบร้อยแล้ว ต้องการบันทึกข้อมูลการลาหรือไม่?
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline-custom" onclick="closeModal('leaveSaveConfirmModal')">ยกเลิก</button>
+      <button class="btn-primary-custom" id="btnConfirmSaveLeave" onclick="saveLeaveRecord(); closeModal('leaveSaveConfirmModal');">
+        <i class="bi bi-check2-circle"></i> ยืนยันบันทึก
+      </button>
+    </div>
+  </div>
+</div>
