@@ -7,7 +7,7 @@
     "java.format.onType.enabled": false,
     "editor.formatOnType": false,
     "editor.codeActionsOnSave": {
-        "source.organizeImports": false
+        "source.organizeImports": "never"
     },
     "editor.suggest.snippetsPreventQuickSuggestions": false,
     "editor.tabSize": 4,
@@ -17,7 +17,7 @@
     "[java]": {
         "java.saveActions.organizeImports": false,
         "editor.codeActionsOnSave": {
-            "source.organizeImports": false
+            "source.organizeImports": "never"
         },
         "editor.formatOnSave": false
     }

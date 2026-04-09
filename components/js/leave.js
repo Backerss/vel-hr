@@ -101,7 +101,7 @@ export async function loadLeaveRecordPage() {
           <input type="text" class="search-input" id="leaveSearch" placeholder="ค้นหา รหัส / ชื่อ..." oninput="onLeaveSearch()">
         </div>
         <div style="display:flex;align-items:center;gap:5px;">
-          <span style="font-size:12px;color:var(--gray-500);white-space:nowrap;">วันที่บันทึก ตั้งแต่</span>
+          <span style="font-size:12px;color:var(--gray-500);white-space:nowrap;">วันที่ลา ตั้งแต่</span>
           <input type="text" class="filter-select" id="leaveDateFrom" data-tdp
             placeholder="YYYY/MM/DD" maxlength="10" inputmode="numeric" autocomplete="off"
             oninput="autoFormatThaiDateField(this)" onblur="formatThaiDateField(this); applyLeaveFilter()" style="min-width:130px;">
@@ -319,16 +319,7 @@ function _renderGuestTimeLock(container) {
 }
 
 export async function fetchAndRenderLeave() {
-  const tb = document.getElementById('leaveTableBody');
-  if (tb) tb.innerHTML = `<tr class="loading-row"><td colspan="12"><div class="spinner"></div><div>กำลังโหลด...</div></td></tr>`;
-  const res = await window.api.getDailyReports({});
-  if (!res.success) {
-    if (tb) tb.innerHTML = `<tr><td colspan="12" class="text-center py-4" style="color:var(--danger);">เกิดข้อผิดพลาด: ${escHtml(res.message)}</td></tr>`;
-    return;
-  }
-  allLeaveRecords = res.data;
-  leaveCurrentPage = 1;
-  applyLeaveFilter();
+  await applyLeaveFilter();
 }
 
 // ---- Today's Leave (guest-only) ----
@@ -606,27 +597,25 @@ function _renderLeaveSummary(records, search, filterFrom = '', filterTo = '') {
     </div>`;
 }
 
-export function applyLeaveFilter() {
-  const search = (document.getElementById('leaveSearch')?.value || '').toLowerCase();
+export async function applyLeaveFilter() {
+  const search      = (document.getElementById('leaveSearch')?.value || '').trim();
   const dateFromRaw = document.getElementById('leaveDateFrom')?.value || '';
   const dateToRaw   = document.getElementById('leaveDateTo')?.value   || '';
-  const dateFrom = displayDateToDbSlash(dateFromRaw) || '';
-  const dateTo   = displayDateToDbSlash(dateToRaw) || '';
-  const sub      = document.getElementById('leaveFilterSub')?.value  || '';
-  const ltype    = document.getElementById('leaveFilterType')?.value || '';
+  const dateFrom    = displayDateToDbSlash(dateFromRaw) || '';
+  const dateTo      = displayDateToDbSlash(dateToRaw) || '';
+  const subID       = document.getElementById('leaveFilterSub')?.value  || '';
+  const leaveType   = document.getElementById('leaveFilterType')?.value || '';
 
-  filteredLeaveRecords = allLeaveRecords.filter(r => {
-    if (search) {
-      const hay = [(r.drp_empID||''),(r.Emp_Firstname||''),(r.Emp_Lastname||''),(r.Fullname||'')].join(' ').toLowerCase();
-      if (!hay.includes(search)) return false;
-    }
-    // Filter by drp_record (date recorded), not drp_Sdate
-    if (dateFrom && (r.drp_record||'') < dateFrom) return false;
-    if (dateTo   && (r.drp_record||'') > dateTo)   return false;
-    if (sub && String(r.Sub_ID) !== sub) return false;
-    if (ltype && r.drp_Type !== ltype) return false;
-    return true;
-  });
+  const tb = document.getElementById('leaveTableBody');
+  if (tb) tb.innerHTML = `<tr class="loading-row"><td colspan="12"><div class="spinner"></div><div>กำลังโหลด...</div></td></tr>`;
+
+  const res = await window.api.getDailyReports({ search, dateFrom, dateTo, subID, leaveType });
+  if (!res.success) {
+    if (tb) tb.innerHTML = `<tr><td colspan="12" class="text-center py-4" style="color:var(--danger);">เกิดข้อผิดพลาด: ${escHtml(res.message)}</td></tr>`;
+    return;
+  }
+  allLeaveRecords = res.data;
+  filteredLeaveRecords = [...allLeaveRecords];
 
   // HR only: sort incomplete records (no leave type or no start date) to the top
   if (currentUser?.role !== 'guest') {
@@ -634,7 +623,6 @@ export function applyLeaveFilter() {
       const aIncomplete = !a.drp_Type || !a.drp_Sdate ? 0 : 1;
       const bIncomplete = !b.drp_Type || !b.drp_Sdate ? 0 : 1;
       if (aIncomplete !== bIncomplete) return aIncomplete - bIncomplete;
-      // Within same group keep original order (most recent first by drp_id desc)
       return (b.drp_id || 0) - (a.drp_id || 0);
     });
   }

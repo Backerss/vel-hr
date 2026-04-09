@@ -510,7 +510,9 @@ ipcMain.handle('get-daily-reports', async (event, { search = '', dateFrom = '', 
     if (dateTo) { q += ` AND dr.drp_Sdate <= ?`; params.push(dateTo.replace(/-/g, '/')); }
     if (subID) { q += ` AND e.Sub_ID = ?`; params.push(subID); }
     if (leaveType) { q += ` AND dr.drp_Type = ?`; params.push(leaveType); }
-    q += ` ORDER BY dr.drp_id DESC LIMIT 1000`;
+    // Use larger limit when a specific employee is being searched for
+    const rowLimit = search ? 5000 : 1000;
+    q += ` ORDER BY dr.drp_id DESC LIMIT ${rowLimit}`;
     const [rows] = await db.execute(q, params);
     return { success: true, data: rows };
   } catch (e) { return { success: false, message: e.message }; }
