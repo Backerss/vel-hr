@@ -28,9 +28,7 @@ export function dbDateToDisplay(d) {
   try {
     const p = d.split('/');
     if (p.length !== 3) return d;
-    const dt = new Date(`${p[0]}-${p[1]}-${p[2]}`);
-    if (isNaN(dt)) return d;
-    return dt.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+    return `${p[0]}/${p[1].padStart(2,'0')}/${p[2].padStart(2,'0')}`;
   } catch { return d; }
 }
 export function dateInputToDb(v) { return displayDateToDbSlash(v); }
@@ -105,13 +103,13 @@ export async function loadLeaveRecordPage() {
         <div style="display:flex;align-items:center;gap:5px;">
           <span style="font-size:12px;color:var(--gray-500);white-space:nowrap;">วันที่บันทึก ตั้งแต่</span>
           <input type="text" class="filter-select" id="leaveDateFrom" data-tdp
-            placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" autocomplete="off"
+            placeholder="YYYY/MM/DD" maxlength="10" inputmode="numeric" autocomplete="off"
             oninput="autoFormatThaiDateField(this)" onblur="formatThaiDateField(this); applyLeaveFilter()" style="min-width:130px;">
         </div>
         <div style="display:flex;align-items:center;gap:5px;">
           <span style="font-size:12px;color:var(--gray-500);white-space:nowrap;">ถึง</span>
           <input type="text" class="filter-select" id="leaveDateTo" data-tdp
-            placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" autocomplete="off"
+            placeholder="YYYY/MM/DD" maxlength="10" inputmode="numeric" autocomplete="off"
             oninput="autoFormatThaiDateField(this)" onblur="formatThaiDateField(this); applyLeaveFilter()" style="min-width:130px;">
         </div>
         <select class="filter-select" id="leaveFilterSub" onchange="applyLeaveFilter()">
@@ -445,22 +443,50 @@ export function goTodayLeavePage(p) {
   document.getElementById('todayLeaveSection')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// Returns how many minutes of lunch break (12:00–13:00) overlap a time range [startM, endM]
+function _lunchOverlapMinutes(startM, endM) {
+  const LUNCH_S = 12 * 60; // 720
+  const LUNCH_E = 13 * 60; // 780
+  return Math.max(0, Math.min(endM, LUNCH_E) - Math.max(startM, LUNCH_S));
+}
+
 function _leaveDurationMinutes(r) {
-  // Returns total duration in minutes for a leave record using Sdate/Stime → Edate/Etime
+  // Returns net work-minutes for a leave record.
+  // Rules: work day 08:00–17:00 (8 hrs), lunch break 12:00–13:00 deducted.
+  // Multi-day: first-day partial + middle full days (8 h each) + last-day partial.
   if (!r.drp_Sdate || !r.drp_Edate) return 0;
   const [sy, sm, sd] = r.drp_Sdate.split('/').map(Number);
   const [ey, em, ed] = r.drp_Edate.split('/').map(Number);
   if (!sy || !ey) return 0;
-  const sTime = (r.drp_Stime || '08:00').split(':').map(Number);
-  const eTime = (r.drp_Etime || '17:00').split(':').map(Number);
-  const start = new Date(sy, sm - 1, sd, sTime[0] || 0, sTime[1] || 0);
-  const end   = new Date(ey, em - 1, ed, eTime[0] || 0, eTime[1] || 0);
-  const diffMs = end - start;
-  if (diffMs <= 0) return 0;
-  return Math.round(diffMs / 60000);
+  const sTime  = (r.drp_Stime || '08:00').split(':').map(Number);
+  const eTime  = (r.drp_Etime || '17:00').split(':').map(Number);
+  const startM = (sTime[0] || 8)  * 60 + (sTime[1] || 0);
+  const endM   = (eTime[0] || 17) * 60 + (eTime[1] || 0);
+  const WORK_S = 8  * 60; // 480 = 08:00
+  const WORK_E = 17 * 60; // 1020 = 17:00
+
+  const startDate = new Date(sy, sm - 1, sd);
+  const endDate   = new Date(ey, em - 1, ed);
+  const daysDiff  = Math.round((endDate - startDate) / 86400000);
+  if (daysDiff < 0) return 0;
+
+  if (daysDiff === 0) {
+    // Same day
+    const dur = Math.max(0, endM - startM);
+    return dur - _lunchOverlapMinutes(startM, endM);
+  }
+
+  // First day: startM → WORK_E (17:00), deduct lunch overlap
+  let total = Math.max(0, WORK_E - startM) - _lunchOverlapMinutes(startM, WORK_E);
+  // Middle full days (each = 8 h = 480 min)
+  total += (daysDiff - 1) * 8 * 60;
+  // Last day: WORK_S (08:00) → endM, deduct lunch overlap
+  total += Math.max(0, endM - WORK_S) - _lunchOverlapMinutes(WORK_S, endM);
+
+  return Math.max(0, total);
 }
 
-function _renderLeaveSummary(records, search) {
+function _renderLeaveSummary(records, search, filterFrom = '', filterTo = '') {
   const panel = document.getElementById('leaveSummaryPanel');
   if (!panel) return;
   if (!search || currentUser?.role === 'guest') {
@@ -480,55 +506,102 @@ function _renderLeaveSummary(records, search) {
   const sample = records.find(r => r.drp_empID === empIDs[0]);
   const empName = (sample ? ((sample.Fullname || '').trim() || `${sample.Emp_Firstname || ''} ${sample.Emp_Lastname || ''}`.trim()) : '') || empIDs[0];
 
+  // Period boundaries (CE)
+  const now = new Date();
+  const thisYear  = now.getFullYear();
+  const thisMonth = now.getMonth(); // 0-indexed
+  const dayOfWeek = now.getDay();   // 0=Sun
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(now); monday.setDate(now.getDate() + mondayOffset); monday.setHours(0,0,0,0);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6); sunday.setHours(23,59,59,999);
+
+  const yearPrefix  = `${thisYear}/`;
+  const monthPrefix = `${thisYear}/${String(thisMonth + 1).padStart(2,'0')}/`;
+
   // Compute total time (minutes) and count by type — only complete records
   const completeRecords = records.filter(r => r.drp_Type && r.drp_Sdate);
-  let totalMinutes = 0;
+  let totalMinutes = 0, yearMinutes = 0, monthMinutes = 0, weekMinutes = 0;
   const byType = {};
   for (const r of completeRecords) {
     const mins = _leaveDurationMinutes(r);
     totalMinutes += mins;
     const key = r.drp_Type || '-';
-    if (!byType[key]) byType[key] = { type: key, name: r.leave_name || key, minutes: 0, count: 0 };
+    if (!byType[key]) byType[key] = { type: key, name: r.leave_name || key, minutes: 0 };
     byType[key].minutes += mins;
-    byType[key].count++;
+    // Period buckets — use drp_Sdate (YYYY/MM/DD)
+    const sd = r.drp_Sdate || '';
+    if (sd.startsWith(yearPrefix)) yearMinutes += mins;
+    if (sd.startsWith(monthPrefix)) monthMinutes += mins;
+    // Week check
+    const parts = sd.split('/').map(Number);
+    if (parts[0] && parts[1] && parts[2]) {
+      const recDate = new Date(parts[0], parts[1] - 1, parts[2]);
+      if (recDate >= monday && recDate <= sunday) weekMinutes += mins;
+    }
   }
 
-  const totalDays = totalMinutes > 0 ? (totalMinutes / 60 / 8).toFixed(2) : '0.00';
-  const totalHours = totalMinutes > 0 ? (totalMinutes / 60).toFixed(1) : '0.0';
+  // Format: primary = วัน (1 day = 8 h), sub-label = ชม.
+  const fmtDH = (m) => {
+    if (m <= 0) return { day: '0 วัน', hrs: '0 ชม.' };
+    const h = m / 60;
+    const days = h / 8;
+    const dayStr = Number.isInteger(days * 10)
+      ? (days % 1 === 0 ? days + ' วัน' : days.toFixed(1) + ' วัน')
+      : (Math.round(days * 10) / 10).toFixed(1) + ' วัน';
+    return { day: dayStr, hrs: h.toFixed(1) + ' ชม.' };
+  };
   const incompleteCount = records.length - completeRecords.length;
 
   const typeColors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#84cc16','#f97316'];
   const typeEntries = Object.values(byType);
 
   const typeBadges = typeEntries.map((t, i) => {
-    const days = (t.minutes / 60 / 8).toFixed(2);
+    const h = t.minutes / 60;
+    const days = (Math.round((h / 8) * 10) / 10).toFixed(1);
     const col = typeColors[i % typeColors.length];
     return `<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:${col}18;border:1px solid ${col}40;border-radius:10px;min-width:0;">
       <span style="font-size:12px;font-weight:700;color:${col};">${escHtml(t.type)}</span>
       <span style="font-size:12px;color:var(--gray-600);">${escHtml(t.name)}</span>
-      <span style="font-size:12px;font-weight:600;color:${col};white-space:nowrap;">${days} วัน</span>
+      <span style="font-size:12px;font-weight:600;color:${col};white-space:nowrap;">${days} วัน (${h.toFixed(1)} ชม.)</span>
     </div>`;
   }).join('');
+
+  const yr = fmtDH(yearMinutes), mo = fmtDH(monthMinutes), wk = fmtDH(weekMinutes), tot = fmtDH(totalMinutes);
 
   panel.style.display = 'block';
   panel.innerHTML = `
     <div style="background:var(--bg-card,#fff);border:1.5px solid var(--primary-light,#dbeafe);border-radius:14px;padding:14px 18px;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
         <i class="bi bi-person-lines-fill" style="font-size:17px;color:var(--primary);"></i>
         <span style="font-size:14px;font-weight:700;color:var(--gray-900);">${escHtml(empName)}</span>
         <span style="font-size:12px;color:var(--gray-500);">· ${escHtml(empIDs[0])}</span>
         <span style="margin-left:auto;font-size:12px;color:var(--gray-400);">รายการทั้งหมด ${records.length} รายการ${incompleteCount ? ` (ยังไม่บันทึก ${incompleteCount})` : ''}</span>
       </div>
-      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-        <div style="display:flex;align-items:baseline;gap:4px;">
-          <span style="font-size:28px;font-weight:800;color:var(--primary);line-height:1;">${totalDays}</span>
-          <span style="font-size:13px;color:var(--gray-600);">วัน</span>
-          <span style="font-size:13px;color:var(--gray-400);margin-left:4px;">(${totalHours} ชม.)</span>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+        <div style="flex:1;min-width:120px;background:#eff6ff;border-radius:10px;padding:10px 14px;">
+          <div style="font-size:11px;color:var(--gray-500);margin-bottom:3px;">รายปีนี้ (${thisYear})</div>
+          <div style="font-size:20px;font-weight:800;color:var(--primary);">${yr.day}</div>
+          <div style="font-size:12px;color:var(--gray-400);margin-top:2px;">${yr.hrs}</div>
         </div>
-        <div style="width:1px;height:32px;background:var(--gray-200,#e5e7eb);"></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          ${typeBadges || '<span style="font-size:12.5px;color:var(--gray-400);">ยังไม่มีข้อมูลประเภทการลา</span>'}
+        <div style="flex:1;min-width:120px;background:#f0fdf4;border-radius:10px;padding:10px 14px;">
+          <div style="font-size:11px;color:var(--gray-500);margin-bottom:3px;">รายเดือนนี้</div>
+          <div style="font-size:20px;font-weight:800;color:#10b981;">${mo.day}</div>
+          <div style="font-size:12px;color:var(--gray-400);margin-top:2px;">${mo.hrs}</div>
         </div>
+        <div style="flex:1;min-width:120px;background:#fefce8;border-radius:10px;padding:10px 14px;">
+          <div style="font-size:11px;color:var(--gray-500);margin-bottom:3px;">รายอาทิตย์นี้</div>
+          <div style="font-size:20px;font-weight:800;color:#f59e0b;">${wk.day}</div>
+          <div style="font-size:12px;color:var(--gray-400);margin-top:2px;">${wk.hrs}</div>
+        </div>
+        <div style="flex:1;min-width:120px;background:${filterFrom||filterTo?'#fdf4ff':'#f8fafc'};border-radius:10px;padding:10px 14px;">
+          <div style="font-size:11px;color:var(--gray-500);margin-bottom:3px;">${filterFrom||filterTo ? 'ช่วงที่เลือก' : 'รวมทั้งหมด'}</div>
+          ${filterFrom||filterTo ? `<div style="font-size:10px;color:var(--gray-400);margin-bottom:2px;">${filterFrom||''}${filterTo?' – '+filterTo:''}</div>` : ''}
+          <div style="font-size:20px;font-weight:800;color:${filterFrom||filterTo?'#7c3aed':'var(--gray-700)' };">${tot.day}</div>
+          <div style="font-size:12px;color:var(--gray-400);margin-top:2px;">${tot.hrs}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        ${typeBadges || '<span style="font-size:12.5px;color:var(--gray-400);">ยังไม่มีข้อมูลประเภทการลา</span>'}
       </div>
     </div>`;
 }
@@ -566,7 +639,7 @@ export function applyLeaveFilter() {
     });
   }
   leaveCurrentPage = 1;
-  _renderLeaveSummary(filteredLeaveRecords, search);
+  _renderLeaveSummary(filteredLeaveRecords, search, dateFromRaw, dateToRaw);
   renderLeaveTable();
 }
 
@@ -750,7 +823,7 @@ function fillLeaveForm(r) {
   document.getElementById('fLeaveSub').value        = r.drp_status || '';
   document.getElementById('fLeaveType').value       = r.drp_Type || '';
   const comm = getCommunicateLabel(r);
-  document.getElementById('fLeaveComm').value = (comm !== '-') ? comm : 'โทร';
+  document.getElementById('fLeaveComm').value = (comm !== '-') ? comm : '';
   if (r.drp_Sdate) {
     document.getElementById('fLeaveStartDate').value = dbDateToInput(r.drp_Sdate);
     document.getElementById('fLeaveStartTime').value = r.drp_Stime || '08:00';
@@ -763,20 +836,106 @@ function fillLeaveForm(r) {
   document.getElementById('fLeaveRemark').value = (r.drp_Remark||'').replace(/\r\n/g,'\n').trim();
 }
 
+// ---- Employee ID autocomplete ----
+let _empSearchTimer = null;
+let _empSuggestHiIdx = -1;
+
+function _fillEmployeeFields(e) {
+  document.getElementById('fLeaveSname').value     = e.Emp_Sname || 'นาย';
+  document.getElementById('fLeaveFirstname').value = e.Emp_Firstname || '';
+  document.getElementById('fLeaveLastname').value  = e.Emp_Lastname || '';
+  document.getElementById('fLeaveDept').value      = e.Sub_Name || '';
+  document.getElementById('fLeaveSub').value       = e.Emp_Vsth || '';
+}
+
+function _selectEmployee(emp) {
+  const input = document.getElementById('fLeaveEmpID');
+  if (input) input.value = emp.Emp_ID || '';
+  _fillEmployeeFields(emp);
+  hideEmpSuggestions();
+  if (currentUser?.role === 'guest') {
+    setTimeout(() => {
+      showModal('leaveSaveConfirmModal');
+      document.getElementById('btnConfirmSaveLeave')?.focus();
+    }, 80);
+  } else {
+    setTimeout(() => document.getElementById('fLeaveType')?.focus(), 80);
+  }
+}
+
+export function hideEmpSuggestions() {
+  const box = document.getElementById('empSuggestionsBox');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  _empSuggestHiIdx = -1;
+}
+
+function _showEmpSuggestions(results) {
+  const box = document.getElementById('empSuggestionsBox');
+  if (!box) return;
+  if (!results || results.length === 0) {
+    box.innerHTML = `<div style="padding:10px 14px;color:var(--gray-400);font-size:13px;">ไม่พบพนักงาน</div>`;
+    box.style.display = 'block';
+    return;
+  }
+  box.innerHTML = results.map((emp, i) => {
+    const fullname = `${emp.Emp_Sname || ''}${emp.Emp_Firstname || ''} ${emp.Emp_Lastname || ''}`.trim();
+    const sub = emp.Sub_Name ? `<span style="color:var(--gray-400);font-size:11px;margin-left:6px;">${escHtml(emp.Sub_Name)}</span>` : '';
+    const statusBadge = emp.Emp_Status !== 'Activated'
+      ? `<span style="font-size:10px;background:#fef3c7;color:#92400e;border-radius:6px;padding:1px 5px;margin-left:6px;">${escHtml(emp.Emp_Status || '')}</span>` : '';
+    return `<div class="_emp-suggest-item" data-idx="${i}"
+      style="padding:9px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;transition:background 0.12s;"
+      onmousedown="empSuggestSelect(${i})"
+      onmouseenter="empSuggestHover(${i})">
+      <span style="font-size:12px;font-weight:700;color:var(--primary);min-width:70px;">${escHtml(emp.Emp_ID || '')}</span>
+      <span style="font-size:13px;color:var(--gray-800);">${escHtml(fullname)}</span>
+      ${sub}${statusBadge}
+    </div>`;
+  }).join('');
+  box.style.display = 'block';
+  _empSuggestHiIdx = -1;
+  // Store results for keyboard selection
+  box._empResults = results;
+}
+
+export function empSuggestHover(idx) {
+  _empSuggestHiIdx = idx;
+  _highlightSuggest(idx);
+}
+export function empSuggestSelect(idx) {
+  const box = document.getElementById('empSuggestionsBox');
+  const results = box?._empResults;
+  if (!results || !results[idx]) return;
+  _selectEmployee(results[idx]);
+}
+function _highlightSuggest(idx) {
+  document.querySelectorAll('._emp-suggest-item').forEach((el, i) => {
+    el.style.background = i === idx ? 'var(--primary-light,#eff6ff)' : '';
+  });
+}
+
+export function empIDInput() {
+  clearTimeout(_empSearchTimer);
+  const val = (document.getElementById('fLeaveEmpID')?.value || '').trim();
+  if (!val) { hideEmpSuggestions(); return; }
+  _empSearchTimer = setTimeout(async () => {
+    try {
+      const res = await window.api.searchEmployees({ keyword: val, limit: 10 });
+      if (res.success) _showEmpSuggestions(res.data);
+      else hideEmpSuggestions();
+    } catch { hideEmpSuggestions(); }
+  }, 250);
+}
+
 export async function lookupEmployee() {
   const empId = (document.getElementById('fLeaveEmpID')?.value || '').trim();
   if (!empId) { showToast('กรุณากรอกรหัสพนักงานก่อน', 'error'); return; }
+  hideEmpSuggestions();
   const btn = document.getElementById('btnLookupEmp');
   if (btn) { btn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;margin:0 4px -3px 0;border-width:2px;"></span>'; btn.disabled = true; }
   try {
     const res = await window.api.getEmployeeById(empId);
     if (res.success && res.data) {
-      const e = res.data;
-      document.getElementById('fLeaveSname').value     = e.Emp_Sname || 'นาย';
-      document.getElementById('fLeaveFirstname').value = e.Emp_Firstname || '';
-      document.getElementById('fLeaveLastname').value  = e.Emp_Lastname || '';
-      document.getElementById('fLeaveDept').value      = e.Sub_Name || '';
-      document.getElementById('fLeaveSub').value       = e.Emp_Vsth || '';
+      _fillEmployeeFields(res.data);
       if (currentUser?.role === 'guest') {
         setTimeout(() => {
           showModal('leaveSaveConfirmModal');
@@ -803,7 +962,7 @@ export async function saveLeaveRecord() {
   if (!empId) { showToast('กรุณากรอกรหัสพนักงาน', 'error'); return; }
 
   const recordDateDb = dateInputToDb(recDate);
-  if (!recordDateDb) { showToast('วันที่บันทึกไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
+  if (!recordDateDb) { showToast('วันที่บันทึกไม่ถูกต้อง (ต้องเป็น YYYY/MM/DD)', 'error'); return; }
 
   let d;
 
@@ -842,8 +1001,8 @@ export async function saveLeaveRecord() {
     const startDateDb = dateInputToDb(startDate);
     const endDateDb = dateInputToDb(endDate);
 
-    if (!startDateDb) { showToast('วันที่ลาไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
-    if (!endDateDb)   { showToast('วันที่สิ้นสุดไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
+    if (!startDateDb) { showToast('วันที่ลาไม่ถูกต้อง (ต้องเป็น YYYY/MM/DD)', 'error'); return; }
+    if (!endDateDb)   { showToast('วันที่สิ้นสุดไม่ถูกต้อง (ต้องเป็น YYYY/MM/DD)', 'error'); return; }
 
     d = {
       drp_empID:        empId,
@@ -880,7 +1039,7 @@ export async function saveLeaveRecord() {
   }
 }
 
-export function closeLeaveModal() { closeModal('leaveModal'); editingLeaveId = null; }
+export function closeLeaveModal() { hideEmpSuggestions(); closeModal('leaveModal'); editingLeaveId = null; }
 
 export function confirmDeleteLeave(id, empId) {
   deletingLeaveId = id;
@@ -922,7 +1081,7 @@ export async function loadDailyAbsencePage() {
         <div style="display:flex;align-items:center;gap:8px;">
           <label style="font-size:13px;font-weight:600;color:var(--gray-700);white-space:nowrap;">เลือกวันที่:</label>
           <input type="text" id="absenceDate" class="filter-select" data-tdp value="${today}"
-            placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric" autocomplete="off"
+            placeholder="YYYY/MM/DD" maxlength="10" inputmode="numeric" autocomplete="off"
             oninput="autoFormatThaiDateField(this)" onblur="formatThaiDateField(this)" style="min-width:140px;">
         </div>
         <button class="btn-primary-custom" onclick="loadAbsenceReport()">
@@ -954,7 +1113,7 @@ export async function loadAbsenceReport() {
   if (!area) return;
 
   if (!dateVal) {
-    area.innerHTML = `<div class="empty-state"><div class="empty-icon"><i class="bi bi-exclamation-triangle"></i></div><div class="empty-text" style="color:var(--danger);">โปรดระบุวันที่ในรูปแบบ DD/MM/YYYY</div></div>`;
+    area.innerHTML = `<div class="empty-state"><div class="empty-icon"><i class="bi bi-exclamation-triangle"></i></div><div class="empty-text" style="color:var(--danger);">โปรดระบุวันที่ในรูปแบบ YYYY/MM/DD</div></div>`;
     return;
   }
 

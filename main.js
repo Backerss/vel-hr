@@ -306,11 +306,12 @@ ipcMain.handle('search-employees', async (event, { keyword = '', limit = 20 } = 
         s.Sub_Name, e.Emp_Status
       FROM employees e
       LEFT JOIN subdivision s ON s.Sub_ID = e.Sub_ID
-      WHERE e.Emp_ID LIKE ?
+      WHERE e.Emp_Status = 'Activated'
+        AND (e.Emp_ID LIKE ?
          OR e.Emp_Firstname LIKE ?
          OR e.Emp_Lastname LIKE ?
          OR CONCAT(e.Emp_Sname, e.Emp_Firstname, ' ', e.Emp_Lastname) LIKE ?
-         OR s.Sub_Name LIKE ?
+         OR s.Sub_Name LIKE ?)
       ORDER BY e.Emp_ID ASC
       LIMIT ${safeLimit}`,
       [`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`]

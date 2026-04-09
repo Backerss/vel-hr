@@ -487,8 +487,8 @@ export async function saveEmployee() {
   const startDateDb = startDateText ? displayDateToIso(startDateText) : null;
   const packingDateDb = packingDateText ? displayDateToIso(packingDateText) : null;
 
-  if (startDateText && !startDateDb) { showToast('วันที่เริ่มงานไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
-  if (packingDateText && !packingDateDb) { showToast('วันที่บรรจุไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'error'); return; }
+  if (startDateText && !startDateDb) { showToast('วันที่เริ่มงานไม่ถูกต้อง (ต้องเป็น YYYY/MM/DD)', 'error'); return; }
+  if (packingDateText && !packingDateDb) { showToast('วันที่บรรจุไม่ถูกต้อง (ต้องเป็น YYYY/MM/DD)', 'error'); return; }
 
   const data = {
     Emp_ID: empId,

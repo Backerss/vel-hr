@@ -1,5 +1,5 @@
-// ===================== THAI BUDDHIST ERA DATE PICKER =====================
-// Singleton popup calendar for DD/MM/YYYY (พ.ศ.) text input fields.
+// ===================== THAI CE DATE PICKER =====================
+// Singleton popup calendar for YYYY/MM/DD (ค.ศ.) text input fields.
 
 const MONTHS_TH = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน',
@@ -77,16 +77,16 @@ function _getPopup() {
 function _render() {
   const p = _getPopup();
   p.querySelector('#tdpMonthLabel').textContent = MONTHS_TH[_month];
-  p.querySelector('#tdpYearLabel').textContent = String(_year + 543);
+  p.querySelector('#tdpYearLabel').textContent = String(_year);
 
-  // Parse selected date from active input
+  // Parse selected date from active input (YYYY/MM/DD)
   let selD = null, selM = null, selY = null;
   const val = _activeInput?.value || '';
-  const parsed = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const parsed = val.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
   if (parsed) {
-    selD = parseInt(parsed[1], 10);
+    selY = parseInt(parsed[1], 10);
     selM = parseInt(parsed[2], 10) - 1;
-    selY = parseInt(parsed[3], 10) - 543;
+    selD = parseInt(parsed[3], 10);
   }
 
   const today = new Date();
@@ -138,8 +138,7 @@ function _pick(day) {
   if (!_activeInput) return;
   const d  = String(day).padStart(2, '0');
   const mo = String(_month + 1).padStart(2, '0');
-  const y  = _year + 543;
-  _activeInput.value = `${d}/${mo}/${y}`;
+  _activeInput.value = `${_year}/${mo}/${d}`;
   // Trigger oninput handler (auto-format) then onblur handler (validate + side-effects)
   _activeInput.dispatchEvent(new Event('input',  { bubbles: true }));
   _activeInput.dispatchEvent(new Event('blur',   { bubbles: false }));
@@ -150,11 +149,11 @@ function _pick(day) {
 function _open(inputEl, anchorEl) {
   _activeInput = inputEl;
 
-  // Initialise calendar to the input's current value, else today
+  // Initialise calendar to the input's current value (YYYY/MM/DD), else today
   const val = inputEl.value || '';
-  const m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const m = val.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
   if (m) {
-    _year  = parseInt(m[3], 10) - 543;
+    _year  = parseInt(m[1], 10);
     _month = parseInt(m[2], 10) - 1;
   } else {
     const now = new Date();

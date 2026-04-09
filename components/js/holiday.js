@@ -16,22 +16,20 @@ let hdCalMonth = new Date().getMonth(); // 0-11
 function ceYearToBe(ce) { return ce + 543; }
 function beYearToCe(be) { return be - 543; }
 
-// "DD/MM/YYYY (BE)" → "YYYY/MM/DD (CE)" for DB (stored as VARCHAR YYYY/MM/DD)
+// "YYYY/MM/DD (CE)" for input → "YYYY/MM/DD (CE)" for DB (no conversion needed)
 function formDateToDb(val) {
   if (!val) return '';
   const p = val.split('/');
-  if (p.length !== 3 || p[2].length !== 4) return '';
-  const ceYear = parseInt(p[2], 10) - 543;
-  return `${ceYear}/${p[1].padStart(2, '0')}/${p[0].padStart(2, '0')}`;
+  if (p.length !== 3 || p[0].length !== 4) return '';
+  return `${p[0]}/${p[1].padStart(2, '0')}/${p[2].padStart(2, '0')}`;
 }
 
-// "YYYY/MM/DD (CE)" → "DD/MM/YYYY (BE)" for display
+// "YYYY/MM/DD (CE)" from DB → "YYYY/MM/DD (CE)" for display (pass-through)
 function dbDateToDisplay(val) {
   if (!val) return '-';
   const p = String(val).split('/');
   if (p.length < 3) return '-';
-  const beYear = parseInt(p[0], 10) + 543;
-  return `${p[2]}/${p[1]}/${beYear}`;
+  return `${p[0]}/${p[1].padStart(2,'0')}/${p[2].padStart(2,'0')}`;
 }
 
 // Short Thai date  e.g. "01 เม.ย. 2568"
@@ -78,7 +76,7 @@ function hdPopulateYearSelector() {
   for (let y = now + 1; y >= now - 3; y--) {
     const opt = document.createElement('option');
     opt.value = y;
-    opt.textContent = `${ceYearToBe(y)} (${y})`;
+    opt.textContent = `${y}`;
     if (y === hdSelectedYear) opt.selected = true;
     sel.appendChild(opt);
   }
@@ -188,7 +186,7 @@ function hdRenderTable() {
     const hDate = new Date(String(h.Date || '').replace(/\//g, '-') + 'T00:00:00');
     const isPast = hDate < today;
     const rowStyle = isPast ? 'opacity:0.6;' : '';
-    const beYear = parseInt(String(h.Date || '0').split('/')[0], 10) + 543;
+    const ceYear = parseInt(String(h.Date || '0').split('/')[0], 10);
     const name = h['Important Day'] || '-';
 
     return `<tr style="${rowStyle}">
@@ -200,7 +198,7 @@ function hdRenderTable() {
           ${escHtml(name)}
         </div>
       </td>
-      <td style="text-align:center;color:var(--gray-600);">${beYear}</td>
+      <td style="text-align:center;color:var(--gray-600);">${ceYear}</td>
       <td style="text-align:center;">
         <div class="action-btns" style="justify-content:center;">
           <button type="button" class="btn-action" title="แก้ไข"
@@ -326,15 +324,15 @@ export function hdCloseModal() {
 export function hdAutoFormatDate(el) {
   let v = el.value.replace(/[^0-9]/g, '');
   if (v.length > 8) v = v.slice(0, 8);
-  if (v.length >= 5) v = v.slice(0,2) + '/' + v.slice(2,4) + '/' + v.slice(4);
-  else if (v.length >= 3) v = v.slice(0,2) + '/' + v.slice(2);
+  if (v.length >= 7) v = v.slice(0,4) + '/' + v.slice(4,6) + '/' + v.slice(6);
+  else if (v.length >= 5) v = v.slice(0,4) + '/' + v.slice(4);
   el.value = v;
 }
 
 export function hdBlurDate(el) {
   const raw = (el.value || '').trim();
   if (!raw) { el.style.borderColor = ''; return; }
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+  if (/^\d{4}\/\d{2}\/\d{2}$/.test(raw)) {
     el.style.borderColor = '';
   } else {
     el.style.borderColor = '#ef4444';
@@ -349,8 +347,8 @@ export async function hdSubmitForm(event) {
   const nameVal  = document.getElementById('hdName')?.value?.trim();
   const editingId = document.getElementById('hdEditingId')?.value || null;
 
-  if (!dateVal || !/^\d{2}\/\d{2}\/\d{4}$/.test(dateVal)) {
-    showToast('โปรดระบุวันที่ในรูปแบบ DD/MM/YYYY (พ.ศ.)', 'warning'); return;
+  if (!dateVal || !/^\d{4}\/\d{2}\/\d{2}$/.test(dateVal)) {
+    showToast('โปรดระบุวันที่ในรูปแบบ YYYY/MM/DD', 'warning'); return;
   }
   if (!nameVal) {
     showToast('โปรดระบุชื่อวันหยุด', 'warning'); return;

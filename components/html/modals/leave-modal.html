@@ -14,14 +14,17 @@
 
       <!-- Section 1: ข้อมูลพนักงาน -->
       <div class="form-section-title">ข้อมูลพนักงาน</div>
-      <div style="margin-bottom:14px;">
+      <div style="margin-bottom:14px;position:relative;">
         <label style="font-size:12.5px;font-weight:600;color:var(--gray-700);display:block;margin-bottom:6px;">รหัสพนักงาน <span class="required">*</span></label>
         <div class="lookup-group">
-          <input type="text" id="fLeaveEmpID" class="form-control-m" placeholder="กรอกรหัสพนักงาน เช่น 0001" />
+          <input type="text" id="fLeaveEmpID" class="form-control-m" placeholder="พิมพ์รหัส/ชื่อ เพื่อค้นหา..." oninput="empIDInput()" autocomplete="off" />
           <button class="btn-lookup" id="btnLookupEmp" onclick="lookupEmployee()">
             <i class="bi bi-search"></i> ค้นหา
           </button>
         </div>
+        <div id="empSuggestionsBox" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:9999;
+          background:#fff;border:1.5px solid var(--primary-light,#bfdbfe);border-radius:10px;
+          box-shadow:0 8px 24px rgba(0,0,0,0.14);max-height:220px;overflow-y:auto;margin-top:3px;"></div>
         <div id="empEditNotice" style="display:none;align-items:center;gap:6px;margin-top:7px;
           padding:7px 12px;background:#fef3c7;border-radius:8px;border-left:3px solid #f59e0b;">
           <i class="bi bi-lock-fill" style="color:#92400e;font-size:13px;"></i>
@@ -74,7 +77,7 @@
         <div class="form-group">
           <label>การสื่อสาร <span class="required">*</span></label>
           <select id="fLeaveComm" class="form-control-m">
-            <option value="" disabled selected>—— เลือก ——</option>
+            <option value="" disabled selected>--เลือก--</option>
             <option value="โทร">📞 โทร</option>
             <option value="แจ้งล่วงหน้า">🔔 แจ้งล่วงหน้า</option>
           </select>
@@ -86,7 +89,7 @@
           <label>วันที่ลา (วันและเวลาเริ่มต้น) <span class="required">*</span></label>
           <div style="display:grid;grid-template-columns:minmax(0,1fr) 118px;gap:8px;">
             <input type="text" id="fLeaveStartDate" class="form-control-m"
-              placeholder="DD/MM/YYYY (พ.ศ.)" maxlength="10" inputmode="numeric" autocomplete="off"
+              placeholder="YYYY/MM/DD" maxlength="10" inputmode="numeric" autocomplete="off"
               data-tdp oninput="autoFormatThaiDateField(this)" onblur="formatThaiDateField(this); onLeaveStartDTChange()" />
             <input type="text" id="fLeaveStartTime" class="form-control-m"
               placeholder="08:00" maxlength="5" inputmode="numeric" autocomplete="off"
@@ -99,7 +102,7 @@
           <label>ถึงวันที่ (วันและเวลาสิ้นสุด) <span class="required">*</span></label>
           <div style="display:grid;grid-template-columns:minmax(0,1fr) 118px;gap:8px;">
             <input type="text" id="fLeaveEndDate" class="form-control-m"
-              placeholder="DD/MM/YYYY (พ.ศ.)" maxlength="10" inputmode="numeric" autocomplete="off"
+              placeholder="YYYY/MM/DD" maxlength="10" inputmode="numeric" autocomplete="off"
               data-tdp oninput="autoFormatThaiDateField(this)" onblur="formatThaiDateField(this)" />
             <input type="text" id="fLeaveEndTime" class="form-control-m"
               placeholder="17:00" maxlength="5" inputmode="numeric" autocomplete="off"

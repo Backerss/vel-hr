@@ -59,7 +59,8 @@ import {
   confirmDeleteLeave, executeDeleteLeave,
   onLeaveTypeChange, onLeaveStartDTChange,
   loadDailyAbsencePage, loadAbsenceReport, clearSignature, printAbsenceReport,
-  loadTodayLeave, applyTodayLeaveFilter, renderTodayLeaveTable, goTodayLeavePage
+  loadTodayLeave, applyTodayLeaveFilter, renderTodayLeaveTable, goTodayLeavePage,
+  empIDInput, hideEmpSuggestions, empSuggestHover, empSuggestSelect
 } from './components/js/leave.js';
 import {
   loadOtPage,
@@ -448,7 +449,17 @@ function _handleEnterKey(e) {
   // ── 1. Employee ID lookup field in leave modal ──────────────────────────
   if (id === 'fLeaveEmpID' && !el.readOnly) {
     e.preventDefault();
-    window.lookupEmployee?.();
+    // If suggestions dropdown is open, select highlighted item; otherwise do exact lookup
+    const box = document.getElementById('empSuggestionsBox');
+    const hiIdx = (box?.style.display !== 'none' && box?._empResults)
+      ? [...(document.querySelectorAll('._emp-suggest-item'))].findIndex(
+          item => item.style.background !== '')
+      : -1;
+    if (hiIdx >= 0) {
+      window.empSuggestSelect?.(hiIdx);
+    } else {
+      window.lookupEmployee?.();
+    }
     return;
   }
 
@@ -525,18 +536,42 @@ function _handleSelectChange(e) {
   }
 }
 
-// ── Arrow Left/Up → go to previous field ──────────────────────────────────
+// ── Arrow Left/Up → go to previous field; Arrow Down on fLeaveEmpID → suggestions ──
 // Rule:
 //   SELECT (any): ArrowLeft / ArrowUp → go back (prevents accidental value change)
 //   INPUT empty or cursor at pos 0: ArrowLeft / ArrowUp → go back
 function _handleArrowNav(e) {
   if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowUp') return;
-
   const el  = e.target;
   const tag = el.tagName;
   if (tag === 'TEXTAREA') return;
   if (el.closest('[contenteditable="true"]')) return;
+
+  // ArrowDown / ArrowUp on fLeaveEmpID → navigate suggestion items
+  if (el.id === 'fLeaveEmpID' && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    const box = document.getElementById('empSuggestionsBox');
+    if (!box || box.style.display === 'none' || !box._empResults) return;
+    const items = [...document.querySelectorAll('._emp-suggest-item')];
+    if (!items.length) return;
+    e.preventDefault();
+    // Find current highlighted index
+    let cur = items.findIndex(item => item.style.background !== '');
+    if (e.key === 'ArrowDown') cur = Math.min(cur + 1, items.length - 1);
+    else cur = Math.max(cur - 1, 0);
+    items.forEach((item, i) => {
+      item.style.background = i === cur ? 'var(--primary-light,#eff6ff)' : '';
+    });
+    items[cur]?.scrollIntoView({ block: 'nearest' });
+    return;
+  }
+
+  // Escape on fLeaveEmpID → hide suggestions
+  if (el.id === 'fLeaveEmpID' && e.key === 'Escape') {
+    window.hideEmpSuggestions?.();
+    return;
+  }
+
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowUp') return;
 
   let goBack = false;
   if (tag === 'SELECT') {
@@ -563,9 +598,52 @@ function _handleArrowNav(e) {
   }
 }
 
+// ── Global key handler: fires for Escape / Enter when no form field is focused ───────
+function _findTopmostModal() {
+  const open = [...document.querySelectorAll('.modal-overlay.show')];
+  if (!open.length) return null;
+  // Pick the one with the highest z-index (inline style beats class)
+  return open.reduce((top, m) => {
+    const z = parseInt(m.style.zIndex || window.getComputedStyle(m).zIndex) || 0;
+    const tz = parseInt(top.style.zIndex || window.getComputedStyle(top).zIndex) || 0;
+    return z >= tz ? m : top;
+  });
+}
+
+function _handleGlobalKey(e) {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+
+  // Only act when no INPUT / TEXTAREA / SELECT is focused
+  const active = document.activeElement;
+  const activeTag = active ? active.tagName : '';
+  if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
+
+  if (e.key === 'Escape') {
+    const top = _findTopmostModal();
+    if (!top) return;
+    e.preventDefault();
+    closeModal(top.id);
+    document.activeElement?.blur(); // prevent stale focus triggering hidden button
+    return;
+  }
+
+  if (e.key === 'Enter') {
+    // If leave modal is open, form is complete, and user is HR → show save confirm
+    const leaveModal = document.getElementById('leaveModal');
+    if (leaveModal && leaveModal.classList.contains('show') && currentUser?.role !== 'guest') {
+      if (_leaveFormIsComplete()) {
+        e.preventDefault();
+        showModal('leaveSaveConfirmModal');
+        setTimeout(() => document.getElementById('btnConfirmSaveLeave')?.focus(), 80);
+      }
+    }
+  }
+}
+
 function initEnterKeyNavigation() {
   document.addEventListener('keydown', _handleEnterKey, true);
   document.addEventListener('keydown', _handleArrowNav, true);
+  document.addEventListener('keydown', _handleGlobalKey, true);
   document.addEventListener('change', _handleSelectChange);
 }
 
@@ -623,6 +701,7 @@ Object.assign(window, {
   onLeaveTypeChange, onLeaveStartDTChange,
   goLeavePage, loadAbsenceReport, clearSignature, printAbsenceReport,
   loadTodayLeave, applyTodayLeaveFilter, renderTodayLeaveTable, goTodayLeavePage,
+  empIDInput, hideEmpSuggestions, empSuggestHover, empSuggestSelect,
   // OT
   loadOtPage,
   otOnSubChange, otOnFilterChange, otOnEmpSearch,

@@ -13,9 +13,12 @@ export function escHtml(str) {
 export function formatDate(dateStr) {
   if (!dateStr || dateStr === '0000-00-00') return '-';
   try {
-    const d = new Date(dateStr);
+    const d = new Date(dateStr + 'T00:00:00');
     if (isNaN(d.getTime())) return '-';
-    return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}/${m}/${day}`;
   } catch { return '-'; }
 }
 
@@ -62,8 +65,7 @@ export function isoDateToDisplayDate(value) {
   const normalized = raw.split('T')[0].replace(/\//g, '-');
   const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return '';
-  const buddhistYear = Number(match[1]) + 543;
-  return `${match[3]}/${match[2]}/${buddhistYear}`;
+  return `${match[1]}/${match[2]}/${match[3]}`;
 }
 
 export function displayDateToIso(value) {
@@ -96,7 +98,7 @@ export function displayDateToDbSlash(value) {
 
 export function todayDisplayDate() {
   const now = new Date();
-  return `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear() + 543}`;
+  return `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
 }
 
 export function formatThaiDateField(el) {
@@ -120,8 +122,8 @@ export function formatThaiDateField(el) {
 export function autoFormatThaiDateField(el) {
   let value = String(el?.value || '').replace(/[^0-9]/g, '');
   if (value.length > 8) value = value.slice(0, 8);
-  if (value.length >= 5) value = `${value.slice(0, 2)}/${value.slice(2, 4)}/${value.slice(4)}`;
-  else if (value.length >= 3) value = `${value.slice(0, 2)}/${value.slice(2)}`;
+  if (value.length >= 7) value = `${value.slice(0, 4)}/${value.slice(4, 6)}/${value.slice(6)}`;
+  else if (value.length >= 5) value = `${value.slice(0, 4)}/${value.slice(4)}`;
   if (el) el.value = value;
 }
 

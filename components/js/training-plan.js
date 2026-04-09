@@ -29,22 +29,20 @@ function withTimeout(promise, ms, name) {
 
 // ===================== AUTO-CALCULATE TRAINING HOURS =====================
 
-// Convert DD/MM/YYYY (BE year) → YYYY-MM-DD (CE year) for DB storage
+// Convert YYYY/MM/DD (CE) → YYYY-MM-DD (CE) for DB storage
 function formDateToDb(val) {
   if (!val) return '';
   const p = val.split('/');
-  if (p.length !== 3 || p[2].length !== 4) return '';
-  const ceYear = parseInt(p[2], 10) - 543; // Convert พ.ศ. → ค.ศ.
-  return `${ceYear}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+  if (p.length !== 3 || p[0].length !== 4) return '';
+  return `${p[0]}-${p[1].padStart(2,'0')}-${p[2].padStart(2,'0')}`;
 }
 
-// Convert YYYY-MM-DD (CE year from DB) → DD/MM/YYYY (BE year) for display
+// Convert YYYY-MM-DD (CE from DB) → YYYY/MM/DD (CE) for display
 function dbDateToFormDate(val) {
   if (!val) return '';
   const p = val.split('-');
   if (p.length !== 3) return '';
-  const thYear = parseInt(p[0], 10) + 543; // Convert ค.ศ. → พ.ศ.
-  return `${p[2]}/${p[1]}/${thYear}`;
+  return `${p[0]}/${p[1]}/${p[2]}`;
 }
 
 function normalizeTimeValue(val) {
@@ -61,17 +59,17 @@ function normalizeTimeValue(val) {
 export function formatDateInputField(el) {
   const raw = (el.value || '').trim();
   if (!raw) { el.style.borderColor = ''; return; }
-  // Accept DD/MM/YYYY or DD-MM-YYYY or 8-digit DDMMYYYY
-  let d, m, y;
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) { [d, m, y] = raw.split('/'); }
-  else if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) { [d, m, y] = raw.split('-'); }
-  else if (/^\d{8}$/.test(raw)) { d = raw.slice(0,2); m = raw.slice(2,4); y = raw.slice(4); }
+  // Accept YYYY/MM/DD or YYYY-MM-DD or 8-digit YYYYMMDD
+  let y, m, d;
+  if (/^\d{4}\/\d{2}\/\d{2}$/.test(raw)) { [y, m, d] = raw.split('/'); }
+  else if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) { [y, m, d] = raw.split('-'); }
+  else if (/^\d{8}$/.test(raw)) { y = raw.slice(0,4); m = raw.slice(4,6); d = raw.slice(6); }
   else { el.style.borderColor = '#ef4444'; return; }
   const dt = new Date(`${y}-${m}-${d}T00:00:00`);
   if (isNaN(dt.getTime()) || parseInt(m) < 1 || parseInt(m) > 12 || parseInt(d) < 1 || parseInt(d) > 31) {
     el.style.borderColor = '#ef4444'; return;
   }
-  el.value = `${d.padStart(2,'0')}/${m.padStart(2,'0')}/${y}`;
+  el.value = `${y}/${m.padStart(2,'0')}/${d.padStart(2,'0')}`;
   el.style.borderColor = '';
   calcTrainingHours();
 }
@@ -80,8 +78,8 @@ export function formatDateInputField(el) {
 export function autoFormatDateField(el) {
   let v = el.value.replace(/[^0-9]/g, '');
   if (v.length > 8) v = v.slice(0, 8);
-  if (v.length >= 5) v = v.slice(0,2) + '/' + v.slice(2,4) + '/' + v.slice(4);
-  else if (v.length >= 3) v = v.slice(0,2) + '/' + v.slice(2);
+  if (v.length >= 7) v = v.slice(0,4) + '/' + v.slice(4,6) + '/' + v.slice(6);
+  else if (v.length >= 5) v = v.slice(0,4) + '/' + v.slice(4);
   el.value = v;
 }
 
@@ -111,9 +109,9 @@ export function autoFormatTimeField(el) {
 }
 
 function calcTrainingHours() {
-  const startDateVal = document.getElementById('planStartDate')?.value; // DD/MM/YYYY
+  const startDateVal = document.getElementById('planStartDate')?.value; // YYYY/MM/DD
   const startTime    = document.getElementById('planTimeStart')?.value; // HH:MM
-  const endDateVal   = document.getElementById('planEndDate')?.value;   // DD/MM/YYYY
+  const endDateVal   = document.getElementById('planEndDate')?.value;   // YYYY/MM/DD
   const endTime      = document.getElementById('planTimeEnd')?.value;   // HH:MM
   if (!startDateVal || !startTime || !endDateVal || !endTime) return;
   const startDateDb = formDateToDb(startDateVal);
@@ -408,7 +406,7 @@ function prefillForm(plan) {
   set('planLocation', plan.Plan_Location);
   set('planLecturer', plan.Plan_Lecturer);
   set('planCoordinator', plan.Plan_Coordinator);
-  // Convert YYYY-MM-DD → DD/MM/YYYY for date text inputs
+  // Convert YYYY-MM-DD from DB → YYYY/MM/DD for date text inputs
   set('planStartDate', dbDateToFormDate(plan.Plan_StartDate));
   set('planTimeStart', normalizeTimeValue(plan.Plan_TimeStart));
   set('planEndDate', dbDateToFormDate(plan.Plan_EndDate));
@@ -751,14 +749,14 @@ export async function submitTrainingForm(event) {
   if (!coursesId) { showToast('โปรดเลือกหลักสูตร', 'warning'); return; }
   if (selectedParticipants.length === 0) { showToast('โปรดเพิ่มผู้เข้าอบรมอย่างน้อย 1 คน', 'warning'); return; }
 
-  // Convert DD/MM/YYYY → YYYY-MM-DD for DB
+  // Convert YYYY/MM/DD → YYYY-MM-DD for DB
   const startDateRaw = document.getElementById('planStartDate')?.value || '';
   const endDateRaw   = document.getElementById('planEndDate')?.value || '';
   const startDateDb  = formDateToDb(startDateRaw);
   const endDateDb    = formDateToDb(endDateRaw);
 
-  if (!startDateDb) { showToast('วันที่เริ่มต้นไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'warning'); return; }
-  if (!endDateDb)   { showToast('วันที่สิ้นสุดไม่ถูกต้อง (ต้องเป็น DD/MM/YYYY)', 'warning'); return; }
+  if (!startDateDb) { showToast('วันที่เริ่มต้นไม่ถูกต้อง (ต้องเป็น YYYY/MM/DD)', 'warning'); return; }
+  if (!endDateDb)   { showToast('วันที่สิ้นสุดไม่ถูกต้อง (ต้องเป็น YYYY/MM/DD)', 'warning'); return; }
 
   const startTime = normalizeTimeValue(document.getElementById('planTimeStart')?.value || '');
   const endTime   = normalizeTimeValue(document.getElementById('planTimeEnd')?.value || '');
