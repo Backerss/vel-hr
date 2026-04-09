@@ -240,7 +240,7 @@ function _renderGuestTimeLock(container) {
         ระบบจะเปิดให้บันทึกอีกครั้ง: <strong id="_guestNext"></strong>
       </div>
       <div style="font-size:13px;color:var(--gray-500);">
-        หากพบปัญหาสามารถติดต่อ HR เบอร์ภายใน <strong style="color:var(--primary);">105</strong>
+        หากพบปัญหาสามารถติดต่อ IT เบอร์ภายใน <strong style="color:var(--primary);">123</strong>
       </div>
     </div>
 
