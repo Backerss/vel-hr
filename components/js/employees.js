@@ -360,6 +360,8 @@ export async function setEmployeePageSize() {
 function _restoreModalEditMode() {
   const rowIDCardLevel = document.getElementById('rowIDCardLevel');
   if (rowIDCardLevel) rowIDCardLevel.style.display = '';
+  const statusGroup = document.getElementById('empStatusFormGroup');
+  if (statusGroup) statusGroup.style.display = '';
   const saveBtn = document.getElementById('btnSaveEmp');
   if (saveBtn) saveBtn.style.display = '';
   const modal = document.getElementById('empModal');
@@ -371,6 +373,8 @@ export async function openAddEmployee() {
   _restoreModalEditMode();
   document.getElementById('empModalTitle').textContent = 'เพิ่มพนักงานใหม่';
   clearEmpForm();
+  const statusGroup = document.getElementById('empStatusFormGroup');
+  if (statusGroup) statusGroup.style.display = 'none';
   await populateModalDropdowns();
   showModal('empModal');
 }
@@ -475,6 +479,10 @@ export async function saveEmployee() {
   if (!lastname) { showToast('กรุณากรอกนามสกุลพนักงาน', 'error'); return; }
   if (!subId) { showToast('กรุณาเลือกแผนก', 'error'); return; }
   if (!posId) { showToast('กรุณาเลือกตำแหน่ง', 'error'); return; }
+  const snameVal = document.getElementById('fEmpSname').value;
+  const vsthVal = document.getElementById('fEmpVsth').value;
+  if (!snameVal) { showToast('กรุณาเลือกคำนำหน้า', 'error'); return; }
+  if (!vsthVal) { showToast('กรุณาเลือกประเภทพนักงาน (Vsth)', 'error'); return; }
 
   const startDateDb = startDateText ? displayDateToIso(startDateText) : null;
   const packingDateDb = packingDateText ? displayDateToIso(packingDateText) : null;
@@ -484,7 +492,7 @@ export async function saveEmployee() {
 
   const data = {
     Emp_ID: empId,
-    Emp_Sname: document.getElementById('fEmpSname').value,
+    Emp_Sname: snameVal,
     Emp_Firstname: firstname,
     Emp_Lastname: lastname,
     Emp_IDCard: document.getElementById('fEmpIDCard').value.replace(/-/g, '').trim(),
@@ -493,8 +501,8 @@ export async function saveEmployee() {
     Position_ID: posId,
     Emp_Start_date: startDateDb,
     Emp_Packing_date: packingDateDb,
-    Emp_Status: document.getElementById('fEmpStatus').value,
-    Emp_Vsth: document.getElementById('fEmpVsth').value
+    Emp_Status: editingEmpId ? document.getElementById('fEmpStatus').value : 'Activated',
+    Emp_Vsth: vsthVal
   };
 
   const btn = document.getElementById('btnSaveEmp');

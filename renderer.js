@@ -390,6 +390,34 @@ function _nextFocusable(current) {
   return candidates[idx + 1] || null;
 }
 
+function _prevFocusable(current) {
+  const candidates = [...document.querySelectorAll(
+    'input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]), select, textarea'
+  )].filter(el => {
+    if (el === current)  return false;
+    if (el.disabled)     return false;
+    if (el.readOnly)     return false;
+    if (el.tabIndex < 0) return false;
+    if (!el.offsetParent && el.type !== 'hidden') return false;
+    let p = el.parentElement;
+    while (p) {
+      if (p.style && p.style.display === 'none') return false;
+      p = p.parentElement;
+    }
+    return true;
+  });
+  const idx = candidates.indexOf(current);
+  if (idx === -1) {
+    const allInDom = [...document.querySelectorAll(
+      'input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]), select, textarea'
+    )];
+    const domIdx = allInDom.indexOf(current);
+    const before = candidates.filter(el => allInDom.indexOf(el) < domIdx);
+    return before[before.length - 1] || null;
+  }
+  return candidates[idx - 1] || null;
+}
+
 function _leaveFormIsComplete() {
   const get = (id) => (document.getElementById(id)?.value || '').trim();
   return !!(
@@ -398,7 +426,8 @@ function _leaveFormIsComplete() {
     get('fLeaveStartDate') &&
     get('fLeaveStartTime') &&
     get('fLeaveEndDate') &&
-    get('fLeaveEndTime')
+    get('fLeaveEndTime') &&
+    get('fLeaveRemark')
   );
 }
 
@@ -457,13 +486,14 @@ function _handleEnterKey(e) {
   e.preventDefault();
   const next = _nextFocusable(el);
 
-  // If inside leave modal and there's no next focusable field (or next is textarea/button)
+  // If inside leave modal and there's no next focusable field (or next is a button)
   // and all required leave fields are filled → show save confirm
   if (el.closest('#leaveModal') && currentUser?.role !== 'guest') {
     const filled = _leaveFormIsComplete();
-    const nextIsActionable = next && next.tagName !== 'TEXTAREA' && next.tagName !== 'BUTTON' && next.tagName !== 'SELECT';
+    const nextIsActionable = next && next.tagName !== 'BUTTON';
     if (filled && !nextIsActionable) {
       showModal('leaveSaveConfirmModal');
+      setTimeout(() => document.getElementById('btnConfirmSaveLeave')?.focus(), 80);
       return;
     }
   }
@@ -477,8 +507,66 @@ function _handleEnterKey(e) {
   }
 }
 
+// ── SELECT change → auto-advance to next field (all forms) ────────────────
+function _handleSelectChange(e) {
+  const el = e.target;
+  if (el.tagName !== 'SELECT') return;
+  if (el.disabled) return;
+  if (!el.value) return;  // -- เลือก -- selected, don't advance
+
+  // Never trigger save-confirm modal from a select change;
+  // the modal is only triggered by Enter on the last input field.
+  const next = _nextFocusable(el);
+  if (next) {
+    setTimeout(() => {
+      next.focus();
+      if (next.tagName === 'INPUT' && next.type !== 'time' && next.type !== 'date') next.select?.();
+    }, 30);
+  }
+}
+
+// ── Arrow Left/Up → go to previous field ──────────────────────────────────
+// Rule:
+//   SELECT (any): ArrowLeft / ArrowUp → go back (prevents accidental value change)
+//   INPUT empty or cursor at pos 0: ArrowLeft / ArrowUp → go back
+function _handleArrowNav(e) {
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowUp') return;
+
+  const el  = e.target;
+  const tag = el.tagName;
+  if (tag === 'TEXTAREA') return;
+  if (el.closest('[contenteditable="true"]')) return;
+
+  let goBack = false;
+  if (tag === 'SELECT') {
+    goBack = true;
+  } else if (tag === 'INPUT') {
+    const val = el.value || '';
+    if (e.key === 'ArrowLeft') {
+      goBack = !val || el.selectionStart === 0;
+    } else {
+      goBack = !val;
+    }
+  }
+
+  if (!goBack) return;
+
+  const prev = _prevFocusable(el);
+  if (prev) {
+    e.preventDefault();
+    prev.focus();
+    if (prev.tagName === 'INPUT') {
+      const len = (prev.value || '').length;
+      prev.setSelectionRange?.(len, len);
+    }
+  }
+}
+
 function initEnterKeyNavigation() {
   document.addEventListener('keydown', _handleEnterKey, true);
+  document.addEventListener('keydown', _handleArrowNav, true);
+  document.addEventListener('change', _handleSelectChange);
 }
 
 // ===================== EXPOSE GLOBALS (for inline onclick in HTML) =====================

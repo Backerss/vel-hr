@@ -724,7 +724,7 @@ function clearLeaveForm() {
   const sname = document.getElementById('fLeaveSname');
   if (sname) sname.value = 'นาย';
   const comm = document.getElementById('fLeaveComm');
-  if (comm) comm.value = 'โทร';
+  if (comm) comm.selectedIndex = 0;
   const lt = document.getElementById('fLeaveType');
   if (lt) lt.value = '';
   const base = todayInputFormat();
@@ -777,6 +777,14 @@ export async function lookupEmployee() {
       document.getElementById('fLeaveLastname').value  = e.Emp_Lastname || '';
       document.getElementById('fLeaveDept').value      = e.Sub_Name || '';
       document.getElementById('fLeaveSub').value       = e.Emp_Vsth || '';
+      if (currentUser?.role === 'guest') {
+        setTimeout(() => {
+          showModal('leaveSaveConfirmModal');
+          document.getElementById('btnConfirmSaveLeave')?.focus();
+        }, 80);
+      } else {
+        setTimeout(() => document.getElementById('fLeaveType')?.focus(), 80);
+      }
     } else {
       showToast('ไม่พบรหัสพนักงานนี้ในระบบ', 'error');
     }
@@ -821,10 +829,11 @@ export async function saveLeaveRecord() {
     const startTime = document.getElementById('fLeaveStartTime')?.value || '';
     const endDate   = document.getElementById('fLeaveEndDate')?.value   || '';
     const endTime   = document.getElementById('fLeaveEndTime')?.value   || '';
-    const comm    = document.getElementById('fLeaveComm')?.value || 'โทร';
+    const comm    = document.getElementById('fLeaveComm')?.value || '';
     const sub     = document.getElementById('fLeaveSub')?.value || '';
     const remark  = document.getElementById('fLeaveRemark')?.value || '';
 
+    if (!comm)   { showToast('กรุณาเลือกการสื่อสาร', 'error'); return; }
     if (!ltype)  { showToast('กรุณาเลือกประเภทการลา', 'error'); return; }
     if (!startDate || !startTime) { showToast('กรุณากรอกวันและเวลาเริ่มต้น', 'error'); return; }
     if (!endDate || !endTime)     { showToast('กรุณากรอกวันและเวลาสิ้นสุด', 'error'); return; }

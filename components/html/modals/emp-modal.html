@@ -18,8 +18,9 @@
           <input type="text" id="fEmpID" class="form-control-m" placeholder="เช่น 0001" />
         </div>
         <div class="form-group">
-          <label>คำนำหน้า</label>
+          <label>คำนำหน้า <span class="required">*</span></label>
           <select id="fEmpSname" class="form-control-m">
+            <option value="" disabled selected>—— เลือก ——</option>
             <option value="นาย">นาย</option>
             <option value="นาง">นาง</option>
             <option value="นางสาว">นางสาว</option>
@@ -54,13 +55,13 @@
         <div class="form-group">
           <label>แผนกย่อย <span class="required">*</span></label>
           <select id="fSubID" class="form-control-m">
-            <option value="">-- เลือกแผนก --</option>
+            <option value="" disabled selected>-- เลือกแผนก --</option>
           </select>
         </div>
         <div class="form-group">
           <label>ตำแหน่ง <span class="required">*</span></label>
           <select id="fPositionID" class="form-control-m">
-            <option value="">-- เลือกตำแหน่ง --</option>
+            <option value="" disabled selected>-- เลือกตำแหน่ง --</option>
           </select>
         </div>
       </div>
@@ -79,7 +80,7 @@
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group">
+        <div class="form-group" id="empStatusFormGroup">
           <label>สถานะ</label>
           <select id="fEmpStatus" class="form-control-m">
             <option value="Activated">Activated (ทำงานอยู่)</option>
@@ -90,6 +91,7 @@
         <div class="form-group">
           <label>ประเภทพนักงาน (Vsth)</label>
           <select id="fEmpVsth" class="form-control-m">
+            <option value="" disabled selected>—— เลือก ——</option>
             <option value="Vel">Vel</option>
             <option value="SK">SK</option>
             <option value="TBS">TBS</option>

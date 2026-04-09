@@ -17,8 +17,7 @@
       <div style="margin-bottom:14px;">
         <label style="font-size:12.5px;font-weight:600;color:var(--gray-700);display:block;margin-bottom:6px;">รหัสพนักงาน <span class="required">*</span></label>
         <div class="lookup-group">
-          <input type="text" id="fLeaveEmpID" class="form-control-m" placeholder="กรอกรหัสพนักงาน เช่น 0001"
-            onkeydown="if(event.key==='Enter'&&!this.readOnly){event.preventDefault();lookupEmployee();}" />
+          <input type="text" id="fLeaveEmpID" class="form-control-m" placeholder="กรอกรหัสพนักงาน เช่น 0001" />
           <button class="btn-lookup" id="btnLookupEmp" onclick="lookupEmployee()">
             <i class="bi bi-search"></i> ค้นหา
           </button>
@@ -69,12 +68,13 @@
         <div class="form-group">
           <label>ประเภทการลา <span class="required">*</span></label>
           <select id="fLeaveType" class="form-control-m" onchange="onLeaveTypeChange()">
-            <option value="">-- เลือกประเภทการลา --</option>
+            <option value="" disabled selected>-- เลือกประเภทการลา --</option>
           </select>
         </div>
         <div class="form-group">
           <label>การสื่อสาร <span class="required">*</span></label>
           <select id="fLeaveComm" class="form-control-m">
+            <option value="" disabled selected>—— เลือก ——</option>
             <option value="โทร">📞 โทร</option>
             <option value="แจ้งล่วงหน้า">🔔 แจ้งล่วงหน้า</option>
           </select>
