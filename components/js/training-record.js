@@ -279,7 +279,7 @@ function renderRecordPlanDropdown(q) {
   if (!dd) return;
   const filtered = q
     ? allPlansForRecord.filter(p =>
-        String(p.Plan_ID).includes(q) ||
+        String(p.Plan_ID).toLowerCase().includes(q) ||
         (p.Courses_Name || '').toLowerCase().includes(q) ||
         (p.Plan_StartDate || '').includes(q) ||
         (p.Courses_ID || '').toLowerCase().includes(q)
