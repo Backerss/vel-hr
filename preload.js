@@ -26,6 +26,10 @@ contextBridge.exposeInMainWorld('api', {
   getTrainingRecordParticipants: (planId) => ipcRenderer.invoke('get-training-record-participants', planId),
   saveTrainingRecordRow: (d) => ipcRenderer.invoke('save-training-record-row', d),
   exportTrainingRecordExcel: (d) => ipcRenderer.invoke('export-training-record-excel', d),
+  checkinTraining: (d) => ipcRenderer.invoke('checkin-training', d),
+  undoCheckinTraining: (d) => ipcRenderer.invoke('undo-checkin-training', d),
+  checkPlanDeletable: (planId) => ipcRenderer.invoke('check-plan-deletable', planId),
+  deleteTrainingPlan: (planId) => ipcRenderer.invoke('delete-training-plan', planId),
   // Training history
   getEmployeeTraining: (empId) => ipcRenderer.invoke('get-employee-training', empId),
   // Training management

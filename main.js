@@ -270,7 +270,9 @@ ipcMain.handle('get-employees', async (event, filters = {}) => {
       params.push(subdivision);
     }
 
+
     const joins = `FROM employees e INNER JOIN subdivision s ON s.Sub_ID = e.Sub_ID INNER JOIN department d ON d.Dpt_ID = s.Dpt_ID INNER JOIN position p ON p.Position_ID = e.Position_ID`;
+
     const where = `WHERE ${conditions.join(' AND ')}`;
     const [countRows] = await db.execute(`SELECT COUNT(*) as total ${joins} ${where}`, params);
     const total = countRows[0].total;
@@ -1021,7 +1023,7 @@ ipcMain.handle('get-training-plans', async (event, filters = {}) => {
   try {
 
 
-    const { search = '', page = 1, perPage = 25 } = filters;
+    const { search = '', page = 1, perPage = 25, yearFilter = '', dateFrom = '', dateTo = '' } = filters;
 
 
     const safePerPage = Math.max(1, Math.min(Number(perPage) || 25, 100));
@@ -1075,7 +1077,40 @@ ipcMain.handle('get-training-plans', async (event, filters = {}) => {
     }
 
 
+    if (yearFilter) {
 
+
+      conditions.push(`YEAR(tp.Plan_StartDate) = ?`);
+
+
+      params.push(Number(yearFilter));
+
+
+    }
+
+
+    if (dateFrom) {
+
+
+      conditions.push(`tp.Plan_StartDate >= ?`);
+
+
+      params.push(dateFrom);
+
+
+    }
+
+
+    if (dateTo) {
+
+
+      conditions.push(`tp.Plan_StartDate <= ?`);
+
+
+      params.push(dateTo);
+
+
+    }
 
 
     const joins = `FROM training_plan tp INNER JOIN courses c ON c.Courses_ID = tp.Courses_ID`;
@@ -1135,13 +1170,13 @@ ipcMain.handle('get-training-plans', async (event, filters = {}) => {
         SUM(CASE WHEN tp.Plan_TypeTraining = 'ภายใน' THEN 1 ELSE 0 END) AS internalCount,
 
 
-        SUM(CASE WHEN tp.Plan_TypeTraining = 'à¸ à¸²à¸¢à¸™อก' THEN 1 ELSE 0 END) AS externalCount
+        SUM(CASE WHEN tp.Plan_TypeTraining = 'ภายนอก' THEN 1 ELSE 0 END) AS externalCount
 
 
-      ${joins}`,
+      ${joins} ${where}`,
 
 
-      []
+      params
 
 
     );
@@ -1195,6 +1230,18 @@ ipcMain.handle('get-training-plans', async (event, filters = {}) => {
     );
 
 
+    const [yearRows] = await db.execute(
+
+
+      `SELECT DISTINCT YEAR(Plan_StartDate) AS yr FROM training_plan ORDER BY yr DESC`
+
+
+    );
+
+
+    const availableYears = yearRows.map(r => r.yr).filter(Boolean);
+
+
 
 
 
@@ -1228,7 +1275,10 @@ ipcMain.handle('get-training-plans', async (event, filters = {}) => {
         external: Number(summaryRows[0]?.externalCount) || 0
 
 
-      }
+      },
+
+
+      availableYears
 
 
     };
@@ -1744,6 +1794,95 @@ ipcMain.handle('save-training-record-row', async (event, { hisId, state, remark 
   } catch (e) { return { success: false, message: e.message }; }
 
 
+});
+
+
+// Check-in employee for a training session (D=morning, N=afternoon, T=all)
+// Only registered employees (existing history_training row) may be checked in.
+// For half-day plans the check-in is immediately treated as T (passed).
+ipcMain.handle('checkin-training', async (event, { planId, empId, session, remark }) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  const validSessions = ['D', 'N', 'T'];
+  if (!validSessions.includes(session)) return { success: false, message: 'session ไม่ถูกต้อง' };
+  try {
+    // Must already be registered — no new inserts allowed from check-in
+    const [existing] = await db.execute(
+      'SELECT his_id, his_state FROM history_training WHERE Plan_ID=? AND Emp_ID=?',
+      [planId, empId]
+    );
+    if (existing.length === 0) {
+      return { success: false, notRegistered: true, message: 'พนักงานนี้ไม่มีชื่อในรายการอบรมนี้' };
+    }
+
+    // Detect if the plan is half-day (morning-only or afternoon-only) → auto-pass
+    let finalSession = session;
+    const [planRows] = await db.execute(
+      'SELECT Plan_TimeStart, Plan_TimeEnd FROM training_plan WHERE Plan_ID=?', [planId]
+    );
+    if (planRows.length > 0) {
+      const toMin = (t) => {
+        if (!t) return 0;
+        const p = String(t).substring(0, 5).split(':');
+        return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0);
+      };
+      const startMin = toMin(planRows[0].Plan_TimeStart);
+      const endMin   = toMin(planRows[0].Plan_TimeEnd);
+      const isHalfDay = endMin <= 12 * 60 || startMin >= 13 * 60;
+      if (isHalfDay) finalSession = 'T';
+    }
+
+    // Merge with existing state
+    const cur = existing[0].his_state;
+    let newState = finalSession;
+    if (cur === 'T') newState = 'T';
+    else if (cur === 'D' && finalSession === 'N') newState = 'T';
+    else if (cur === 'N' && finalSession === 'D') newState = 'T';
+    else newState = finalSession;
+
+    await db.execute(
+      'UPDATE history_training SET his_state=?, his_remark=?, his_timestamp=NOW() WHERE his_id=?',
+      [newState, remark || '', existing[0].his_id]
+    );
+    return { success: true, hisId: existing[0].his_id, newState, isNew: false };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+
+// Undo check-in: revert state to W (waiting/registered)
+ipcMain.handle('undo-checkin-training', async (event, { hisId }) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    await db.execute(
+      "UPDATE history_training SET his_state='W', his_timestamp=NOW() WHERE his_id=?",
+      [hisId]
+    );
+    return { success: true };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Check if a training plan is safe to delete — returns registration & expense counts
+ipcMain.handle('check-plan-deletable', async (event, planId) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const [[{ regCount }]] = await db.execute(
+      'SELECT COUNT(*) AS regCount FROM history_training WHERE Plan_ID=?', [planId]
+    );
+    const [[{ expCount }]] = await db.execute(
+      'SELECT COUNT(*) AS expCount FROM training_expenses WHERE Plan_ID=?', [planId]
+    );
+    return { success: true, regCount: Number(regCount), expCount: Number(expCount) };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Delete a training plan and all its associated records
+ipcMain.handle('delete-training-plan', async (event, planId) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    await db.execute('DELETE FROM training_expenses  WHERE Plan_ID=?', [planId]);
+    await db.execute('DELETE FROM history_training   WHERE Plan_ID=?', [planId]);
+    await db.execute('DELETE FROM training_plan      WHERE Plan_ID=?', [planId]);
+    return { success: true };
+  } catch (e) { return { success: false, message: e.message }; }
 });
 
 
@@ -2521,7 +2660,7 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
   try {
 
 
-    const { search = '', page = 1, perPage = 15 } = filters;
+    const { search = '', page = 1, perPage = 15, yearFilter = '', dateFrom = '', dateTo = '' } = filters;
 
 
     const safePerPage = Math.max(10, Math.min(25, Number(perPage) || 15));
@@ -2552,6 +2691,42 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
 
 
       params.push(q, q, q, q);
+
+
+    }
+
+
+    if (yearFilter) {
+
+
+      conditions.push(`YEAR(tp.Plan_StartDate) = ?`);
+
+
+      params.push(Number(yearFilter));
+
+
+    }
+
+
+    if (dateFrom) {
+
+
+      conditions.push(`tp.Plan_StartDate >= ?`);
+
+
+      params.push(dateFrom);
+
+
+    }
+
+
+    if (dateTo) {
+
+
+      conditions.push(`tp.Plan_StartDate <= ?`);
+
+
+      params.push(dateTo);
 
 
     }
@@ -2656,6 +2831,38 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
 
 
 
+    const [periodRows] = await db.execute(
+
+
+      `SELECT
+        COALESCE(SUM(CAST(te.Expenses_Lecturer AS DECIMAL(12,2))), 0) AS sumLecturer,
+        COALESCE(SUM(CAST(te.Expenses_Tools AS DECIMAL(12,2))), 0) AS sumTools,
+        COALESCE(SUM(CAST(te.Expenses_Food AS DECIMAL(12,2))), 0) AS sumFood,
+        COALESCE(SUM(CAST(te.Expenses_Snack AS DECIMAL(12,2))), 0) AS sumSnack,
+        COALESCE(SUM(CAST(te.Expenses_Travel AS DECIMAL(12,2))), 0) AS sumTravel,
+        COALESCE(SUM(CAST(te.Expenses_Sum AS DECIMAL(12,2))), 0) AS sumTotal,
+        COUNT(*) AS cnt
+      ${joins} ${where}`,
+
+
+      params
+
+
+    );
+
+
+    const [expYearRows] = await db.execute(
+
+
+      `SELECT DISTINCT YEAR(tp.Plan_StartDate) AS yr FROM training_expenses te INNER JOIN training_plan tp ON tp.Plan_ID = te.Plan_ID ORDER BY yr DESC`
+
+
+    );
+
+
+    const expAvailableYears = expYearRows.map(r => r.yr).filter(Boolean);
+
+
     return {
 
 
@@ -2689,7 +2896,37 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
         sumMonth: Number(statsRow.sumMonth) || 0,
 
 
-      }
+      },
+
+
+      periodSummary: {
+
+
+        sumLecturer: Number(periodRows[0]?.sumLecturer) || 0,
+
+
+        sumTools: Number(periodRows[0]?.sumTools) || 0,
+
+
+        sumFood: Number(periodRows[0]?.sumFood) || 0,
+
+
+        sumSnack: Number(periodRows[0]?.sumSnack) || 0,
+
+
+        sumTravel: Number(periodRows[0]?.sumTravel) || 0,
+
+
+        sumTotal: Number(periodRows[0]?.sumTotal) || 0,
+
+
+        count: Number(periodRows[0]?.cnt) || 0,
+
+
+      },
+
+
+      availableYears: expAvailableYears
 
 
     };

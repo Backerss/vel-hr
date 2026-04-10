@@ -834,6 +834,7 @@ function _fillEmployeeFields(e) {
   document.getElementById('fLeaveLastname').value  = e.Emp_Lastname || '';
   document.getElementById('fLeaveDept').value      = e.Sub_Name || '';
   document.getElementById('fLeaveSub').value       = e.Emp_Vsth || '';
+  hideEmpSuggestions();
 }
 
 function _selectEmployee(emp) {
@@ -1130,24 +1131,25 @@ export async function loadAbsenceReport() {
   const velCount   = grouped['Vel'].length;
   const outerCount = totalCount - velCount;
 
-  const vsthColors = { Vel:'#1a56db', SK:'#f59e0b', TBS:'#10b981', CWS:'#8b5cf6' };
-  const vsthBg    = { Vel:'#e8f0fe', SK:'#fef3c7', TBS:'#d1fae5', CWS:'#ede9fe' };
+  // Modern Clean Styles
+  const vsthColors = { Vel:'#374151', SK:'#374151', TBS:'#374151', CWS:'#374151' };
+  const vsthBg    = { Vel:'#f9fafb', SK:'#f9fafb', TBS:'#f9fafb', CWS:'#f9fafb' };
   const vsthLabel = { Vel:'Vel (พนักงานบริษัท)', SK:'SK (Outsource)', TBS:'TBS (Outsource)', CWS:'CWS (Outsource)' };
 
   function buildTable(rows, vsth, offset=0) {
-    if (rows.length === 0) return `<p style="color:var(--gray-400);font-size:13px;padding:8px 0;">— ไม่มีรายการ —</p>`;
+    if (rows.length === 0) return `<p style="color:var(--gray-400);font-size:13px;padding:8px 12px;margin:0;">— ไม่มีรายการ —</p>`;
     return `
-      <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin:0;">
         <thead>
-          <tr style="background:${vsthBg[vsth]||'#f8fafc'};">
-            <th style="padding:8px 10px;text-align:center;border:1px solid #e2e8f0;width:38px;">#</th>
-            <th style="padding:8px 10px;border:1px solid #e2e8f0;width:75px;">รหัส</th>
-            <th style="padding:8px 10px;border:1px solid #e2e8f0;min-width:150px;">ชื่อ-นามสกุล</th>
-            <th style="padding:8px 10px;border:1px solid #e2e8f0;min-width:110px;">แผนก</th>
-            <th style="padding:8px 10px;border:1px solid #e2e8f0;width:90px;">ประเภทลา</th>
-            <th style="padding:8px 10px;border:1px solid #e2e8f0;width:100px;">การสื่อสาร</th>
-            <th style="padding:8px 10px;border:1px solid #e2e8f0;width:120px;">วันที่ลา</th>
-            <th style="padding:8px 10px;border:1px solid #e2e8f0;">เหตุผล</th>
+          <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+            <th style="padding:10px 12px;text-align:center;width:40px;color:var(--gray-600);font-weight:600;">#</th>
+            <th style="padding:10px 12px;text-align:left;width:85px;color:var(--gray-600);font-weight:600;">รหัส</th>
+            <th style="padding:10px 12px;text-align:left;min-width:160px;color:var(--gray-600);font-weight:600;">ชื่อ-นามสกุล</th>
+            <th style="padding:10px 12px;text-align:left;min-width:120px;color:var(--gray-600);font-weight:600;">แผนก</th>
+            <th style="padding:10px 12px;text-align:center;width:100px;color:var(--gray-600);font-weight:600;">ประเภทลา</th>
+            <th style="padding:10px 12px;text-align:left;width:110px;color:var(--gray-600);font-weight:600;">สื่อสาร</th>
+            <th style="padding:10px 12px;text-align:left;width:130px;color:var(--gray-600);font-weight:600;">วันที่ลา/เวลา</th>
+            <th style="padding:10px 12px;text-align:left;color:var(--gray-600);font-weight:600;">หมายเหตุ/เหตุผล</th>
           </tr>
         </thead>
         <tbody>
@@ -1155,19 +1157,17 @@ export async function loadAbsenceReport() {
             const comm = getCommunicateLabel(r);
             const remark = (r.drp_Remark||'').replace(/\r\n/g,' ').replace(/\n/g,' ').trim();
             const timeStr = r.drp_Stime ? `${r.drp_Stime}–${r.drp_Etime||'17:00'}` : '';
-            return `<tr style="background:${i%2===0?'white':'#f8fafc'};">
-              <td style="padding:7px 10px;text-align:center;border:1px solid #e2e8f0;color:#94a3b8;">${offset+i+1}</td>
-              <td style="padding:7px 10px;border:1px solid #e2e8f0;font-weight:600;font-size:11.5px;color:#64748b;">${escHtml(r.drp_empID||'-')}</td>
-              <td style="padding:7px 10px;border:1px solid #e2e8f0;font-weight:600;">${escHtml((r.Fullname||'').trim()||'-')}</td>
-              <td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;">${escHtml(r.Sub_Name||'-')}</td>
-              <td style="padding:7px 10px;border:1px solid #e2e8f0;text-align:center;">
-                <span style="background:${vsthBg[vsth]||'#f1f5f9'};color:${vsthColors[vsth]||'#1e293b'};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">${escHtml(r.drp_Type||'-')}</span>
+            return `<tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:10px 12px;text-align:center;color:#94a3b8;font-size:12px;">${offset+i+1}</td>
+              <td style="padding:10px 12px;color:#64748b;font-weight:500;">${escHtml(r.drp_empID||'-')}</td>
+              <td style="padding:10px 12px;font-weight:600;color:var(--gray-800);">${escHtml((r.Fullname||'').trim()||'-')}</td>
+              <td style="padding:10px 12px;color:var(--gray-600);">${escHtml(r.Sub_Name||'-')}</td>
+              <td style="padding:10px 12px;text-align:center;">
+                <span style="background:var(--gray-100);color:var(--gray-700);padding:3px 10px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid var(--gray-200);">${escHtml(r.drp_Type||'-')}</span>
               </td>
-              <td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;">
-                ${comm==='โทร'?'📞 โทร':comm==='แจ้งล่วงหน้า'?'🔔 แจ้งล่วงหน้า':'-'}
-              </td>
-              <td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:11.5px;">${escHtml(dbDateToDisplay(r.drp_Sdate) || '-')} ${timeStr}</td>
-              <td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;max-width:200px;">${escHtml(remark||'-')}</td>
+              <td style="padding:10px 12px;color:var(--gray-600);">${escHtml(comm)}</td>
+              <td style="padding:10px 12px;color:var(--gray-600);font-size:12.5px;">${escHtml(dbDateToDisplay(r.drp_Sdate) || '-')} ${timeStr}</td>
+              <td style="padding:10px 12px;color:var(--gray-500);font-size:12.5px;max-width:220px;">${escHtml(remark||'-')}</td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -1175,90 +1175,82 @@ export async function loadAbsenceReport() {
   }
 
   area.innerHTML = `
-    <div id="printableArea" style="background:white;border-radius:var(--border-radius);border:1px solid var(--gray-200);padding:28px 32px;box-shadow:var(--shadow-sm);">
+    <div id="printableArea" style="background:white;border-radius:12px;border:1px solid #e5e7eb;padding:40px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
 
-      <!-- Report Header -->
-      <div style="text-align:center;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid var(--gray-200);">
-        <div style="font-size:18px;font-weight:800;color:var(--gray-900);margin-bottom:4px;">
-          รายงานการหยุดงานประจำวัน
+      <!-- Modern Header -->
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:32px;padding-bottom:20px;border-bottom:1px solid #f3f4f6;">
+        <div>
+          <h1 style="margin:0;font-size:24px;font-weight:800;color:#111827;letter-spacing:-0.02em;">รายงานการหยุดงานประจำวัน</h1>
+          <p style="margin:6px 0 0;font-size:15px;color:#6b7280;">ข้อมูลวันที่: <strong style="color:#111827;">${escHtml(thDate)}</strong></p>
         </div>
-        <div style="font-size:14px;color:var(--gray-600);">วันที่: <strong style="color:var(--primary);">${escHtml(thDate)}</strong></div>
+        <div style="text-align:right;">
+          <div style="font-size:13px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">สถานะรวม</div>
+          <div style="font-size:28px;font-weight:800;color:var(--primary);line-height:1;">${totalCount} <span style="font-size:14px;font-weight:600;color:#6b7280;margin-left:2px;">รายการ</span></div>
+        </div>
       </div>
 
-      <!-- Stats Cards -->
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px;">
-        <div style="background:linear-gradient(135deg,#1a56db,#1044b0);color:white;border-radius:10px;padding:14px;text-align:center;">
-          <div style="font-size:26px;font-weight:800;">${totalCount}</div>
-          <div style="font-size:11.5px;opacity:0.9;margin-top:2px;">รวมทั้งหมด</div>
-        </div>
+      <!-- Compact Stat Group -->
+      <div style="display:flex;gap:24px;margin-bottom:40px;">
         ${VSTH_ORDER.map(v => `
-          <div style="background:${vsthBg[v]};color:${vsthColors[v]};border-radius:10px;padding:14px;text-align:center;border:1.5px solid ${vsthColors[v]}30;">
-            <div style="font-size:26px;font-weight:800;">${grouped[v].length}</div>
-            <div style="font-size:11.5px;font-weight:600;margin-top:2px;">${v}</div>
+          <div style="flex:1;">
+            <div style="font-size:12px;color:#6b7280;font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.02em;">${v}</div>
+            <div style="font-size:20px;font-weight:700;color:#111827;">${grouped[v].length}</div>
+            <div style="width:100%;height:3px;background:#f3f4f6;margin-top:8px;border-radius:10px;overflow:hidden;">
+              <div style="width:${totalCount > 0 ? (grouped[v].length/totalCount*100) : 0}%;height:100%;background:${v==='Vel'?'var(--primary)':'#9ca3af'};"></div>
+            </div>
           </div>`).join('')}
       </div>
 
-      <!-- GROUP 1: Vel -->
-      <div style="margin-bottom:24px;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:var(--primary-light);border-radius:8px;border-left:4px solid var(--primary);">
-          <i class="bi bi-building" style="color:var(--primary);font-size:16px;"></i>
-          <span style="font-size:14px;font-weight:700;color:var(--primary);">กลุ่มที่ 1 — พนักงานบริษัท (Vel)</span>
-          <span style="margin-left:auto;background:var(--primary);color:white;padding:2px 12px;border-radius:20px;font-size:12px;font-weight:700;">${velCount} คน</span>
+      <!-- List Style for Vel -->
+      <div style="margin-bottom:40px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <div style="width:4px;height:24px;background:var(--primary);border-radius:10px;"></div>
+          <h2 style="margin:0;font-size:17px;font-weight:700;color:#111827;">พนักงานบริษัท (Vel)</h2>
+          <span style="font-size:14px;color:#6b7280;margin-left:4px;">จำนวน ${velCount} คน</span>
         </div>
-        ${buildTable(grouped['Vel'],'Vel')}
+        <div style="border:1px solid #eef2f6;border-radius:10px;overflow:hidden;">
+          ${buildTable(grouped['Vel'], 'Vel')}
+        </div>
       </div>
 
-      <!-- GROUP 2: Outsource -->
-      <div style="margin-bottom:24px;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#f3f0ff;border-radius:8px;border-left:4px solid #7c3aed;">
-          <i class="bi bi-people" style="color:#7c3aed;font-size:16px;"></i>
-          <span style="font-size:14px;font-weight:700;color:#7c3aed;">กลุ่มที่ 2 — พนักงาน Outsource</span>
-          <span style="margin-left:auto;background:#7c3aed;color:white;padding:2px 12px;border-radius:20px;font-size:12px;font-weight:700;">${outerCount} คน</span>
+      <!-- List Style for Outsource -->
+      <div style="margin-bottom:40px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <div style="width:4px;height:24px;background:#6b7280;border-radius:10px;"></div>
+          <h2 style="margin:0;font-size:17px;font-weight:700;color:#111827;">พนักงาน Outsource</h2>
+          <span style="font-size:14px;color:#6b7280;margin-left:4px;">จำนวน ${outerCount} คน</span>
         </div>
+        
         ${['SK','TBS','CWS'].map(v => {
           const rows = grouped[v];
           if (rows.length === 0) return '';
-          return `<div style="margin-bottom:16px;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-              <span style="width:10px;height:10px;border-radius:50%;background:${vsthColors[v]};display:inline-block;"></span>
-              <span style="font-size:13px;font-weight:700;color:${vsthColors[v]};">${vsthLabel[v]}</span>
-              <span style="font-size:12px;color:var(--gray-500);">(${rows.length} คน)</span>
+          return `
+          <div style="margin-bottom:24px;border:1px solid #f1f5f9;border-radius:10px;overflow:hidden;">
+            <div style="background:#f8fafc;padding:10px 16px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:14px;font-weight:700;color:#475569;">${vsthLabel[v]}</span>
+              <span style="font-size:12px;color:#94a3b8;font-weight:600;">${rows.length} คน</span>
             </div>
-            ${buildTable(rows,v)}
+            ${buildTable(rows, v)}
           </div>`;
         }).join('')}
         ${outerCount === 0 ? '<p style="color:var(--gray-400);font-size:13px;padding:8px 0;">— ไม่มีรายการ —</p>' : ''}
       </div>
 
-      <!-- Summary Table -->
-      <div style="margin-bottom:28px;">
-        <div style="font-size:13px;font-weight:700;color:var(--gray-700);margin-bottom:10px;letter-spacing:0.05em;">
-          📊 สรุปจำนวนการลาแยกตามประเภทพนักงาน
+      <!-- Summary (Clean Grid) -->
+      <div style="margin-top:48px;padding-top:32px;border-top:1px solid #f3f4f6;display:flex;justify-content:flex-end;">
+        <div style="width:100%;max-width:320px;">
+          <div style="font-size:13px;font-weight:700;color:#9ca3af;margin-bottom:16px;text-transform:uppercase;letter-spacing:0.05em;">สรุปการลาประจำวัน</div>
+          ${VSTH_ORDER.map(v => `
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f9fafb;font-size:14px;">
+              <span style="color:#6b7280;">${vsthLabel[v]}</span>
+              <span style="font-weight:700;color:#111827;">${grouped[v].length}</span>
+            </div>
+          `).join('')}
+          <div style="display:flex;justify-content:space-between;padding:12px 0;margin-top:8px;font-weight:800;font-size:16px;color:var(--primary);">
+            <span>รวมหยุดงานที้งหมด</span>
+            <span>${totalCount}</span>
+          </div>
         </div>
-        <table style="width:280px;border-collapse:collapse;font-size:13px;">
-          <thead>
-            <tr style="background:var(--gray-100);">
-              <th style="padding:8px 16px;border:1px solid var(--gray-200);text-align:left;">ประเภทพนักงาน</th>
-              <th style="padding:8px 16px;border:1px solid var(--gray-200);text-align:center;">จำนวน (คน)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${VSTH_ORDER.map(v => `
-            <tr>
-              <td style="padding:7px 16px;border:1px solid var(--gray-200);">
-                <span style="display:inline-flex;align-items:center;gap:6px;">
-                  <span style="width:8px;height:8px;border-radius:50%;background:${vsthColors[v]};"></span>
-                  ${escHtml(vsthLabel[v])}
-                </span>
-              </td>
-              <td style="padding:7px 16px;border:1px solid var(--gray-200);text-align:center;font-weight:700;color:${vsthColors[v]};">${grouped[v].length}</td>
-            </tr>`).join('')}
-            <tr style="background:var(--gray-50);font-weight:700;">
-              <td style="padding:8px 16px;border:1px solid var(--gray-200);">รวมทั้งหมด</td>
-              <td style="padding:8px 16px;border:1px solid var(--gray-200);text-align:center;color:var(--primary);font-size:15px;">${totalCount}</td>
-            </tr>
-          </tbody>
-        </table>
       </div>
 
     </div>`;

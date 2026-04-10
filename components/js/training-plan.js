@@ -20,6 +20,11 @@ let trainingDataLoadMessage = '';
 let pendingParticipantIds = new Set();
 let participantsToRemoveIds = new Set();
 
+// Date filter state
+let trainingFilterYear  = '';
+let trainingFilterFrom  = '';
+let trainingFilterTo    = '';
+
 function withTimeout(promise, ms, name) {
   return Promise.race([
     promise,
@@ -247,7 +252,12 @@ export async function refreshTrainingData(options = {}) {
         : Promise.reject(new Error('ไม่พบ API getCourses')))
     : Promise.resolve({ success: true, data: allCourses });
   const plansPromise = typeof window.api?.getTrainingPlans === 'function'
-    ? window.api.getTrainingPlans({ search, page: requestPage, perPage: requestPerPage })
+    ? window.api.getTrainingPlans({
+        search, page: requestPage, perPage: requestPerPage,
+        yearFilter:  trainingFilterYear  || '',
+        dateFrom:    trainingFilterFrom  || '',
+        dateTo:      trainingFilterTo    || '',
+      })
     : Promise.reject(new Error('ไม่พบ API getTrainingPlans'));
 
   const [coursesRes, plansRes] = await Promise.allSettled([
@@ -292,6 +302,8 @@ export async function refreshTrainingData(options = {}) {
   if (pageSizeEl) pageSizeEl.value = String(trainingPerPage);
 
   renderTrainingStats();
+  populateTrainingYearDropdown(plansRes.value.availableYears || []);
+  updateTrainingFilterInfo();
   loadTrainingList();
 
   if (coursesError) {
@@ -850,6 +862,11 @@ export function loadTrainingList() {
             onclick="viewTrainingDetails('${escHtml(String(plan.Plan_ID))}')">
             <i class="bi bi-eye"></i>
           </button>
+          <button type="button" class="btn-action" title="ลบแผนการอบรม"
+            style="background:#fef2f2;color:#ef4444;border:1px solid #fecaca;"
+            onclick="confirmDeleteTrainingPlan('${escHtml(String(plan.Plan_ID))}')">
+            <i class="bi bi-trash3"></i>
+          </button>
         </div>
       </td>
     </tr>`;
@@ -997,3 +1014,164 @@ export function editTraining() {
 
 // Keep legacy export names for renderer.js compatibility
 export function switchTrainingTab() {}
+
+// ===================== TRAINING DATE FILTER =====================
+function populateTrainingYearDropdown(years) {
+  const sel = document.getElementById('trainingFilterYear');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">ทุกปี</option>';
+  (years || []).forEach(y => {
+    const opt = document.createElement('option');
+    opt.value = String(y);
+    opt.textContent = `ปี ${y + 543} (${y})`;
+    sel.appendChild(opt);
+  });
+  if (trainingFilterYear) sel.value = trainingFilterYear;
+}
+
+function updateTrainingFilterInfo() {
+  const infoEl  = document.getElementById('trainingFilterInfo');
+  const clearBtn = document.getElementById('btnClearTrainingDateFilter');
+  const active = trainingFilterYear || trainingFilterFrom || trainingFilterTo;
+  if (clearBtn) clearBtn.style.display = active ? '' : 'none';
+  if (!infoEl) return;
+  if (!active) { infoEl.textContent = ''; return; }
+  if (trainingFilterYear) {
+    infoEl.textContent = `กำลังแสดงปี ${Number(trainingFilterYear)+543} (${trainingFilterYear})`;
+  } else {
+    const f = trainingFilterFrom || '—';
+    const t = trainingFilterTo   || '—';
+    infoEl.textContent = `ช่วง ${f} ถึง ${t}`;
+  }
+}
+
+export function onTrainingDateFilter() {
+  const yearSel = document.getElementById('trainingFilterYear');
+  const fromEl  = document.getElementById('trainingFilterDateFrom');
+  const toEl    = document.getElementById('trainingFilterDateTo');
+  trainingFilterYear = yearSel?.value || '';
+  if (trainingFilterYear) {
+    // Clear range when year selected
+    trainingFilterFrom = '';
+    trainingFilterTo   = '';
+    if (fromEl) fromEl.value = '';
+    if (toEl)   toEl.value   = '';
+  } else {
+    trainingFilterFrom = fromEl?.value || '';
+    trainingFilterTo   = toEl?.value   || '';
+    // Clear year when range used
+    if (trainingFilterFrom || trainingFilterTo) {
+      trainingFilterYear = '';
+      if (yearSel) yearSel.value = '';
+    }
+  }
+  trainingCurrentPage = 1;
+  refreshTrainingData({ page: 1, showLoading: true });
+}
+
+export function clearTrainingDateFilter() {
+  trainingFilterYear = '';
+  trainingFilterFrom = '';
+  trainingFilterTo   = '';
+  const yearSel = document.getElementById('trainingFilterYear');
+  const fromEl  = document.getElementById('trainingFilterDateFrom');
+  const toEl    = document.getElementById('trainingFilterDateTo');
+  if (yearSel) yearSel.value = '';
+  if (fromEl)  fromEl.value  = '';
+  if (toEl)    toEl.value    = '';
+  trainingCurrentPage = 1;
+  refreshTrainingData({ page: 1, showLoading: true });
+}
+
+// ===================== DELETE TRAINING PLAN =====================
+let _deletingPlanId = null;
+
+export async function confirmDeleteTrainingPlan(planId) {
+  _deletingPlanId = planId;
+  const plan = allTrainingPlans.find(p => String(p.Plan_ID) === String(planId));
+  if (!plan) { showToast('ไม่พบข้อมูลแผน', 'error'); return; }
+
+  // Show a loading overlay while we check
+  let overlay = document.getElementById('deletePlanOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'deletePlanOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(4px);z-index:9500;display:flex;align-items:center;justify-content:center;';
+    overlay.onclick = (e) => { if (e.target === overlay) closeDeletePlanModal(); };
+    document.body.appendChild(overlay);
+  }
+  overlay.style.display = 'flex';
+  overlay.innerHTML = `<div style="background:white;border-radius:16px;padding:28px 32px;max-width:460px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="text-align:center;padding:16px 0;"><div class="spinner" style="margin:0 auto;"></div></div>
+  </div>`;
+
+  const res = await window.api.checkPlanDeletable(planId);
+  if (!res.success) {
+    overlay.style.display = 'none';
+    showToast('ไม่สามารถตรวจสอบได้: ' + res.message, 'error');
+    return;
+  }
+
+  const { regCount, expCount } = res;
+  const hasData = regCount > 0 || expCount > 0;
+
+  const warningHtml = hasData ? `
+    <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#92400e;">
+      <div style="font-weight:700;margin-bottom:6px;"><i class="bi bi-exclamation-triangle-fill me-2"></i>มีข้อมูลที่เกี่ยวข้องอยู่</div>
+      ${regCount > 0 ? `<div>• รายการลงทะเบียน / บันทึก: <strong>${regCount} รายการ</strong></div>` : ''}
+      ${expCount > 0 ? `<div>• ค่าใช้จ่าย: <strong>${expCount} รายการ</strong></div>` : ''}
+      <div style="margin-top:8px;font-size:12px;color:#b45309;">ข้อมูลทั้งหมดนี้จะถูกลบออกพร้อมกันด้วย</div>
+    </div>` : '';
+
+  overlay.innerHTML = `
+  <div style="background:white;border-radius:16px;padding:28px 32px;max-width:460px;width:90%;
+    box-shadow:0 20px 60px rgba(0,0,0,.3);" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+      <div style="width:44px;height:44px;border-radius:12px;background:#fee2e2;
+        display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <i class="bi bi-trash3-fill" style="font-size:20px;color:#ef4444;"></i>
+      </div>
+      <div>
+        <div style="font-size:16px;font-weight:700;color:#111827;">ลบแผนการอบรม</div>
+        <div style="font-size:12.5px;color:#6b7280;margin-top:2px;">${escHtml(String(planId))}</div>
+      </div>
+    </div>
+    <div style="font-size:13.5px;color:#374151;margin-bottom:16px;">
+      คุณต้องการลบแผน <strong>${escHtml(plan.Courses_Name || planId)}</strong> ออกจากระบบ?
+    </div>
+    ${warningHtml}
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+      <button onclick="closeDeletePlanModal()"
+        style="padding:9px 20px;border-radius:8px;border:1.5px solid #d1d5db;background:white;
+          font-size:13px;font-weight:600;color:#374151;cursor:pointer;">
+        ยกเลิก
+      </button>
+      <button onclick="executeDeleteTrainingPlan('${escHtml(String(planId))}')"
+        style="padding:9px 20px;border-radius:8px;border:none;background:#ef4444;
+          font-size:13px;font-weight:600;color:white;cursor:pointer;">
+        <i class="bi bi-trash3 me-1"></i>ยืนยันลบ
+      </button>
+    </div>
+  </div>`;
+}
+
+export function closeDeletePlanModal() {
+  const overlay = document.getElementById('deletePlanOverlay');
+  if (overlay) overlay.style.display = 'none';
+  _deletingPlanId = null;
+}
+
+export async function executeDeleteTrainingPlan(planId) {
+  const overlay = document.getElementById('deletePlanOverlay');
+  if (overlay) overlay.style.display = 'none';
+
+  const res = await window.api.deleteTrainingPlan(planId);
+  if (!res.success) {
+    showToast('ลบไม่สำเร็จ: ' + res.message, 'error');
+    return;
+  }
+  showToast('ลบแผนการอบรมสำเร็จ', 'success');
+  _deletingPlanId = null;
+  await refreshTrainingData({ page: 1, showLoading: false });
+}

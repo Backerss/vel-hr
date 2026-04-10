@@ -32,19 +32,25 @@ import {
   onTrainingSearch, setTrainingPageSize,
   togglePendingParticipant, toggleAllPendingParticipants,
   toggleParticipantForRemoval, toggleAllParticipantsForRemoval, removeSelectedParticipants,
-  formatDateInputField, autoFormatDateField, formatTimeInputField, autoFormatTimeField
+  formatDateInputField, autoFormatDateField, formatTimeInputField, autoFormatTimeField,
+  confirmDeleteTrainingPlan, closeDeletePlanModal, executeDeleteTrainingPlan,
+  onTrainingDateFilter, clearTrainingDateFilter
 } from './components/js/training-plan.js';
 import {
   loadTrainingExpensePage,
   refreshExpenseData, onExpenseSearch, setExpensePageSize, goToExpensePage,
   openExpenseModal, closeExpenseModal, submitExpenseForm, calcExpenseTotal,
-  onExpPlanIdInput, hideExpPlanSuggestions, selectExpPlan
+  onExpPlanIdInput, hideExpPlanSuggestions, selectExpPlan,
+  showExpPlanPickerModal, closeExpPlanPickerModal, filterExpPlanPicker, pickExpPlan,
+  onExpenseDateFilter, clearExpenseDateFilter
 } from './components/js/training-expenses.js';
 import {
   loadTrainingRecordPage,
   onRecordPlanSearch, showRecordPlanDropdown, hideRecordPlanDropdown,
-  selectRecordPlan, onRecordTimeRangeChange,
-  updateRecordState, updateRecordRemark, exportTrainingRecordExcel
+  selectRecordPlan, selectSession,
+  onEmpCheckinSearch, onEmpCheckinKeydown, hideEmpDropdown, highlightEmpItem, checkinEmployee,
+  updateRecordRemark, undoCheckin, exportTrainingRecordExcel,
+  goToRecordPage
 } from './components/js/training-record.js';
 import {
   loadHolidayPage, hdRefresh, hdOnSearch, hdOnYearChange,
@@ -681,15 +687,20 @@ Object.assign(window, {
   togglePendingParticipant, toggleAllPendingParticipants,
   toggleParticipantForRemoval, toggleAllParticipantsForRemoval, removeSelectedParticipants,
   formatDateInputField, autoFormatDateField, formatTimeInputField, autoFormatTimeField,
+  confirmDeleteTrainingPlan, closeDeletePlanModal, executeDeleteTrainingPlan,
+  onTrainingDateFilter, clearTrainingDateFilter,
   // Training Record
   loadTrainingRecordPage,
   onRecordPlanSearch, showRecordPlanDropdown, hideRecordPlanDropdown,
-  selectRecordPlan, onRecordTimeRangeChange,
-  updateRecordState, updateRecordRemark, exportTrainingRecordExcel,
+  selectRecordPlan, selectSession,
+  onEmpCheckinSearch, onEmpCheckinKeydown, hideEmpDropdown, highlightEmpItem, checkinEmployee,
+  updateRecordRemark, undoCheckin, exportTrainingRecordExcel, goToRecordPage,
   // Training Expenses
   loadTrainingExpensePage, refreshExpenseData, onExpenseSearch,
   setExpensePageSize, goToExpensePage, openExpenseModal, closeExpenseModal,
   submitExpenseForm, calcExpenseTotal, onExpPlanIdInput, hideExpPlanSuggestions, selectExpPlan,
+  showExpPlanPickerModal, closeExpPlanPickerModal, filterExpPlanPicker, pickExpPlan,
+  onExpenseDateFilter, clearExpenseDateFilter,
   // Holiday
   loadHolidayPage, hdRefresh, hdOnSearch, hdOnYearChange,
   hdCalPrev, hdCalNext, hdCalRender,

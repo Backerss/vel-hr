@@ -61,6 +61,32 @@
     </button>
   </div>
 
+  <!-- Date filter bar -->
+  <div id="trainingDateFilterBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    padding:10px 16px;border-top:1px solid var(--gray-100);background:#fafafa;font-size:12.5px;">
+    <i class="bi bi-funnel" style="color:var(--primary);"></i>
+    <span style="color:var(--gray-600);font-weight:600;">กรองวันที่:</span>
+
+    <select id="trainingFilterYear" class="filter-select" style="min-width:100px;"
+      onchange="onTrainingDateFilter()">
+      <option value="">ทุกปี</option>
+    </select>
+
+    <span style="color:var(--gray-400);">หรือช่วง</span>
+    <input type="date" id="trainingFilterDateFrom" class="form-control-m"
+      style="width:145px;font-size:12px;" onchange="onTrainingDateFilter()">
+    <span style="color:var(--gray-400);">—</span>
+    <input type="date" id="trainingFilterDateTo" class="form-control-m"
+      style="width:145px;font-size:12px;" onchange="onTrainingDateFilter()">
+
+    <button id="btnClearTrainingDateFilter" class="btn-outline-custom"
+      style="padding:4px 11px;font-size:12px;display:none;"
+      onclick="clearTrainingDateFilter()">
+      <i class="bi bi-x-circle"></i> ล้างตัวกรอง
+    </button>
+    <span id="trainingFilterInfo" style="color:var(--gray-500);font-size:12px;margin-left:4px;"></span>
+  </div>
+
   <div class="table-responsive-custom">
     <table class="data-table" style="width:100%;">
       <thead>
@@ -189,7 +215,8 @@
           </div>
           <div class="form-group">
             <label>หมายเหตุ</label>
-            <input type="text" id="planRemark" class="form-control-m" placeholder="หมายเหตุ (ถ้ามี)">
+            <textarea id="planRemark" class="form-control-m" placeholder="หมายเหตุ (ถ้ามี)"
+              style="resize:vertical;min-height:80px;line-height:1.5;font-family:inherit;font-size:13px;"></textarea>
           </div>
         </div>
 

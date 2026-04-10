@@ -69,6 +69,53 @@
     </button>
   </div>
 
+  <!-- Date / Year Filter Bar -->
+  <div id="expenseDateFilterBar" style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:10px 16px;border-top:1px solid var(--gray-200);background:var(--gray-50);">
+    <span style="font-size:12.5px;color:var(--gray-600);font-weight:600;">กรองตามช่วงเวลา:</span>
+    <select id="expFilterYear" onchange="onExpenseDateFilter()" style="padding:5px 10px;border:1.5px solid var(--gray-300);border-radius:6px;font-size:12.5px;min-width:90px;">
+      <option value="">ทุกปี</option>
+    </select>
+    <span style="font-size:12px;color:var(--gray-500);">หรือช่วง:</span>
+    <input type="date" id="expFilterDateFrom" onchange="onExpenseDateFilter()" style="padding:5px 8px;border:1.5px solid var(--gray-300);border-radius:6px;font-size:12.5px;">
+    <span style="font-size:12px;color:var(--gray-500);">ถึง</span>
+    <input type="date" id="expFilterDateTo" onchange="onExpenseDateFilter()" style="padding:5px 8px;border:1.5px solid var(--gray-300);border-radius:6px;font-size:12.5px;">
+    <button id="btnClearExpenseFilter" onclick="clearExpenseDateFilter()" style="display:none;padding:5px 12px;border:1.5px solid var(--danger);border-radius:6px;background:transparent;color:var(--danger);font-size:12px;cursor:pointer;">
+      <i class="bi bi-x-circle"></i> ล้างตัวกรอง
+    </button>
+    <span id="expFilterInfo" style="font-size:12px;color:var(--primary);font-weight:600;"></span>
+  </div>
+
+  <!-- Period Summary Panel -->
+  <div id="expPeriodSummary" style="display:none;margin:0 16px 12px;padding:14px 18px;border-radius:10px;background:linear-gradient(135deg,#eff6ff,#f0fdf4);border:1.5px solid var(--primary-light);">
+    <div style="font-size:12.5px;font-weight:700;color:var(--primary);margin-bottom:10px;"><i class="bi bi-bar-chart-line-fill"></i> สรุปค่าใช้จ่ายตามช่วงที่เลือก</div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;">
+      <div style="flex:1;min-width:120px;background:#fff;border-radius:8px;padding:10px 14px;box-shadow:0 1px 3px rgba(0,0,0,.07);">
+        <div style="font-size:11px;color:var(--gray-500);margin-bottom:4px;">วิทยากร</div>
+        <div id="expSumLecturer" style="font-size:16px;font-weight:700;color:var(--primary);">0</div>
+      </div>
+      <div style="flex:1;min-width:120px;background:#fff;border-radius:8px;padding:10px 14px;box-shadow:0 1px 3px rgba(0,0,0,.07);">
+        <div style="font-size:11px;color:var(--gray-500);margin-bottom:4px;">วัสดุ/เครื่องมือ</div>
+        <div id="expSumTools" style="font-size:16px;font-weight:700;color:var(--primary);">0</div>
+      </div>
+      <div style="flex:1;min-width:120px;background:#fff;border-radius:8px;padding:10px 14px;box-shadow:0 1px 3px rgba(0,0,0,.07);">
+        <div style="font-size:11px;color:var(--gray-500);margin-bottom:4px;">อาหาร</div>
+        <div id="expSumFood" style="font-size:16px;font-weight:700;color:var(--primary);">0</div>
+      </div>
+      <div style="flex:1;min-width:120px;background:#fff;border-radius:8px;padding:10px 14px;box-shadow:0 1px 3px rgba(0,0,0,.07);">
+        <div style="font-size:11px;color:var(--gray-500);margin-bottom:4px;">ของว่าง</div>
+        <div id="expSumSnack" style="font-size:16px;font-weight:700;color:var(--primary);">0</div>
+      </div>
+      <div style="flex:1;min-width:120px;background:#fff;border-radius:8px;padding:10px 14px;box-shadow:0 1px 3px rgba(0,0,0,.07);">
+        <div style="font-size:11px;color:var(--gray-500);margin-bottom:4px;">เดินทาง</div>
+        <div id="expSumTravel" style="font-size:16px;font-weight:700;color:var(--primary);">0</div>
+      </div>
+      <div style="flex:1;min-width:140px;background:var(--primary);border-radius:8px;padding:10px 14px;box-shadow:0 1px 3px rgba(0,0,0,.12);">
+        <div style="font-size:11px;color:rgba(255,255,255,.8);margin-bottom:4px;">รวมทั้งหมด (บาท)</div>
+        <div id="expSumTotal" style="font-size:18px;font-weight:700;color:#fff;">0</div>
+      </div>
+    </div>
+  </div>
+
   <div class="table-responsive-custom">
     <table class="data-table" style="width:100%;">
       <thead>

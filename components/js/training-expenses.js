@@ -8,6 +8,11 @@ let expTotalCount = 0;
 let expSearchTimer = null;
 let expStats = { total: 0, sumAll: 0, thisMonth: 0, sumMonth: 0 };
 
+// Date filter state
+let expFilterYear = '';
+let expFilterDateFrom = '';
+let expFilterDateTo = '';
+
 // Plan autocomplete state
 let expPlanSuggestToken = 0;
 let expPlanSuggestTimer = null;
@@ -67,7 +72,7 @@ export async function refreshExpenseData() {
   const page = expCurrentPage;
 
   try {
-    const res = await window.api.getExpenses({ search, page, perPage });
+    const res = await window.api.getExpenses({ search, page, perPage, yearFilter: expFilterYear, dateFrom: expFilterDateFrom, dateTo: expFilterDateTo });
     if (!res.success) {
       renderExpenseErrorState(res.message || 'โหลดข้อมูลไม่สำเร็จ');
       showToast(res.message || 'โหลดข้อมูลไม่สำเร็จ', 'error');
@@ -82,8 +87,10 @@ export async function refreshExpenseData() {
     const pageSizeEl = document.getElementById('expPageSize');
     if (pageSizeEl) pageSizeEl.value = String(expPerPage);
 
+    populateExpYearDropdown(res.availableYears || []);
     renderExpenseStats();
     renderExpenseTable();
+    renderExpPeriodSummary(res.periodSummary);
   } catch (e) {
     renderExpenseErrorState(e.message);
     showToast('เกิดข้อผิดพลาด: ' + e.message, 'error');
@@ -332,6 +339,7 @@ function initExpPlanSuggest() {
   const fresh = input.cloneNode(true);
   input.parentNode.replaceChild(fresh, input);
 
+  fresh.addEventListener('focus', () => showExpPlanPickerModal());
   fresh.addEventListener('input', onExpPlanIdInput);
   fresh.addEventListener('blur', () => setTimeout(hideExpPlanSuggestions, 200));
   fresh.addEventListener('keydown', (e) => {
@@ -339,6 +347,155 @@ function initExpPlanSuggest() {
   });
 
   box.addEventListener('mousedown', e => e.preventDefault());
+}
+
+// ===================== PLAN PICKER MODAL =====================
+let _planPickerAllPlans = [];
+let _planPickerTimer = null;
+
+export async function showExpPlanPickerModal() {
+  // Ensure overlay exists
+  let overlay = document.getElementById('expPlanPickerOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'expPlanPickerOverlay';
+    overlay.style.cssText = `position:fixed;inset:0;background:rgba(15,23,42,.5);
+      backdrop-filter:blur(3px);z-index:10500;display:flex;align-items:center;justify-content:center;`;
+    overlay.onclick = (e) => { if (e.target === overlay) closeExpPlanPickerModal(); };
+    document.body.appendChild(overlay);
+  }
+
+  overlay.style.display = 'flex';
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:16px;width:560px;max-width:94vw;max-height:80vh;
+      display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.28);overflow:hidden;"
+      onclick="event.stopPropagation()">
+      <div style="padding:18px 22px 14px;border-bottom:1px solid var(--gray-100);flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <div style="width:36px;height:36px;border-radius:10px;background:var(--primary-light);
+            display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="bi bi-card-list" style="font-size:18px;color:var(--primary);"></i>
+          </div>
+          <div style="flex:1;">
+            <div style="font-size:15px;font-weight:700;color:var(--gray-900);">เลือกแผนการอบรม</div>
+            <div style="font-size:12px;color:var(--gray-400);">แสดงเฉพาะแผนที่ยังไม่มีการบันทึกค่าใช้จ่าย</div>
+          </div>
+          <button onclick="closeExpPlanPickerModal()"
+            style="background:none;border:none;cursor:pointer;color:var(--gray-400);font-size:18px;
+              padding:4px;border-radius:6px;line-height:1;">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div id="expPickerSearchWrap" style="display:none;position:relative;">
+          <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);
+            color:var(--gray-400);font-size:13px;pointer-events:none;"></i>
+          <input type="text" id="expPickerSearchInput" class="form-control-m"
+            placeholder="ค้นหาเลขที่แผน / ชื่อหลักสูตร / รหัส..."
+            autocomplete="off"
+            style="padding-left:32px;"
+            oninput="filterExpPlanPicker()">
+        </div>
+      </div>
+      <div id="expPickerList" style="flex:1;overflow-y:auto;padding:6px 0;min-height:60px;">
+        <div style="display:flex;align-items:center;justify-content:center;padding:24px;">
+          <div class="spinner" style="margin-right:10px;"></div>
+          <span style="color:var(--gray-400);font-size:13px;">กำลังโหลด...</span>
+        </div>
+      </div>
+    </div>`;
+
+  try {
+    const res = await window.api.searchPlansForExpense({ keyword: '' });
+    _planPickerAllPlans = res?.success ? (res.data || []) : [];
+  } catch {
+    _planPickerAllPlans = [];
+  }
+
+  // Show search bar only if ≥5 results
+  const searchWrap = document.getElementById('expPickerSearchWrap');
+  if (searchWrap) searchWrap.style.display = _planPickerAllPlans.length >= 5 ? 'block' : 'none';
+
+  renderExpPlanPickerList(_planPickerAllPlans);
+
+  // Auto-focus search if shown
+  if (_planPickerAllPlans.length >= 5) {
+    setTimeout(() => document.getElementById('expPickerSearchInput')?.focus(), 80);
+  }
+}
+
+export function closeExpPlanPickerModal() {
+  const overlay = document.getElementById('expPlanPickerOverlay');
+  if (overlay) overlay.style.display = 'none';
+  clearTimeout(_planPickerTimer);
+}
+
+export function filterExpPlanPicker() {
+  clearTimeout(_planPickerTimer);
+  _planPickerTimer = setTimeout(() => {
+    const q = (document.getElementById('expPickerSearchInput')?.value || '').toLowerCase();
+    const filtered = q
+      ? _planPickerAllPlans.filter(p =>
+          String(p.Plan_ID).toLowerCase().includes(q) ||
+          (p.Courses_Name || '').toLowerCase().includes(q) ||
+          (p.Courses_ID   || '').toLowerCase().includes(q)
+        )
+      : _planPickerAllPlans;
+    renderExpPlanPickerList(filtered);
+  }, 150);
+}
+
+function renderExpPlanPickerList(plans) {
+  const list = document.getElementById('expPickerList');
+  if (!list) return;
+
+  if (plans.length === 0) {
+    list.innerHTML = `
+      <div style="text-align:center;padding:32px 20px;color:var(--gray-400);">
+        <i class="bi bi-journal-x" style="font-size:32px;display:block;margin-bottom:8px;"></i>
+        <div style="font-size:13px;">ไม่พบแผนการอบรมที่ยังไม่มีการบันทึกค่าใช้จ่าย</div>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = plans.map(p => {
+    const dateStr = p.Plan_StartDate ? thDateShort(p.Plan_StartDate + 'T00:00:00') : '';
+    return `
+    <button type="button"
+      onclick="pickExpPlan('${escHtml(String(p.Plan_ID))}','${escHtml(p.Courses_ID||'')}','${escHtml(p.Courses_Name||'')}')"
+      style="display:flex;align-items:center;gap:12px;width:100%;border:none;background:none;
+        padding:10px 20px;cursor:pointer;text-align:left;transition:background .1s;border-bottom:1px solid var(--gray-50);"
+      onmouseover="this.style.background='#f0f6ff'" onmouseout="this.style.background=''">
+      <div style="width:9px;height:9px;border-radius:50%;background:var(--primary);flex-shrink:0;margin-top:2px;"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:12.5px;font-weight:700;color:var(--primary);background:var(--primary-light);
+            padding:1px 8px;border-radius:20px;">${escHtml(String(p.Plan_ID))}</span>
+          <span style="font-size:13px;font-weight:600;color:var(--gray-900);">${escHtml(p.Courses_Name || '-')}</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--gray-400);margin-top:3px;">
+          ${escHtml(p.Courses_ID || '')}
+          ${dateStr ? `<span style="margin:0 5px;">·</span>${escHtml(dateStr)}` : ''}
+          ${p.Plan_Company ? `<span style="margin:0 5px;">·</span>${escHtml(p.Plan_Company)}` : ''}
+        </div>
+      </div>
+      <i class="bi bi-chevron-right" style="color:var(--gray-300);font-size:13px;flex-shrink:0;"></i>
+    </button>`;
+  }).join('');
+}
+
+export function pickExpPlan(planId, coursesId, coursesName) {
+  closeExpPlanPickerModal();
+  // Fill input and trigger the existing autocomplete select logic
+  const input = document.getElementById('expPlanIdInput');
+  if (input) {
+    input.value = planId;
+    input.dispatchEvent(new Event('input'));
+  }
+  expSelectedPlan = { Plan_ID: planId, Courses_ID: coursesId, Courses_Name: coursesName };
+  updateExpPlanDisplay(coursesId, coursesName);
+  hideExpPlanSuggestions();
+  // Move focus to first expense amount field
+  setTimeout(() => document.getElementById('expLecturer')?.focus(), 80);
 }
 
 export function onExpPlanIdInput() {
@@ -511,4 +668,97 @@ export async function submitExpenseForm() {
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check2-circle"></i> บันทึก'; }
   }
+}
+
+// ===================== DATE FILTER =====================
+function populateExpYearDropdown(years) {
+  const sel = document.getElementById('expFilterYear');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">ทุกปี</option>';
+  years.forEach(yr => {
+    const opt = document.createElement('option');
+    opt.value = yr;
+    const buddhistYear = Number(yr) + 543;
+    opt.textContent = `ปี ${buddhistYear} (${yr})`;
+    sel.appendChild(opt);
+  });
+  if (current) sel.value = current;
+}
+
+function renderExpPeriodSummary(summary) {
+  const panel = document.getElementById('expPeriodSummary');
+  if (!panel) return;
+  const isFiltered = expFilterYear || expFilterDateFrom || expFilterDateTo;
+  if (!isFiltered || !summary) { panel.style.display = 'none'; return; }
+
+  panel.style.display = 'block';
+  const fmt = (v) => (Number(v) || 0).toLocaleString('th-TH');
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = fmt(v); };
+  set('expSumLecturer', summary.sumLecturer);
+  set('expSumTools',    summary.sumTools);
+  set('expSumFood',     summary.sumFood);
+  set('expSumSnack',    summary.sumSnack);
+  set('expSumTravel',   summary.sumTravel);
+  set('expSumTotal',    summary.sumTotal);
+}
+
+export function onExpenseDateFilter() {
+  expFilterYear     = document.getElementById('expFilterYear')?.value || '';
+  expFilterDateFrom = document.getElementById('expFilterDateFrom')?.value || '';
+  expFilterDateTo   = document.getElementById('expFilterDateTo')?.value || '';
+
+  // If year selected, clear date range; if date range set, clear year
+  if (expFilterYear) {
+    expFilterDateFrom = '';
+    expFilterDateTo   = '';
+    const from = document.getElementById('expFilterDateFrom');
+    const to   = document.getElementById('expFilterDateTo');
+    if (from) from.value = '';
+    if (to)   to.value   = '';
+  } else if (expFilterDateFrom || expFilterDateTo) {
+    expFilterYear = '';
+    const yr = document.getElementById('expFilterYear');
+    if (yr) yr.value = '';
+  }
+
+  const clearBtn = document.getElementById('btnClearExpenseFilter');
+  const info     = document.getElementById('expFilterInfo');
+  const isActive = expFilterYear || expFilterDateFrom || expFilterDateTo;
+
+  if (clearBtn) clearBtn.style.display = isActive ? '' : 'none';
+  if (info) {
+    if (expFilterYear) {
+      info.textContent = `กรองปี ${Number(expFilterYear) + 543}`;
+    } else if (expFilterDateFrom && expFilterDateTo) {
+      info.textContent = `${expFilterDateFrom} ถึง ${expFilterDateTo}`;
+    } else if (expFilterDateFrom) {
+      info.textContent = `ตั้งแต่ ${expFilterDateFrom}`;
+    } else if (expFilterDateTo) {
+      info.textContent = `ถึง ${expFilterDateTo}`;
+    } else {
+      info.textContent = '';
+    }
+  }
+
+  expCurrentPage = 1;
+  refreshExpenseData();
+}
+
+export function clearExpenseDateFilter() {
+  expFilterYear = '';
+  expFilterDateFrom = '';
+  expFilterDateTo = '';
+  const yr   = document.getElementById('expFilterYear');
+  const from = document.getElementById('expFilterDateFrom');
+  const to   = document.getElementById('expFilterDateTo');
+  if (yr)   yr.value   = '';
+  if (from) from.value = '';
+  if (to)   to.value   = '';
+  const clearBtn = document.getElementById('btnClearExpenseFilter');
+  const info     = document.getElementById('expFilterInfo');
+  if (clearBtn) clearBtn.style.display = 'none';
+  if (info)     info.textContent = '';
+  expCurrentPage = 1;
+  refreshExpenseData();
 }
