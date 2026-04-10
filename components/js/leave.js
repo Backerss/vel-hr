@@ -767,11 +767,28 @@ export function onLeaveTypeChange() {
   if (currentUser?.role === 'guest') return;
   const sel = document.getElementById('fLeaveType');
   const rem = document.getElementById('fLeaveRemark');
-  if (!sel || !rem) return;
-  // Only auto-fill remark for ขาดงาน (abbreviation 'A')
+  const comm = document.getElementById('fLeaveComm');
+  if (!sel) return;
+
+  // Handle 'Absent' (A) logic
   if (sel.value === 'A') {
-    const lt = leaveTypes.find(t => t.leave_abbreviation === 'A');
-    rem.value = lt ? lt.leave_name : 'ขาดงาน';
+    // 1. Auto-fill remark
+    if (rem) {
+      const lt = leaveTypes.find(t => t.leave_abbreviation === 'A');
+      rem.value = lt ? lt.leave_name : 'ขาดงาน';
+    }
+    // 2. Disable communication field and clear it
+    if (comm) {
+      comm.value = '';
+      comm.disabled = true;
+      comm.classList.add('leave-readonly');
+    }
+  } else {
+    // Re-enable and restore styling for other leave types
+    if (comm) {
+      comm.disabled = false;
+      comm.classList.remove('leave-readonly');
+    }
   }
 }
 
@@ -981,8 +998,9 @@ export async function saveLeaveRecord() {
     const sub     = document.getElementById('fLeaveSub')?.value || '';
     const remark  = document.getElementById('fLeaveRemark')?.value || '';
 
-    if (!comm)   { showToast('กรุณาเลือกการสื่อสาร', 'error'); return; }
     if (!ltype)  { showToast('กรุณาเลือกประเภทการลา', 'error'); return; }
+    // Skip communication validation for 'Absent' (A)
+    if (ltype !== 'A' && !comm) { showToast('กรุณาเลือกการสื่อสาร', 'error'); return; }
     if (!startDate || !startTime) { showToast('กรุณากรอกวันและเวลาเริ่มต้น', 'error'); return; }
     if (!endDate || !endTime)     { showToast('กรุณากรอกวันและเวลาสิ้นสุด', 'error'); return; }
     if (!remark) { showToast('กรุณากรอกเหตุผลการลา', 'error'); return; }

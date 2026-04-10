@@ -79,6 +79,11 @@ import {
   otsgOpenEdit, otsgEmpSearch, otsgSelectEmp,
   otsgClearSupervisor, otsgSave
 } from './components/js/ot-signers.js';
+import {
+  loadCoursesPage, csRefresh, csOnSearch, csSortBy, csSetPageSize, csGoPage,
+  csOpenAddModal, csOpenEditModal, csCloseFormModal, csSubmitForm,
+  csOpenDeleteModal, csDeleteCheckChanged, csCloseDeleteModal, csExecuteDelete
+} from './components/js/courses.js';
 
 // ===================== COMPONENT LOADER =====================
 async function loadComponent(url, targetId) {
@@ -90,6 +95,7 @@ async function loadComponent(url, targetId) {
 // ===================== PAGE CONFIG =====================
 const PAGE_CONFIG = {
   employees:            { title: 'ข้อมูลพนักงาน',             subtitle: 'จัดการข้อมูลพนักงานทั้งหมด',       icon: 'bi-people-fill',        group: null },
+  courses:              { title: 'จัดการหลักสูตร',             subtitle: 'เพิ่ม แก้ไข และลบข้อมูลหลักสูตรการอบรม', icon: 'bi-journal-bookmark',   group: 'groupTraining' },
   trainingManagement:   { title: 'จัดการแผนการฝึกอบรม',      subtitle: 'สร้างและจัดการแผนการฝึกอบรม',   icon: 'bi-clipboard-check',    group: 'groupTraining' },
   trainingRecord:       { title: 'บันทึกการอบรม',              subtitle: 'บันทึกผลการเข้าอบรม',             icon: 'bi-journal-check',      group: 'groupTraining' },
   trainingExpense:      { title: 'บันทึกค่าใช้จ่าย',          subtitle: 'บันทึกค่าใช้จ่ายการอบรม',        icon: 'bi-receipt',            group: 'groupTraining' },
@@ -143,6 +149,8 @@ async function switchPage(page) {
 
   if (page === 'employees') {
     await loadEmployeesPage();
+  } else if (page === 'courses') {
+    await loadCoursesPage();
   } else if (page === 'trainingManagement') {
     await loadTrainingManagementPage();
   } else if (page === 'leaveRecord') {
@@ -232,7 +240,7 @@ async function init() {
   }
 
   // Setup modal backdrop close
-  initModalBackdropClose(['empModal','empViewModal','passwordConfirmModal','confirmModal','logoutModal','leaveConfirmModal','trainingFormModal','trainingDetailsModal','expenseFormModal','holidayFormModal','holidayDeleteModal']);
+  initModalBackdropClose(['empModal','empViewModal','passwordConfirmModal','confirmModal','logoutModal','leaveConfirmModal','trainingFormModal','trainingDetailsModal','expenseFormModal','holidayFormModal','holidayDeleteModal','courseFormModal','courseDeleteModal']);
 
   // Init date pickers on all modal date inputs
   initAllThaiDatePickers();
@@ -726,6 +734,10 @@ Object.assign(window, {
   loadOtSignersPage,
   otsgOpenEdit, otsgEmpSearch, otsgSelectEmp,
   otsgClearSupervisor, otsgSave,
+  // Courses management
+  loadCoursesPage, csRefresh, csOnSearch, csSortBy, csSetPageSize, csGoPage,
+  csOpenAddModal, csOpenEditModal, csCloseFormModal, csSubmitForm,
+  csOpenDeleteModal, csDeleteCheckChanged, csCloseDeleteModal, csExecuteDelete,
   // Shared modal util
   closeModal, showModal, showToast,
   // DB config

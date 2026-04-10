@@ -1,0 +1,179 @@
+<!-- ===================== COURSES MANAGEMENT PAGE ===================== -->
+
+<!-- MAIN TABLE SECTION -->
+<div class="table-section">
+  <div class="table-header">
+    <span class="table-title">รายการหลักสูตรการอบรม</span>
+
+    <div class="search-box" style="max-width:280px;">
+      <i class="bi bi-search"></i>
+      <input type="text" class="search-input" id="csSearchInput"
+        placeholder="ค้นหา รหัส / ชื่อหลักสูตร..."
+        oninput="csOnSearch()">
+    </div>
+
+    <select class="filter-select" id="csFilterUsage" onchange="csOnSearch()" style="min-width:130px;">
+      <option value="">ทั้งหมด</option>
+      <option value="used">มีแผนอบรม</option>
+      <option value="unused">ยังไม่มีแผน</option>
+    </select>
+
+    <button class="btn-primary-custom" onclick="csOpenAddModal()">
+      <i class="bi bi-plus-lg me-1"></i> เพิ่มหลักสูตร
+    </button>
+  </div>
+
+  <!-- TABLE -->
+  <div style="overflow-x:auto;">
+    <table class="data-table" id="csTable">
+      <thead>
+        <tr>
+          <th style="width:46px;text-align:center;">#</th>
+          <th style="min-width:100px;cursor:pointer;user-select:none;" onclick="csSortBy('Courses_ID')">
+            รหัสหลักสูตร <span id="csSort_Courses_ID"></span>
+          </th>
+          <th style="min-width:240px;cursor:pointer;user-select:none;" onclick="csSortBy('Courses_Name')">
+            ชื่อหลักสูตร <span id="csSort_Courses_Name"></span>
+          </th>
+          <th style="min-width:110px;cursor:pointer;user-select:none;" onclick="csSortBy('Courses_Date')">
+            วันที่บันทึก <span id="csSort_Courses_Date"></span>
+          </th>
+          <th style="min-width:140px;">หมายเหตุ</th>
+          <th style="min-width:90px;text-align:center;">แผนอบรม</th>
+          <th style="width:110px;text-align:center;">จัดการ</th>
+        </tr>
+      </thead>
+      <tbody id="csTableBody">
+        <tr>
+          <td colspan="7" style="text-align:center;padding:40px;color:#94a3b8;">
+            <div class="spinner" style="margin:0 auto 12px;"></div>
+            <div>กำลังโหลดข้อมูล...</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- PAGINATION -->
+  <div class="table-footer" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:12px 16px;">
+    <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--gray-600);">
+      แสดง
+      <select class="filter-select" id="csPerPageSelect" onchange="csSetPageSize()" style="padding:4px 8px;font-size:13px;min-width:70px;">
+        <option value="25">25</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+      รายการ / หน้า &nbsp;|&nbsp; ทั้งหมด <strong id="csTotalCount">0</strong> รายการ
+    </div>
+    <div id="csPagination" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+  </div>
+</div>
+
+<!-- ===================== ADD / EDIT MODAL ===================== -->
+<div class="modal-overlay" id="courseFormModal">
+  <div class="modal-card" style="width:520px;max-width:96vw;">
+    <div class="modal-header">
+      <h5 class="modal-title" id="courseFormTitle">
+        <i class="bi bi-journal-plus me-2"></i>เพิ่มหลักสูตร
+      </h5>
+      <button class="modal-close" onclick="csCloseFormModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="modal-body" style="padding:20px 24px;">
+      <form id="courseForm" onsubmit="return false;" autocomplete="off">
+
+        <div class="form-group mb-3">
+          <label class="form-label">รหัสหลักสูตร <span style="color:#ef4444;">*</span></label>
+          <input type="text" class="form-control" id="csFieldId" maxlength="10"
+            placeholder="เช่น GM-001, EQ-085"
+            oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'').slice(0,10)"
+            style="font-family:monospace;letter-spacing:0.5px;">
+          <div id="csFieldIdError" style="font-size:11.5px;color:#ef4444;margin-top:3px;display:none;"></div>
+        </div>
+
+        <div class="form-group mb-3">
+          <label class="form-label">ชื่อหลักสูตร <span style="color:#ef4444;">*</span></label>
+          <input type="text" class="form-control" id="csFieldName" maxlength="255"
+            placeholder="ชื่อหลักสูตรการอบรม">
+          <div id="csFieldNameError" style="font-size:11.5px;color:#ef4444;margin-top:3px;display:none;"></div>
+        </div>
+
+        <div class="form-group mb-3">
+          <label class="form-label">หมายเหตุ</label>
+          <input type="text" class="form-control" id="csFieldRemark" maxlength="255"
+            placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)">
+        </div>
+
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline-custom" onclick="csCloseFormModal()">
+        <i class="bi bi-x me-1"></i>ยกเลิก
+      </button>
+      <button class="btn-primary-custom" id="csFormSaveBtn" onclick="csSubmitForm()">
+        <i class="bi bi-check-lg me-1"></i>บันทึก
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== DELETE CONFIRM MODAL ===================== -->
+<div class="modal-overlay" id="courseDeleteModal">
+  <div class="modal-card" style="width:480px;max-width:96vw;">
+    <div class="modal-header" style="background:linear-gradient(135deg,#fef2f2,#fff5f5);border-bottom:1px solid #fecaca;">
+      <h5 class="modal-title" style="color:#b91c1c;">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>ยืนยันการลบหลักสูตร
+      </h5>
+      <button class="modal-close" onclick="csCloseDeleteModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="modal-body" style="padding:20px 24px;">
+
+      <!-- Course info -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
+        <div style="font-size:12px;color:var(--gray-500);margin-bottom:4px;">หลักสูตรที่จะลบ</div>
+        <div id="csDeleteCourseName" style="font-weight:700;color:#1e293b;font-size:14px;"></div>
+        <div id="csDeleteCourseId" style="font-size:12px;color:var(--gray-500);margin-top:2px;font-family:monospace;"></div>
+      </div>
+
+      <!-- Usage warning (shown when course is in use) -->
+      <div id="csDeleteUsageWarning" style="display:none;">
+        <div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:8px;padding:14px 16px;margin-bottom:14px;">
+          <div style="display:flex;align-items:flex-start;gap:10px;">
+            <i class="bi bi-exclamation-triangle-fill" style="color:#ef4444;font-size:18px;flex-shrink:0;margin-top:2px;"></i>
+            <div>
+              <div style="font-weight:700;color:#b91c1c;font-size:13.5px;margin-bottom:6px;">คำเตือน: หลักสูตรนี้มีการใช้งานอยู่!</div>
+              <div id="csDeleteUsageDetail" style="font-size:13px;color:#7f1d1d;line-height:1.7;"></div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:#92400e;">
+          <i class="bi bi-info-circle-fill me-2" style="color:#d97706;"></i>
+          หากยืนยันการลบ <strong>ข้อมูลทั้งหมดข้างต้นจะถูกลบอย่างถาวร</strong> ไม่สามารถกู้คืนได้
+        </div>
+
+        <!-- Checkbox confirmation -->
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px;color:#374151;margin-bottom:0;user-select:none;">
+          <input type="checkbox" id="csDeleteConfirmCheck" onchange="csDeleteCheckChanged()" style="margin-top:3px;width:16px;height:16px;flex-shrink:0;accent-color:#ef4444;">
+          <span>ข้าพเจ้ารับทราบและยืนยันว่าต้องการลบหลักสูตรนี้พร้อมข้อมูลที่เกี่ยวข้องทั้งหมด</span>
+        </label>
+      </div>
+
+      <!-- Simple confirmation (no usage) -->
+      <div id="csDeleteSimpleMsg" style="font-size:13px;color:#374151;">
+        ต้องการลบหลักสูตรนี้ใช่หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline-custom" onclick="csCloseDeleteModal()">
+        <i class="bi bi-x me-1"></i>ยกเลิก
+      </button>
+      <button class="btn-danger-custom" id="csDeleteConfirmBtn" onclick="csExecuteDelete()">
+        <i class="bi bi-trash3 me-1"></i>ลบหลักสูตร
+      </button>
+    </div>
+  </div>
+</div>

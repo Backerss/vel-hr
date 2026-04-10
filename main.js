@@ -3404,3 +3404,121 @@ ipcMain.handle('export-ot-pdf', async (event, { xlsxPath, pdfPath }) => {
 });
 
 
+
+// ===================== COURSES MANAGEMENT IPC =====================
+
+// Get all courses with usage count (for courses management page)
+ipcMain.handle('get-courses-with-usage', async (event) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const [rows] = await db.execute(
+      `SELECT c.Courses_ID, c.Courses_Name,
+        DATE_FORMAT(c.Courses_Date, '%Y-%m-%d') AS Courses_Date,
+        c.Courses_Remark,
+        COUNT(DISTINCT tp.Plan_ID) AS PlanCount
+       FROM courses c
+       LEFT JOIN training_plan tp ON tp.Courses_ID = c.Courses_ID
+       GROUP BY c.Courses_ID, c.Courses_Name, c.Courses_Date, c.Courses_Remark
+       ORDER BY c.Courses_ID ASC`
+    );
+    return { success: true, data: rows };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Add course
+ipcMain.handle('add-course', async (event, data) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  if (!data || !data.Courses_ID || !data.Courses_Name) {
+    return { success: false, message: 'กรุณากรอกรหัสและชื่อหลักสูตร' };
+  }
+  const safeId = String(data.Courses_ID).trim().toUpperCase().replace(/[^A-Z0-9\-]/g, '').slice(0, 10);
+  const safeName = String(data.Courses_Name).trim().slice(0, 255);
+  const safeDate = String(data.Courses_Date || '0000-00-00').trim();
+  const safeRemark = String(data.Courses_Remark || '').trim().slice(0, 255);
+  if (!safeId) return { success: false, message: 'รหัสหลักสูตรไม่ถูกต้อง' };
+  if (!safeName) return { success: false, message: 'กรุณากรอกชื่อหลักสูตร' };
+  try {
+    const [existing] = await db.execute('SELECT Courses_ID FROM courses WHERE Courses_ID = ?', [safeId]);
+    if (existing.length > 0) {
+      return { success: false, message: `รหัสหลักสูตร "${safeId}" มีอยู่แล้วในระบบ` };
+    }
+    await db.execute(
+      'INSERT INTO courses (Courses_ID, Courses_Name, Courses_Date, Courses_Remark) VALUES (?, ?, ?, ?)',
+      [safeId, safeName, safeDate, safeRemark]
+    );
+    return { success: true, message: 'เพิ่มหลักสูตรสำเร็จ' };
+  } catch (e) {
+    if (e.code === 'ER_DUP_ENTRY') return { success: false, message: `รหัสหลักสูตร "${safeId}" มีอยู่แล้วในระบบ` };
+    return { success: false, message: e.message };
+  }
+});
+
+// Update course
+ipcMain.handle('update-course', async (event, data) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  if (!data || !data.Courses_ID) return { success: false, message: 'ไม่ระบุรหัสหลักสูตร' };
+  const safeName = String(data.Courses_Name || '').trim().slice(0, 255);
+  const safeDate = String(data.Courses_Date || '0000-00-00').trim();
+  const safeRemark = String(data.Courses_Remark || '').trim().slice(0, 255);
+  if (!safeName) return { success: false, message: 'กรุณากรอกชื่อหลักสูตร' };
+  try {
+    const [result] = await db.execute(
+      'UPDATE courses SET Courses_Name=?, Courses_Date=?, Courses_Remark=? WHERE Courses_ID=?',
+      [safeName, safeDate, safeRemark, data.Courses_ID]
+    );
+    if (result.affectedRows === 0) return { success: false, message: 'ไม่พบหลักสูตรที่ต้องการแก้ไข' };
+    return { success: true, message: 'แก้ไขหลักสูตรสำเร็จ' };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Check course deletable
+ipcMain.handle('check-course-deletable', async (event, courseId) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  if (!courseId) return { success: false, message: 'ไม่ระบุรหัสหลักสูตร' };
+  try {
+    const [planRows] = await db.execute(
+      'SELECT COUNT(*) AS cnt FROM training_plan WHERE Courses_ID = ?', [courseId]
+    );
+    const planCount = Number((planRows[0] || {}).cnt) || 0;
+    const [partRows] = await db.execute(
+      `SELECT COUNT(*) AS cnt FROM history_training ht
+       INNER JOIN training_plan tp ON tp.Plan_ID = ht.Plan_ID
+       WHERE tp.Courses_ID = ?`, [courseId]
+    );
+    const participantCount = Number((partRows[0] || {}).cnt) || 0;
+    const [expRows] = await db.execute(
+      'SELECT COUNT(*) AS cnt FROM training_expenses WHERE Courses_ID = ?', [courseId]
+    );
+    const expenseCount = Number((expRows[0] || {}).cnt) || 0;
+    return { success: true, planCount, participantCount, expenseCount };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// Delete course with cascade: expenses -> history_training -> training_plan -> courses
+ipcMain.handle('delete-course', async (event, courseId) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  if (!courseId) return { success: false, message: 'ไม่ระบุรหัสหลักสูตร' };
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.execute(
+      `DELETE te FROM training_expenses te
+       INNER JOIN training_plan tp ON tp.Plan_ID = te.Plan_ID
+       WHERE tp.Courses_ID = ?`, [courseId]
+    );
+    await conn.execute(
+      `DELETE ht FROM history_training ht
+       INNER JOIN training_plan tp ON tp.Plan_ID = ht.Plan_ID
+       WHERE tp.Courses_ID = ?`, [courseId]
+    );
+    await conn.execute('DELETE FROM training_plan WHERE Courses_ID = ?', [courseId]);
+    await conn.execute('DELETE FROM courses WHERE Courses_ID = ?', [courseId]);
+    await conn.commit();
+    return { success: true, message: 'ลบหลักสูตรสำเร็จ' };
+  } catch (e) {
+    await conn.rollback();
+    return { success: false, message: e.message };
+  } finally {
+    conn.release();
+  }
+});

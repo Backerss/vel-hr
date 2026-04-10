@@ -34,6 +34,11 @@ contextBridge.exposeInMainWorld('api', {
   getEmployeeTraining: (empId) => ipcRenderer.invoke('get-employee-training', empId),
   // Training management
   getCourses: () => ipcRenderer.invoke('get-courses'),
+  getCoursesWithUsage: () => ipcRenderer.invoke('get-courses-with-usage'),
+  addCourse: (data) => ipcRenderer.invoke('add-course', data),
+  updateCourse: (data) => ipcRenderer.invoke('update-course', data),
+  checkCourseDeletable: (courseId) => ipcRenderer.invoke('check-course-deletable', courseId),
+  deleteCourse: (courseId) => ipcRenderer.invoke('delete-course', courseId),
   getTrainingPlans: (filters) => ipcRenderer.invoke('get-training-plans', filters),
   saveTrainingPlan: (data) => ipcRenderer.invoke('save-training-plan', data),
   getTrainingParticipants: (planId) => ipcRenderer.invoke('get-training-participants', planId),

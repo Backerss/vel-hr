@@ -462,9 +462,10 @@ function renderExpPlanPickerList(plans) {
     return `
     <button type="button"
       onclick="pickExpPlan('${escHtml(String(p.Plan_ID))}','${escHtml(p.Courses_ID||'')}','${escHtml(p.Courses_Name||'')}')"
-      style="display:flex;align-items:center;gap:12px;width:100%;border:none;background:none;
-        padding:10px 20px;cursor:pointer;text-align:left;transition:background .1s;border-bottom:1px solid var(--gray-50);"
-      onmouseover="this.style.background='#f0f6ff'" onmouseout="this.style.background=''">
+      style="display:flex;align-items:center;gap:12px;width:100%;border:none;background:transparent;
+        padding:10px 20px;cursor:pointer;text-align:left;transition:background .2s;border-bottom:1px solid var(--gray-50);"
+      onmouseover="this.style.backgroundColor='var(--blue-50, #eff6ff)'" 
+      onmouseout="this.style.backgroundColor='transparent'">
       <div style="width:9px;height:9px;border-radius:50%;background:var(--primary);flex-shrink:0;margin-top:2px;"></div>
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
