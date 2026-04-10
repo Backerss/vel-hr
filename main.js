@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
+﻿const { app, BrowserWindow, ipcMain, Menu, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const mysql = require('mysql2/promise');
@@ -119,7 +119,7 @@ ipcMain.handle('is-db-config-needed', () => ({ needed: dbConfigNeeded, defaults:
 ipcMain.handle('test-db-config', async (event, config) => {
   const { host, port, user, password, database } = config || {};
   if (!host || !user || !database) {
-    return { success: false, message: '????????? Host, User ??? Database ??????????' };
+    return { success: false, message: 'กรุณากรอก Host, User และ Database ให้ครบถ้วน' };
   }
   let testPool;
   try {
@@ -134,9 +134,9 @@ ipcMain.handle('test-db-config', async (event, config) => {
       queueLimit: 0
     });
     await testPool.execute('SELECT 1');
-    return { success: true, message: '???????????????!' };
+    return { success: true, message: 'เชื่อมต่อสำเร็จ!' };
   } catch (error) {
-    return { success: false, message: '???????????????: ' + error.message };
+    return { success: false, message: 'เชื่อมต่อไม่ได้: ' + error.message };
   } finally {
     if (testPool) { try { await testPool.end(); } catch {} }
   }
@@ -145,7 +145,7 @@ ipcMain.handle('test-db-config', async (event, config) => {
 ipcMain.handle('save-db-config', async (event, config) => {
   const { host, port, user, password, database } = config || {};
   if (!host || !user || !database) {
-    return { success: false, message: '????????? Host, User ??? Database ??????????' };
+    return { success: false, message: 'กรุณากรอก Host, User และ Database ให้ครบถ้วน' };
   }
   const safeConfig = {
     host: String(host).trim(),
@@ -158,7 +158,7 @@ ipcMain.handle('save-db-config', async (event, config) => {
   if (db) { try { await db.end(); } catch {} db = null; }
   const connected = await createConnection(safeConfig);
   if (!connected) {
-    return { success: false, message: '?????????????????????????????? ??????????????????????????' };
+    return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาตรวจสอบข้อมูลอีกครั้ง' };
   }
   saveDbConfigFile(safeConfig);
   dbConfigNeeded = false;
@@ -167,10 +167,10 @@ ipcMain.handle('save-db-config', async (event, config) => {
 
 // Login handler
 ipcMain.handle('login', async (event, { username, password }) => {
-  if (!db) return { success: false, message: '??????????????????????????????' };
+  if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
   try {
     if (!username || !password) {
-      return { success: false, message: '??????????????????????????????' };
+      return { success: false, message: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' };
     }
     // Admin login
     const [admins] = await db.execute(
@@ -193,10 +193,10 @@ ipcMain.handle('login', async (event, { username, password }) => {
 
     }
 
-    return { success: false, message: '????????????????????????????????' };
+    return { success: false, message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
   } catch (error) {
     console.error('Login error:', error);
-    return { success: false, message: '??????????????????????????????: ' + error.message };
+    return { success: false, message: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ: ' + error.message };
   }
 });
 
@@ -217,7 +217,7 @@ ipcMain.handle('verify-password', async (event, { username, password }) => {
 // Get employees with server-side pagination
 ipcMain.handle('get-employees', async (event, filters = {}) => {
   const { search = '', status = '', subdivision = '', department = '', page = 1, perPage = 50 } = filters;
-  if (!db) return { success: false, message: '??????????????????????????????' };
+  if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
   try {
     const conditions = ['1=1'];
     const params = [];
@@ -297,7 +297,7 @@ ipcMain.handle('get-employees', async (event, filters = {}) => {
 });
 // Search employees for autocomplete (lightweight)
 ipcMain.handle('search-employees', async (event, { keyword = '', limit = 20 } = {}) => {
-  if (!db) return { success: false, message: '??????????????????????????????' };
+  if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
   try {
     const q = String(keyword || '').trim();
     const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 50));
@@ -366,7 +366,7 @@ ipcMain.handle('get-employee-by-id', async (event, id) => {
       [id]
     );
     if (rows.length > 0) return { success: true, data: rows[0] };
-    return { success: false, message: '????????????' };
+    return { success: false, message: 'ไม่พบพนักงาน' };
   } catch (error) {
     return { success: false, message: error.message };
   }
@@ -397,7 +397,7 @@ ipcMain.handle('update-subdivision-supervisor', async (event, { sub_id, emp_id }
   if (!db) return { success: false };
   try {
     await db.execute(`UPDATE subdivision SET Supervisor_EmpID=? WHERE Sub_ID=?`, [emp_id || '', sub_id]);
-    return { success: true, message: '????????????' };
+    return { success: true, message: 'บันทึกสำเร็จ' };
   } catch (error) {
     return { success: false, message: error.message };
   }
@@ -416,7 +416,7 @@ ipcMain.handle('get-positions', async () => {
 });
 // Add employee
 ipcMain.handle('add-employee', async (event, data) => {
-  if (!db) return { success: false, message: '??????????????????????????????' };
+  if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
   try {
     await db.execute(
       `INSERT INTO employees (Emp_ID, Emp_Sname, Emp_Firstname, Emp_Lastname, Emp_IDCard, Emp_Start_date,
@@ -430,16 +430,16 @@ ipcMain.handle('add-employee', async (event, data) => {
         data.Emp_Status || 'Activated', data.Emp_Vsth || 'Vel'
       ]
     );
-    return { success: true, message: '??????????????????' };
+    return { success: true, message: 'เพิ่มพนักงานสำเร็จ' };
   } catch (error) {
-    return { success: false, message: '??????????????: ' + error.message };
+    return { success: false, message: 'เกิดข้อผิดพลาด: ' + error.message };
   }
 });
 
 
 // Update employee
 ipcMain.handle('update-employee', async (event, data) => {
-  if (!db) return { success: false, message: '??????????????????????????????' };
+  if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
   try {
     await db.execute(
       `UPDATE employees SET Emp_Sname=?, Emp_Firstname=?, Emp_Lastname=?, Emp_IDCard=?,
@@ -454,9 +454,9 @@ ipcMain.handle('update-employee', async (event, data) => {
         data.Emp_ID
       ]
     );
-    return { success: true, message: '????????????????????????' };
+    return { success: true, message: 'แก้ไขข้อมูลพนักงานสำเร็จ' };
   } catch (error) {
-    return { success: false, message: '??????????????: ' + error.message };
+    return { success: false, message: 'เกิดข้อผิดพลาด: ' + error.message };
   }
 });
 
@@ -466,12 +466,12 @@ ipcMain.handle('update-employee', async (event, data) => {
 
 // Delete employee
 ipcMain.handle('delete-employee', async (event, id) => {
-  if (!db) return { success: false, message: '??????????????????????????????' };
+  if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
   try {
     await db.execute('DELETE FROM employees WHERE Emp_ID = ?', [id]);
-    return { success: true, message: '?????????????????????' };
+    return { success: true, message: 'ลบข้อมูลพนักงานสำเร็จ' };
   } catch (error) {
-    return { success: false, message: '??????????????: ' + error.message };
+    return { success: false, message: 'เกิดข้อผิดพลาด: ' + error.message };
   }
 });
 
@@ -531,7 +531,7 @@ ipcMain.handle('add-daily-report', async (event, d) => {
       [d.drp_empID, d.drp_record, d.drp_Type, d.drp_Communicate, d.drp_Communicate1,
       d.drp_Sdate, d.drp_Stime, d.drp_Edate, d.drp_Etime, d.drp_status, d.drp_Remark]
     );
-    return { success: true, message: '?????????????????' };
+    return { success: true, message: 'บันทึกการลาสำเร็จ' };
   } catch (e) { return { success: false, message: e.message }; }
 });
 
@@ -548,7 +548,7 @@ ipcMain.handle('update-daily-report', async (event, d) => {
       [d.drp_empID, d.drp_record, d.drp_Type, d.drp_Communicate, d.drp_Communicate1,
       d.drp_Sdate, d.drp_Stime, d.drp_Edate, d.drp_Etime, d.drp_status, d.drp_Remark, d.drp_id]
     );
-    return { success: true, message: '??????????????????????' };
+    return { success: true, message: 'แก้ไขข้อมูลการลาสำเร็จ' };
   } catch (e) { return { success: false, message: e.message }; }
 });
 
@@ -557,13 +557,13 @@ ipcMain.handle('delete-daily-report', async (event, id) => {
   if (!db) return { success: false };
   try {
     await db.execute('DELETE FROM daily_report WHERE drp_id=?', [id]);
-    return { success: true, message: '???????????????????' };
+    return { success: true, message: 'ลบข้อมูลการลาสำเร็จ' };
   } catch (e) { return { success: false, message: e.message }; }
 });
 
 // Get employee training history
 ipcMain.handle('get-employee-training', async (event, empId) => {
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
   try {
     const [rows] = await db.execute(
       `SELECT
@@ -584,7 +584,6 @@ ipcMain.handle('get-employee-training', async (event, empId) => {
       INNER JOIN training_plan tp ON tp.Plan_ID = ht.Plan_ID
       INNER JOIN courses c ON c.Courses_ID = ht.Courses_ID
       WHERE ht.Emp_ID = ?
-        AND tp.Plan_ID IN (SELECT Plan_ID FROM training_expenses)
       ORDER BY tp.Plan_StartDate DESC`,
       [empId]
     );
@@ -626,7 +625,7 @@ ipcMain.handle('get-daily-report-by-date', async (event, dateStr) => {
 
 // Get all leave records where today falls within drp_Sdate..drp_Edate
 ipcMain.handle('get-today-on-leave', async (event) => {
-  if (!db) return { success: false, message: '??????????????????????????????' };
+  if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
   try {
     const now = new Date();
     const y = now.getFullYear();
@@ -662,11 +661,11 @@ ipcMain.handle('get-today-on-leave', async (event) => {
 
 // Export daily absence report to Excel (using template)
 ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
-  if (!data || !date) return { success: false, message: 'ไม่มีข้????' };
+  if (!data || !date) return { success: false, message: 'à¹„à¸¡à¹ˆà¸¡à¸µà¸‚à¹‰อมูล' };
   try {
     const ExcelJS = require('exceljs');
     const path = require('path');
-    const templatePath = path.join(__dirname, 'data', '????????????????????????.xlsx');
+    const templatePath = path.join(__dirname, 'data', 'รายงานการหยุดงานประจำวัน.xlsx');
     // Group data by company
     const grouped = { Vel: [], SK: [], TBS: [], CWS: [] };
     data.forEach(r => {
@@ -685,17 +684,17 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
       empRows.forEach(r => { if (totalByGroup[r.grp] !== undefined) totalByGroup[r.grp] = r.cnt; });
     } catch (e) { }
     // Format date label (Thai month name, CE year)
-    const thMonths = ['มกราค?', '??????????', 'มีนาค?', '??????', 'พฤษภาค?', '????????',
-      'กรกฎาค?', 'สิงหาค?', '???????', 'ตุลาค?', '?????????', 'ธันวาค?'];
+    const thMonths = ['à¸¡à¸à¸£à¸²à¸„ม', 'กุมภาพันธ์', 'à¸¡à¸µà¸™à¸²à¸„ม', 'เมษายน', 'à¸žà¸¤à¸©à¸ à¸²à¸„ม', 'มิถุนายน',
+      'à¸à¸£à¸à¸Žà¸²à¸„ม', 'à¸ªà¸´à¸‡à¸«à¸²à¸„ม', 'กันยายน', 'à¸•à¸¸à¸¥à¸²à¸„ม', 'พฤศจิกายน', 'à¸˜à¸±à¸™à¸§à¸²à¸„ม'];
     const dObj = new Date(date + 'T00:00:00');
     const thDateLabel = `${dObj.getDate()} ${thMonths[dObj.getMonth()]} ${dObj.getFullYear()}`;
     // Show save dialog
     const saveResult = await dialog.showSaveDialog({
-      title: '???????????? Excel',
-      defaultPath: `????????????????_${date}.xlsx`,
+      title: 'บันทึกรายงาน Excel',
+      defaultPath: `รายงานการหยุดงาน_${date}.xlsx`,
       filters: [{ name: 'Excel Files', extensions: ['xlsx'] }]
     });
-    if (saveResult.canceled || !saveResult.filePath) return { success: false, message: 'ยกเ???' };
+    if (saveResult.canceled || !saveResult.filePath) return { success: false, message: 'à¸¢à¸à¹€ลิก' };
     const outputPath = saveResult.filePath;
     // Load template workbook
     const wb = new ExcelJS.Workbook();
@@ -717,7 +716,7 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
       if (col.width) tmplColWidths.push({ c, width: col.width });
     }
     // Apply template snapshot to a blank sheet
-    // -- helper: copy a template row (by rowNum) to any target row on sheet
+    // ── helper: copy a template row (by rowNum) to any target row on sheet
     function copyTmplRow(sheet, tmplRowNum, targetRowNum) {
       const tr = tmplRows.find(r => r.rn === tmplRowNum);
       if (!tr) return;
@@ -731,7 +730,7 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
       row.commit();
     }
 
-    // -- helper: re-apply template merges for rows [srcStart..srcEnd] shifted by rowOffset
+    // ── helper: re-apply template merges for rows [srcStart..srcEnd] shifted by rowOffset
     function shiftMerges(sheet, srcStart, srcEnd, rowOffset) {
       tmplMerges.forEach(m => {
         const match = m.match(/^([A-Za-z]+)(\d+):([A-Za-z]+)(\d+)$/);
@@ -744,7 +743,7 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
       });
     }
 
-    // -- apply template rows minRow..maxRow (merges + styles + widths) to a sheet
+    // ── apply template rows minRow..maxRow (merges + styles + widths) to a sheet
     function applyTemplate(sheet, minRow, maxRow) {
       if (minRow === undefined) minRow = 1;
       if (maxRow === undefined) maxRow = Infinity;
@@ -771,14 +770,14 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
       tmplColWidths.forEach(({ c, width }) => { sheet.getColumn(c).width = width; });
     }
 
-    // -- helper: get communicate label
+    // ── helper: get communicate label
     function commLabel(r) {
-      if (r.drp_Communicate && r.drp_Communicate.trim()) return '\u0E42\u0E17\u0E23';           // ???
-      if (r.drp_Communicate1 && r.drp_Communicate1.trim()) return '\u0E41\u0E08\u0E49\u0E07\u0E25\u0E48\u0E27\u0E07\u0E2B\u0E19\u0E49\u0E32'; // ????????????
+      if (r.drp_Communicate && r.drp_Communicate.trim()) return '\u0E42\u0E17\u0E23';           // โทร
+      if (r.drp_Communicate1 && r.drp_Communicate1.trim()) return '\u0E41\u0E08\u0E49\u0E07\u0E25\u0E48\u0E27\u0E07\u0E2B\u0E19\u0E49\u0E32'; // แจ้งล่วงหน้า
       return '';
     }
 
-    // -- constants
+    // ── constants
     const ROWS_PER_SECTION = 20;
     const DATA_TMPL_START = 6;   // first data row in template
     const DATA_TMPL_END = 25;  // last  data row in template
@@ -791,7 +790,7 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
     const outCount = outsourceList.length;
     const sections = Math.ceil(Math.max(velCount, outCount, 1) / ROWS_PER_SECTION);
 
-    // -- choose / build the working sheet
+    // ── choose / build the working sheet
     let sheet;
     if (sections === 1) {
       // single section: use the loaded template sheet as-is
@@ -803,10 +802,10 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
       applyTemplate(sheet, 1, DATA_TMPL_END);
     }
 
-    // -- date label
+    // ── date label
     sheet.getCell('U1').value = thDateLabel;
 
-    // -- write all data sections
+    // ── write all data sections
     let currentRow = DATA_TMPL_START;
 
     for (let sec = 0; sec < sections; sec++) {
@@ -815,13 +814,13 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
       const outChunk = outsourceList.slice(offset, offset + ROWS_PER_SECTION);
 
       if (sec > 0) {
-        // -- Leave 4 blank rows, then repeat the FULL header (rows 1-5):
+        // ── Leave 4 blank rows, then repeat the FULL header (rows 1-5):
         //    row 1 = title + date,  rows 3-5 = section/column headers
         //    (row 2 is blank spacer)
         currentRow += 4;
         const HEADER_ROWS = [1, 2, 3, 4, 5];
         const headerOffset = currentRow - HEADER_ROWS[0]; // same for all
-        // shift ALL header merges in one call so multi-row spans (A4:A5, B4:D5�) are handled
+        // shift ALL header merges in one call so multi-row spans (A4:A5, B4:D5…) are handled
         shiftMerges(sheet, HEADER_ROWS[0], HEADER_ROWS[HEADER_ROWS.length - 1], headerOffset);
         HEADER_ROWS.forEach((tmplHR, idx) => {
           copyTmplRow(sheet, tmplHR, currentRow + idx);
@@ -879,7 +878,7 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
       currentRow += ROWS_PER_SECTION;
     }
 
-    // -- write summary section
+    // ── write summary section
     // currentRow is now just after the last data row
     const summaryOffset = currentRow - SUMMARY_TMPL_START; // = 0 when sections === 1
 
@@ -891,7 +890,7 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
       }
     }
 
-    // -- fill summary values (summaryOffset adjusts row numbers)
+    // ── fill summary values (summaryOffset adjusts row numbers)
     const S = summaryOffset;
 
     // company totals
@@ -955,7 +954,7 @@ ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
 ipcMain.handle('get-next-plan-id', async (event) => {
 
 
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
 
 
   try {
@@ -991,7 +990,7 @@ ipcMain.handle('get-next-plan-id', async (event) => {
 ipcMain.handle('get-courses', async (event) => {
 
 
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
 
 
   try {
@@ -1018,7 +1017,7 @@ ipcMain.handle('get-courses', async (event) => {
 ipcMain.handle('get-training-plans', async (event, filters = {}) => {
 
 
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
 
 
   try {
@@ -1168,10 +1167,10 @@ ipcMain.handle('get-training-plans', async (event, filters = {}) => {
         COUNT(*) AS totalCount,
 
 
-        SUM(CASE WHEN tp.Plan_TypeTraining = '?????' THEN 1 ELSE 0 END) AS internalCount,
+        SUM(CASE WHEN tp.Plan_TypeTraining = 'ภายใน' THEN 1 ELSE 0 END) AS internalCount,
 
 
-        SUM(CASE WHEN tp.Plan_TypeTraining = '??????' THEN 1 ELSE 0 END) AS externalCount
+        SUM(CASE WHEN tp.Plan_TypeTraining = 'ภายนอก' THEN 1 ELSE 0 END) AS externalCount
 
 
       ${joins} ${where}`,
@@ -1300,7 +1299,7 @@ ipcMain.handle('get-training-plans', async (event, filters = {}) => {
 ipcMain.handle('save-training-plan', async (event, data) => {
 
 
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
 
 
   try {
@@ -1567,7 +1566,7 @@ ipcMain.handle('save-training-plan', async (event, data) => {
 
 
 
-    return { success: true, message: '?????????????????????????', data: { Plan_ID: planId } };
+    return { success: true, message: 'บันทึกแผนการฝึกอบรมสำเร็จ', data: { Plan_ID: planId } };
 
 
   } catch (e) { return { success: false, message: e.message }; }
@@ -1585,7 +1584,7 @@ ipcMain.handle('save-training-plan', async (event, data) => {
 ipcMain.handle('get-training-participants', async (event, planId) => {
 
 
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
 
 
   try {
@@ -1651,7 +1650,7 @@ ipcMain.handle('get-training-participants', async (event, planId) => {
 ipcMain.handle('get-training-plans-for-record', async () => {
 
 
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
 
 
   try {
@@ -1711,7 +1710,7 @@ ipcMain.handle('get-training-plans-for-record', async () => {
 ipcMain.handle('get-training-record-participants', async (event, planId) => {
 
 
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
 
 
   try {
@@ -1771,7 +1770,7 @@ ipcMain.handle('get-training-record-participants', async (event, planId) => {
 ipcMain.handle('save-training-record-row', async (event, { hisId, state, remark }) => {
 
 
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
 
 
   try {
@@ -1802,20 +1801,20 @@ ipcMain.handle('save-training-record-row', async (event, { hisId, state, remark 
 // Only registered employees (existing history_training row) may be checked in.
 // For half-day plans the check-in is immediately treated as T (passed).
 ipcMain.handle('checkin-training', async (event, { planId, empId, session, remark }) => {
-  if (!db) return { success: false, message: '????????????????????????' };
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
   const validSessions = ['D', 'N', 'T'];
-  if (!validSessions.includes(session)) return { success: false, message: 'session ??????????' };
+  if (!validSessions.includes(session)) return { success: false, message: 'session ไม่ถูกต้อง' };
   try {
-    // Must already be registered � no new inserts allowed from check-in
+    // Must already be registered — no new inserts allowed from check-in
     const [existing] = await db.execute(
       'SELECT his_id, his_state FROM history_training WHERE Plan_ID=? AND Emp_ID=?',
       [planId, empId]
     );
     if (existing.length === 0) {
-      return { success: false, notRegistered: true, message: '??????????????????????????????????' };
+      return { success: false, notRegistered: true, message: 'พนักงานนี้ไม่มีชื่อในรายการอบรมนี้' };
     }
 
-    // Detect if the plan is half-day (morning-only or afternoon-only) ? auto-pass
+    // Detect if the plan is half-day (morning-only or afternoon-only) → auto-pass
     let finalSession = session;
     const [planRows] = await db.execute(
       'SELECT Plan_TimeStart, Plan_TimeEnd FROM training_plan WHERE Plan_ID=?', [planId]
@@ -1851,7 +1850,7 @@ ipcMain.handle('checkin-training', async (event, { planId, empId, session, remar
 
 // Undo check-in: revert state to W (waiting/registered)
 ipcMain.handle('undo-checkin-training', async (event, { hisId }) => {
-  if (!db) return { success: false, message: '????????????????????????' };
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
   try {
     await db.execute(
       "UPDATE history_training SET his_state='W', his_timestamp=NOW() WHERE his_id=?",
@@ -1861,9 +1860,9 @@ ipcMain.handle('undo-checkin-training', async (event, { hisId }) => {
   } catch (e) { return { success: false, message: e.message }; }
 });
 
-// Check if a training plan is safe to delete � returns registration & expense counts
+// Check if a training plan is safe to delete — returns registration & expense counts
 ipcMain.handle('check-plan-deletable', async (event, planId) => {
-  if (!db) return { success: false, message: '????????????????????????' };
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
   try {
     const [[{ regCount }]] = await db.execute(
       'SELECT COUNT(*) AS regCount FROM history_training WHERE Plan_ID=?', [planId]
@@ -1877,7 +1876,7 @@ ipcMain.handle('check-plan-deletable', async (event, planId) => {
 
 // Delete a training plan and all its associated records
 ipcMain.handle('delete-training-plan', async (event, planId) => {
-  if (!db) return { success: false, message: '????????????????????????' };
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
   try {
     await db.execute('DELETE FROM training_expenses  WHERE Plan_ID=?', [planId]);
     await db.execute('DELETE FROM history_training   WHERE Plan_ID=?', [planId]);
@@ -1902,7 +1901,7 @@ ipcMain.handle('delete-training-plan', async (event, planId) => {
 ipcMain.handle('export-training-record-excel', async (event, { plan, participants, timeRange }) => {
 
 
-  if (!plan || !participants) return { success: false, message: '???????????' };
+  if (!plan || !participants) return { success: false, message: 'ไม่มีข้อมูล' };
 
 
   try {
@@ -1932,7 +1931,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
     if (!templateName) {
 
 
-      return { success: false, message: '????????? template F-HR-002 ?????????? data' };
+      return { success: false, message: 'ไม่พบไฟล์ template F-HR-002 ในโฟลเดอร์ data' };
 
 
     }
@@ -1947,10 +1946,10 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
     let timeLabel = '';
 
 
-    if (timeRange === 'morning') timeLabel = '08.00 - 12.00 ?.';
+    if (timeRange === 'morning') timeLabel = '08.00 - 12.00 น.';
 
 
-    else if (timeRange === 'afternoon') timeLabel = '13.00 - 17.00 ?.';
+    else if (timeRange === 'afternoon') timeLabel = '13.00 - 17.00 น.';
 
 
     else {
@@ -1962,7 +1961,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
       const te = plan.Plan_TimeEnd ? plan.Plan_TimeEnd.substring(0, 5) : '';
 
 
-      timeLabel = ts && te ? `${ts} - ${te} ?.` : (ts || te || '');
+      timeLabel = ts && te ? `${ts} - ${te} น.` : (ts || te || '');
 
 
     }
@@ -1971,10 +1970,10 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
 
 
 
-    const thMonths = ['??????', '??????????', '??????', '??????', '???????', '????????',
+    const thMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
 
 
-      '???????', '???????', '???????', '??????', '?????????', '???????'];
+      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
 
     const dObj = plan.Plan_StartDate ? new Date(plan.Plan_StartDate + 'T00:00:00') : new Date();
@@ -1989,7 +1988,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
     const saveResult = await dialog.showSaveDialog({
 
 
-      title: '?????????? Excel',
+      title: 'บันทึกไฟล์ Excel',
 
 
       defaultPath: `F-HR-002_${plan.Plan_StartDate || 'training'}.xlsx`,
@@ -2001,7 +2000,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
     });
 
 
-    if (saveResult.canceled || !saveResult.filePath) return { success: false, message: '??????' };
+    if (saveResult.canceled || !saveResult.filePath) return { success: false, message: 'ยกเลิก' };
 
 
     const outputPath = saveResult.filePath;
@@ -2034,19 +2033,19 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
 
 
 
-    const sheet0 = wb.worksheets[0]; // Sheet 1: ???????
+    const sheet0 = wb.worksheets[0]; // Sheet 1: รายชื่อ
 
 
-    const sheet1 = wb.worksheets[1]; // Sheet 2: ?????????
+    const sheet1 = wb.worksheets[1]; // Sheet 2: แบบบันทึก
 
 
-    if (!sheet0) throw new Error('????? sheet ?????? template');
+    if (!sheet0) throw new Error('ไม่พบ sheet ในไฟล์ template');
 
 
 
 
 
-    // -- snapshot(fromRow, toRow): capture rows + merges into offset-based structure --
+    // ── snapshot(fromRow, toRow): capture rows + merges into offset-based structure ──
 
 
     function snapRows(sheet, fromRow, toRow) {
@@ -2124,7 +2123,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
 
 
 
-    // -- stamp snapshot onto sheet at targetRow (first snap row goes to targetRow) --
+    // ── stamp snapshot onto sheet at targetRow (first snap row goes to targetRow) ──
 
 
     function stampSnap(sheet, snap, targetRow) {
@@ -2190,7 +2189,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
 
 
 
-    // -- write the 6 variable header values; startRow = where row-1 of the block is --
+    // ── write the 6 variable header values; startRow = where row-1 of the block is ──
 
 
     function writeHeaderValues(sheet, startRow) {
@@ -2220,13 +2219,13 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
 
 
 
-    // -- resolve English names stored duplicated in both fields --
+    // ── resolve English names stored duplicated in both fields ──
 
 
     // e.g. Firstname="YOON THARAPHI THAW" Lastname="YOON THARAPHI THAW"
 
 
-    // ? firstname="YOON", lastname="THARAPHI THAW"
+    // → firstname="YOON", lastname="THARAPHI THAW"
 
 
     function resolveNames(p) {
@@ -2262,7 +2261,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
 
 
 
-    // -- write one block of participant rows (up to 30) at dataStartRow --
+    // ── write one block of participant rows (up to 30) at dataStartRow ──
 
 
     function writeDataBlock(sheet, dataStartRow, globalOffset, dataRowSnap) {
@@ -2319,13 +2318,13 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
           row.getCell(2).value = p.Emp_ID || '';
 
 
-          row.getCell(3).value = p.Emp_Sname || '';  // คำนำหน้?
+          row.getCell(3).value = p.Emp_Sname || '';  // à¸„à¸³à¸™à¸³à¸«à¸™à¹‰า
 
 
-          row.getCell(4).value = firstname;           // ชื่?
+          row.getCell(4).value = firstname;           // à¸Šà¸·à¹ˆอ
 
 
-          row.getCell(5).value = lastname;            // น??????
+          row.getCell(5).value = lastname;            // à¸™ามสกุล
 
 
           row.getCell(6).value = p.Position_Name || '';
@@ -2358,7 +2357,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
 
 
 
-    // -- fill an entire sheet with all participants, repeating header every 30 rows --
+    // ── fill an entire sheet with all participants, repeating header every 30 rows ──
 
 
     function fillSheet(sheet) {
@@ -2421,7 +2420,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
 
 
 
-      // Blocks 1, 2, � : 2 spacer rows ? header block ? data block
+      // Blocks 1, 2, … : 2 spacer rows → header block → data block
 
 
       let nextRow = FIRST_DATA_ROW + ROWS_PER_BLOCK; // starts at 39
@@ -2529,7 +2528,7 @@ ipcMain.handle('export-training-record-excel', async (event, { plan, participant
 ipcMain.handle('get-next-expense-id', async () => {
 
 
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
 
 
   try {
@@ -2565,7 +2564,7 @@ ipcMain.handle('get-next-expense-id', async () => {
 ipcMain.handle('search-plans-for-expense', async (event, { keyword = '', exact = false } = {}) => {
 
 
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
 
 
   try {
@@ -2655,7 +2654,7 @@ ipcMain.handle('search-plans-for-expense', async (event, { keyword = '', exact =
 ipcMain.handle('get-expenses', async (event, filters = {}) => {
 
 
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
 
 
   try {
@@ -2700,7 +2699,7 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
     if (yearFilter) {
 
 
-      conditions.push(`YEAR(te.Expenses_TimeStamp) = ?`);
+      conditions.push(`YEAR(tp.Plan_StartDate) = ?`);
 
 
       params.push(Number(yearFilter));
@@ -2712,7 +2711,7 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
     if (dateFrom) {
 
 
-      conditions.push(`DATE(te.Expenses_TimeStamp) >= ?`);
+      conditions.push(`tp.Plan_StartDate >= ?`);
 
 
       params.push(dateFrom);
@@ -2724,7 +2723,7 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
     if (dateTo) {
 
 
-      conditions.push(`DATE(te.Expenses_TimeStamp) <= ?`);
+      conditions.push(`tp.Plan_StartDate <= ?`);
 
 
       params.push(dateTo);
@@ -2742,7 +2741,7 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
       INNER JOIN training_plan tp ON tp.Plan_ID = te.Plan_ID
 
 
-      INNER JOIN courses c ON c.Courses_ID = tp.Courses_ID`;
+      INNER JOIN courses c ON c.Courses_ID = te.Courses_ID`;
 
 
 
@@ -2769,19 +2768,25 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
         COUNT(*) AS totalAll,
 
 
-        COALESCE(SUM(CAST(te.Expenses_Lecturer AS DECIMAL(12,2)) + CAST(te.Expenses_Tools AS DECIMAL(12,2)) + CAST(te.Expenses_Food AS DECIMAL(12,2)) + CAST(te.Expenses_Snack AS DECIMAL(12,2)) + CAST(te.Expenses_Travel AS DECIMAL(12,2))), 0) AS sumAll,
+        COALESCE(SUM(CAST(te.Expenses_Sum AS UNSIGNED)), 0) AS sumAll,
 
 
         SUM(CASE WHEN YEAR(te.Expenses_TimeStamp)=YEAR(NOW()) AND MONTH(te.Expenses_TimeStamp)=MONTH(NOW()) THEN 1 ELSE 0 END) AS thisMonth,
 
 
-        SUM(CASE WHEN YEAR(te.Expenses_TimeStamp)=YEAR(NOW()) AND MONTH(te.Expenses_TimeStamp)=MONTH(NOW()) THEN CAST(te.Expenses_Lecturer AS DECIMAL(12,2)) + CAST(te.Expenses_Tools AS DECIMAL(12,2)) + CAST(te.Expenses_Food AS DECIMAL(12,2)) + CAST(te.Expenses_Snack AS DECIMAL(12,2)) + CAST(te.Expenses_Travel AS DECIMAL(12,2)) ELSE 0 END) AS sumMonth
+        SUM(CASE WHEN YEAR(te.Expenses_TimeStamp)=YEAR(NOW()) AND MONTH(te.Expenses_TimeStamp)=MONTH(NOW()) THEN CAST(te.Expenses_Sum AS UNSIGNED) ELSE 0 END) AS sumMonth
 
 
-      ${joins} ${where}`,
+      FROM training_expenses te
 
 
-      params
+      INNER JOIN training_plan tp ON tp.Plan_ID = te.Plan_ID
+
+
+      INNER JOIN courses c ON c.Courses_ID = te.Courses_ID`,
+
+
+      []
 
 
     );
@@ -2793,7 +2798,7 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
     const [rows] = await db.execute(
 
 
-      `SELECT te.Expenses_ID, te.Plan_ID, tp.Courses_ID, c.Courses_Name,
+      `SELECT te.Expenses_ID, te.Plan_ID, te.Courses_ID, c.Courses_Name,
 
 
         te.Expenses_Lecturer, te.Expenses_Tools, te.Expenses_Food,
@@ -2835,7 +2840,7 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
         COALESCE(SUM(CAST(te.Expenses_Food AS DECIMAL(12,2))), 0) AS sumFood,
         COALESCE(SUM(CAST(te.Expenses_Snack AS DECIMAL(12,2))), 0) AS sumSnack,
         COALESCE(SUM(CAST(te.Expenses_Travel AS DECIMAL(12,2))), 0) AS sumTravel,
-        COALESCE(SUM(CAST(te.Expenses_Lecturer AS DECIMAL(12,2)) + CAST(te.Expenses_Tools AS DECIMAL(12,2)) + CAST(te.Expenses_Food AS DECIMAL(12,2)) + CAST(te.Expenses_Snack AS DECIMAL(12,2)) + CAST(te.Expenses_Travel AS DECIMAL(12,2))), 0) AS sumTotal,
+        COALESCE(SUM(CAST(te.Expenses_Sum AS DECIMAL(12,2))), 0) AS sumTotal,
         COUNT(*) AS cnt
       ${joins} ${where}`,
 
@@ -2849,7 +2854,7 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
     const [expYearRows] = await db.execute(
 
 
-      `SELECT DISTINCT YEAR(te.Expenses_TimeStamp) AS yr FROM training_expenses te ORDER BY yr DESC`
+      `SELECT DISTINCT YEAR(tp.Plan_StartDate) AS yr FROM training_expenses te INNER JOIN training_plan tp ON tp.Plan_ID = te.Plan_ID ORDER BY yr DESC`
 
 
     );
@@ -2942,7 +2947,7 @@ ipcMain.handle('get-expenses', async (event, filters = {}) => {
 ipcMain.handle('save-expense', async (event, data) => {
 
 
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
 
 
   try {
@@ -2960,7 +2965,7 @@ ipcMain.handle('save-expense', async (event, data) => {
 
 
 
-    if (!Plan_ID || !Courses_ID) return { success: false, message: '????????????????' };
+    if (!Plan_ID || !Courses_ID) return { success: false, message: 'ข้อมูลไม่ครบถ้วน' };
 
 
 
@@ -2969,7 +2974,7 @@ ipcMain.handle('save-expense', async (event, data) => {
     if (Expenses_ID) {
 
 
-      // Update existing � verify it's within editable window (= 1 month)
+      // Update existing — verify it's within editable window (≤ 1 month)
 
 
       const [[existing]] = await db.execute(
@@ -2981,7 +2986,7 @@ ipcMain.handle('save-expense', async (event, data) => {
       );
 
 
-      if (!existing) return { success: false, message: '??????????????????????????' };
+      if (!existing) return { success: false, message: 'ไม่พบรายการที่ต้องการแก้ไข' };
 
 
 
@@ -2996,7 +3001,7 @@ ipcMain.handle('save-expense', async (event, data) => {
       cutoff.setMonth(cutoff.getMonth() - 1);
 
 
-      if (ts < cutoff) return { success: false, message: '????????????????? ??????????????????? 1 เดือนแล้?' };
+      if (ts < cutoff) return { success: false, message: 'ไม่สามารถแก้ไขได้ เนื่องจากบันทึกเกิน 1 à¹€à¸”à¸·à¸­à¸™à¹à¸¥à¹‰ว' };
 
 
 
@@ -3029,13 +3034,13 @@ ipcMain.handle('save-expense', async (event, data) => {
       );
 
 
-      return { success: true, message: '?????????????????????' };
+      return { success: true, message: 'แก้ไขค่าใช้จ่ายสำเร็จ' };
 
 
     } else {
 
 
-      // Insert new � generate next ID
+      // Insert new — generate next ID
 
 
       const [[nextRow]] = await db.execute(
@@ -3068,7 +3073,7 @@ ipcMain.handle('save-expense', async (event, data) => {
       );
 
 
-      if (dup) return { success: false, message: `แผนการอบรมนี้มีการบันทึกค่าใช้จ่ายแล้? (${dup.Expenses_ID})` };
+      if (dup) return { success: false, message: `à¹à¸œà¸™à¸à¸²à¸£à¸­à¸šà¸£à¸¡à¸™à¸µà¹‰à¸¡à¸µà¸à¸²à¸£à¸šà¸±à¸™à¸—à¸¶à¸à¸„à¹ˆà¸²à¹ƒà¸Šà¹‰à¸ˆà¹ˆà¸²à¸¢à¹à¸¥à¹‰ว (${dup.Expenses_ID})` };
 
 
 
@@ -3101,7 +3106,7 @@ ipcMain.handle('save-expense', async (event, data) => {
       );
 
 
-      return { success: true, message: '??????????????????????', data: { Expenses_ID: newId } };
+      return { success: true, message: 'บันทึกค่าใช้จ่ายสำเร็จ', data: { Expenses_ID: newId } };
 
 
     }
@@ -3122,7 +3127,7 @@ ipcMain.handle('save-expense', async (event, data) => {
 // Table: holiday  Columns: ID (INT PK AUTO_INCREMENT), `Date` (VARCHAR YYYY/MM/DD), `Important Day` (VARCHAR)
 // Get holidays by year (CE year)
 ipcMain.handle('get-holidays', async (event, { year } = {}) => {
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
   try {
     const ceYear = year ? parseInt(year, 10) : new Date().getFullYear();
     const [rows] = await db.execute(
@@ -3139,28 +3144,28 @@ ipcMain.handle('get-holidays', async (event, { year } = {}) => {
 
 // Save holiday (INSERT or UPDATE)
 ipcMain.handle('save-holiday', async (event, data) => {
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
   try {
     const { Holiday_ID, Holiday_Date, Holiday_Name } = data;
-    if (!Holiday_Date || !Holiday_Name) return { success: false, message: '????????????????' };
+    if (!Holiday_Date || !Holiday_Name) return { success: false, message: 'ข้อมูลไม่ครบถ้วน' };
     if (Holiday_ID) {
       // UPDATE
       await db.execute(
         "UPDATE `holiday` SET `Date`=?, `Important Day`=? WHERE `ID`=?",
         [Holiday_Date, String(Holiday_Name).trim(), Holiday_ID]
       );
-      return { success: true, message: '??????????????????' };
+      return { success: true, message: 'แก้ไขวันหยุดสำเร็จ' };
     } else {
-      // INSERT � prevent duplicate date
+      // INSERT — prevent duplicate date
       const [dup] = await db.execute(
         "SELECT `ID` FROM `holiday` WHERE `Date`=?", [Holiday_Date]
       );
-      if (dup.length > 0) return { success: false, message: 'วันที่นี้มีวันหยุดอยู่แล้?' };
+      if (dup.length > 0) return { success: false, message: 'à¸§à¸±à¸™à¸—à¸µà¹ˆà¸™à¸µà¹‰à¸¡à¸µà¸§à¸±à¸™à¸«à¸¢à¸¸à¸”à¸­à¸¢à¸¹à¹ˆà¹à¸¥à¹‰ว' };
       await db.execute(
         "INSERT INTO `holiday` (`Date`, `Important Day`) VALUES (?, ?)",
         [Holiday_Date, String(Holiday_Name).trim()]
       );
-      return { success: true, message: '??????????????????' };
+      return { success: true, message: 'เพิ่มวันหยุดสำเร็จ' };
     }
   } catch (e) { return { success: false, message: e.message }; }
 });
@@ -3171,7 +3176,7 @@ ipcMain.handle('save-holiday', async (event, data) => {
 
 // Delete holiday by ID
 ipcMain.handle('delete-holiday', async (event, holidayId) => {
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
   try {
     await db.execute("DELETE FROM `holiday` WHERE `ID`=?", [parseInt(holidayId, 10)]);
     return { success: true };
@@ -3184,7 +3189,7 @@ ipcMain.handle('delete-holiday', async (event, holidayId) => {
 
 // Get holidays by year+month (for OT form)
 ipcMain.handle('get-holidays-for-month', async (event, { year, month } = {}) => {
-  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้????' };
+  if (!db) return { success: false, message: 'à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¸à¸²à¸™à¸‚à¹‰อมูล' };
   try {
     const ceYear = year ? parseInt(year, 10) : new Date().getFullYear();
     const mm = String(month || (new Date().getMonth() + 1)).padStart(2, '0');
@@ -3204,14 +3209,14 @@ ipcMain.handle('get-holidays-for-month', async (event, { year, month } = {}) => 
 // ===================== OT EXCEL EXPORT =====================
 ipcMain.handle('export-ot-excel', async (event, { forms, ceYear, month }) => {
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-    title: '?????????? Excel',
+    title: 'บันทึกไฟล์ Excel',
     defaultPath: `OT_${ceYear + 543}_${String(month).padStart(2, '0')}.xlsx`,
     filters: [{ name: 'Excel Workbook', extensions: ['xlsx'] }]
   });
   if (canceled || !filePath) return { success: false, canceled: true };
 
-  // -- Fetch supervisor info for each unique Sub_ID used in forms -------------
-  const subSupMap = new Map(); // Sub_ID ? { name, position }
+  // ── Fetch supervisor info for each unique Sub_ID used in forms ─────────────
+  const subSupMap = new Map(); // Sub_ID → { name, position }
   if (db) {
     try {
       const uniqueSubIds = [...new Set(forms.map(f => f.emp?.Sub_ID).filter(Boolean))];
@@ -3229,28 +3234,28 @@ ipcMain.handle('export-ot-excel', async (event, { forms, ceYear, month }) => {
         );
         rows.forEach(r => subSupMap.set(r.Sub_ID, { name: (r.sup_name || '').trim(), position: r.sup_pos || '' }));
       }
-    } catch { /* non-fatal � continue export without supervisor */ }
+    } catch { /* non-fatal — continue export without supervisor */ }
   }
 
   const THAI_MONTHS_XL = ['',
-    '??????',
-    '??????????',
-    '??????',
-    '??????',
-    '???????',
-    '????????',
-    '???????',
-    '???????',
-    '???????',
-    '??????',
-    '?????????',
-    '???????'];
+    'มกราคม',
+    'กุมภาพันธ์',
+    'มีนาคม',
+    'เมษายน',
+    'พฤษภาคม',
+    'มิถุนายน',
+    'กรกฎาคม',
+    'สิงหาคม',
+    'กันยายน',
+    'ตุลาคม',
+    'พฤศจิกายน',
+    'ธันวาคม'];
 
   const beYear = ceYear + 543;
   const monthName = THAI_MONTHS_XL[month];
   const daysInMonth = new Date(ceYear, month, 0).getDate();
 
-  // -- Load the original template once --------------------------------------
+  // ── Load the original template once ──────────────────────────────────────
   const templatePath = path.join(__dirname, 'data', 'OT.xlsx');
   const templateWb = new ExcelJS.Workbook();
   await templateWb.xlsx.readFile(templatePath);
@@ -3258,10 +3263,10 @@ ipcMain.handle('export-ot-excel', async (event, { forms, ceYear, month }) => {
     || templateWb.worksheets.find(Boolean);
   if (!templateWs) {
     console.error('[OT Export] sheets in template:', templateWb.worksheets.map(s => s && s.name));
-    return { success: false, message: `????? sheet ?? template: ${templatePath}` };
+    return { success: false, message: `ไม่พบ sheet ใน template: ${templatePath}` };
   }
 
-  // -- Output workbook -------------------------------------------------------
+  // ── Output workbook ───────────────────────────────────────────────────────
   const outWb = new ExcelJS.Workbook();
 
   // Helper: deep-copy one worksheet from template into outWb
@@ -3302,32 +3307,32 @@ ipcMain.handle('export-ot-excel', async (event, { forms, ceYear, month }) => {
     return dstWs;
   }
 
-  // -- Build one sheet per employee ------------------------------------------
+  // ── Build one sheet per employee ──────────────────────────────────────────
   for (const { emp, days } of forms) {
     const ws = copySheet(templateWs, String(emp.Emp_ID));
 
-    // -- Row 1: Title with month + year --------------------------------------
+    // ── Row 1: Title with month + year ──────────────────────────────────────
     ws.getCell('A1').value =
-      `     ???????????????????????????????? ${monthName} ${beYear}`;
+      `     รายงานการทำงานล่วงเวลาประจำเดือน ${monthName} ${beYear}`;
 
-    // -- Row 2: Employee name + ID -------------------------------------------
+    // ── Row 2: Employee name + ID ───────────────────────────────────────────
     ws.getCell('D2').value = emp.Emp_Firstname || emp.Fullname || '';
     ws.getCell('F2').value = emp.Emp_Lastname || '';
     ws.getCell('I2').value = String(emp.Emp_ID);
 
-    // -- Row 3: Department + date range ----------------------------------------
+    // ── Row 3: Department + date range ────────────────────────────────────────
     ws.getCell('D3').value = emp.Sub_Name || '';
     ws.getCell('I3').value = `1 - ${daysInMonth} ${monthName} ${beYear}`;
 
-    // -- Day rows (6-35): day number + weekend/holiday label -------------------
+    // ── Day rows (6-35): day number + weekend/holiday label ───────────────────
     for (let i = 0; i < days.length; i++) {
       const day = days[i];
       const rowNum = 6 + i;
       ws.getCell(rowNum, 1).value = String(day.d);
       let note = '';
       if (day.isHoliday) note = day.holidayName;
-      else if (day.dow === 6) note = '????????';
-      else if (day.dow === 0) note = '??????????';
+      else if (day.dow === 6) note = 'วันเสาร์';
+      else if (day.dow === 0) note = 'วันอาทิตย์';
       ws.getCell(rowNum, 10).value = note;
     }
 
@@ -3337,11 +3342,11 @@ ipcMain.handle('export-ot-excel', async (event, { forms, ceYear, month }) => {
       ws.getCell(5 + extra, 10).value = null;
     }
 
-    // -- Signature rows: fill supervisor name/position from subdivision ------
+    // ── Signature rows: fill supervisor name/position from subdivision ──────
     const sup = subSupMap.get(emp.Sub_ID);
     if (sup && sup.name) {
       ws.getCell(40, 9).value = `(  ${sup.name}  )`;
-      ws.getCell(41, 9).value = sup.position || '??????????';
+      ws.getCell(41, 9).value = sup.position || 'หัวหน้างาน';
     }
   }
 
@@ -3392,7 +3397,7 @@ ipcMain.handle('export-ot-pdf', async (event, { xlsxPath, pdfPath }) => {
 
     return { success: true, filePath: pdfPath };
   } catch (e) {
-    return { success: false, message: `???? PDF ????????? (??????? Microsoft Excel): ${e.message}` };
+    return { success: false, message: `แปลง PDF ไม่สำเร็จ (ต้องการ Microsoft Excel): ${e.message}` };
   } finally {
     try { fs.unlinkSync(tempScript); } catch {}
   }
