@@ -584,6 +584,7 @@ ipcMain.handle('get-employee-training', async (event, empId) => {
       INNER JOIN training_plan tp ON tp.Plan_ID = ht.Plan_ID
       INNER JOIN courses c ON c.Courses_ID = ht.Courses_ID
       WHERE ht.Emp_ID = ?
+        AND tp.Plan_ID IN (SELECT Plan_ID FROM training_expenses)
       ORDER BY tp.Plan_StartDate DESC`,
       [empId]
     );

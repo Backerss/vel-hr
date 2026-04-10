@@ -634,6 +634,10 @@ function _handleGlobalKey(e) {
   }
 
   if (e.key === 'Enter') {
+    // If save-confirm modal is already open, let the focused button handle it naturally
+    const saveConfirmModal = document.getElementById('leaveSaveConfirmModal');
+    if (saveConfirmModal && saveConfirmModal.classList.contains('show')) return;
+
     // If leave modal is open, form is complete, and user is HR → show save confirm
     const leaveModal = document.getElementById('leaveModal');
     if (leaveModal && leaveModal.classList.contains('show') && currentUser?.role !== 'guest') {
