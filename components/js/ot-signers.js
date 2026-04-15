@@ -101,8 +101,8 @@ function _renderPage(container) {
     ${deptCards}
 
     <!-- Edit supervisor modal -->
-    <div class="modal-overlay" id="otsgModal" style="display:none;">
-      <div class="modal-dialog" style="max-width:480px;">
+    <div class="modal-overlay" id="otsgModal">
+      <div class="modal-card" style="max-width:480px;">
         <div class="modal-header">
           <span class="modal-title">แก้ไขหัวหน้างานผู้เซ็นชื่อ OT</span>
           <button class="modal-close" onclick="closeModal('otsgModal')">&times;</button>
@@ -116,10 +116,9 @@ function _renderPage(container) {
             <label class="form-label">ค้นหาพนักงาน</label>
             <div style="display:flex;gap:8px;">
               <input type="text" class="form-control" id="otsgEmpSearch"
-                placeholder="พิมพ์รหัสหรือชื่อพนักงาน..." oninput="otsgEmpSearch()">
-              <button class="btn-outline-custom" onclick="otsgEmpSearch()" style="white-space:nowrap;">
-                <i class="bi bi-search"></i>
-              </button>
+                placeholder="พิมพ์รหัสหรือชื่อพนักงาน..."
+                oninput="otsgEmpSearch()"
+                autocomplete="off">
             </div>
             <div id="otsgEmpDropdown" style="position:relative;"></div>
           </div>
@@ -165,6 +164,10 @@ export function otsgOpenEdit(subId) {
   document.getElementById('otsgEmpName').value = (sub.Supervisor_Name || '').trim();
   document.getElementById('otsgEmpDropdown').innerHTML = '';
   showModal('otsgModal');
+  setTimeout(() => {
+    const inp = document.getElementById('otsgEmpSearch');
+    if (inp) { inp.focus(); inp.select(); }
+  }, 80);
 }
 
 // ===================== EMPLOYEE SEARCH =====================
@@ -183,9 +186,10 @@ export async function otsgEmpSearch() {
     res.data.map(e => {
       const full = `${e.Emp_Sname || ''}${e.Emp_Firstname || ''} ${e.Emp_Lastname || ''}`.trim();
       const sub  = e.Sub_Name || '';
-      return `<div onclick="otsgSelectEmp('${escHtml(e.Emp_ID)}','${escHtml(full)}')"
+      return `<div class="_otsg-item" data-empid="${escHtml(e.Emp_ID)}" data-fullname="${escHtml(full)}"
+        onclick="otsgSelectEmp('${escHtml(e.Emp_ID)}','${escHtml(full)}')"
         style="padding:8px 14px;font-size:13px;cursor:pointer;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--gray-100);"
-        onmouseenter="this.style.background='#eff6ff'" onmouseleave="this.style.background=''">
+        onmouseenter="this.style.background='var(--primary-light,#eff6ff)'" onmouseleave="this.style.background=''">
         <span class="emp-id" style="font-size:11.5px;">${escHtml(e.Emp_ID)}</span>
         <span>${escHtml(full)}</span>
         <span style="margin-left:auto;font-size:11.5px;color:var(--gray-400);">${escHtml(sub)}</span>

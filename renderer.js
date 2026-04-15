@@ -476,7 +476,21 @@ function _handleEnterKey(e) {
     }
     return;
   }
-
+  // ── 2. OT Signers employee search ─────────────────────────────────────────
+  if (id === 'otsgEmpSearch') {
+    e.preventDefault();
+    const items = [...document.querySelectorAll('._otsg-item')];
+    const highlighted = items.find(item => item.style.background !== '');
+    if (highlighted) {
+      highlighted.click();
+    } else if (items.length > 0) {
+      items[0].click();
+    } else {
+      // No results yet — trigger search
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    return;
+  }
   // ── 2. Search inputs → fire immediately (bypass debounce) ───────────────
   // Detected by class or id convention (*Search* / *search*)
   if (el.classList.contains('search-input') || /search/i.test(id)) {
@@ -582,6 +596,32 @@ function _handleArrowNav(e) {
   // Escape on fLeaveEmpID → hide suggestions
   if (el.id === 'fLeaveEmpID' && e.key === 'Escape') {
     window.hideEmpSuggestions?.();
+    return;
+  }
+
+  // ArrowDown / ArrowUp on otsgEmpSearch → navigate OT signers dropdown
+  if (el.id === 'otsgEmpSearch' && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    const items = [...document.querySelectorAll('._otsg-item')];
+    if (!items.length) return;
+    e.preventDefault();
+    let cur = items.findIndex(item => item.style.background !== '');
+    if (e.key === 'ArrowDown') cur = Math.min(cur + 1, items.length - 1);
+    else cur = Math.max(cur - 1, 0);
+    items.forEach((item, i) => {
+      item.style.background = i === cur ? 'var(--primary-light,#eff6ff)' : '';
+    });
+    items[cur]?.scrollIntoView({ block: 'nearest' });
+    return;
+  }
+
+  // Escape on otsgEmpSearch → close dropdown, or close modal if dropdown already empty
+  if (el.id === 'otsgEmpSearch' && e.key === 'Escape') {
+    const dd = document.getElementById('otsgEmpDropdown');
+    if (dd && dd.innerHTML.trim()) {
+      dd.innerHTML = '';
+    } else {
+      closeModal('otsgModal');
+    }
     return;
   }
 
