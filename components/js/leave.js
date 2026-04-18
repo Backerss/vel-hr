@@ -14,6 +14,8 @@ let deletingLeaveId = null;
 let leaveCurrentPage = 1;
 const LEAVE_PER_PAGE = 50;
 let leaveSearchTimeout = null;
+let _leaveSearchSuggestTimer = null;
+let _leaveSearchSelectedEmpId = null;
 let currentAbsenceDate = '';
 let currentAbsenceData = [];
 // ---- Today's Leave (guest-only) ----
@@ -91,14 +93,15 @@ export async function loadLeaveRecordPage() {
   ).join('');
 
   container.innerHTML = `
-    <div class="table-section" style="padding:16px 20px;margin-bottom:16px;">
+    <div class="table-section" style="padding:16px 20px;margin-bottom:16px;overflow:visible;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <i class="bi bi-calendar-plus" style="font-size:19px;color:var(--primary);"></i>
         <span style="font-size:15px;font-weight:700;color:var(--gray-900);">ประวัติการลางาน</span>
         <div style="flex:1;min-width:8px;"></div>
-        <div class="search-box" style="max-width:190px;">
+        <div class="search-box" style="max-width:280px;min-width:240px;position:relative;">
           <i class="bi bi-search"></i>
-          <input type="text" class="search-input" id="leaveSearch" placeholder="ค้นหา รหัส / ชื่อ..." oninput="onLeaveSearch()">
+          <input type="text" class="search-input" id="leaveSearch" placeholder="ค้นหา รหัส / ชื่อ..." oninput="onLeaveSearch()" onfocus="onLeaveSearch()" onblur="setTimeout(()=>{const b=document.getElementById('leaveSearchSuggestBox');if(b)b.style.display='none';},150)" autocomplete="off">
+          <div id="leaveSearchSuggestBox" style="display:none;position:absolute;top:100%;left:0;min-width:340px;z-index:100;background:#fff;border:1.5px solid var(--gray-200);border-radius:10px;margin-top:4px;max-height:260px;overflow-y:auto;box-shadow:var(--shadow-md,0 4px 12px rgba(0,0,0,.12));"></div>
         </div>
         <div style="display:flex;align-items:center;gap:5px;">
           <span style="font-size:12px;color:var(--gray-500);white-space:nowrap;">วันที่ลา ตั้งแต่</span>
@@ -615,6 +618,10 @@ export async function applyLeaveFilter() {
     return;
   }
   allLeaveRecords = res.data;
+  // If user selected a specific employee from dropdown, filter to exact match
+  if (_leaveSearchSelectedEmpId) {
+    allLeaveRecords = allLeaveRecords.filter(r => r.drp_empID === _leaveSearchSelectedEmpId);
+  }
   filteredLeaveRecords = [...allLeaveRecords];
 
   // HR only: sort incomplete records (no leave type or no start date) to the top
@@ -633,7 +640,64 @@ export async function applyLeaveFilter() {
 
 export function onLeaveSearch() {
   clearTimeout(leaveSearchTimeout);
+  clearTimeout(_leaveSearchSuggestTimer);
+  _leaveSearchSelectedEmpId = null; // Clear exact selection on manual typing
+  const val = (document.getElementById('leaveSearch')?.value || '').trim();
   leaveSearchTimeout = setTimeout(applyLeaveFilter, 300);
+  // Show employee suggestions if typing looks like ID or name
+  if (val.length >= 2) {
+    _leaveSearchSuggestTimer = setTimeout(async () => {
+      try {
+        const res = await window.api.searchEmployees({ keyword: val, limit: 10 });
+        if (res.success && res.data?.length > 0) {
+          // If only 1 result, auto-select without showing dropdown
+          if (res.data.length === 1) {
+            _hideLeaveSearchSuggestions();
+            leaveSearchSelectEmp(res.data[0].Emp_ID);
+          } else {
+            _showLeaveSearchSuggestions(res.data);
+          }
+        } else {
+          _hideLeaveSearchSuggestions();
+        }
+      } catch { _hideLeaveSearchSuggestions(); }
+    }, 200);
+  } else {
+    _hideLeaveSearchSuggestions();
+  }
+}
+
+function _showLeaveSearchSuggestions(employees) {
+  const box = document.getElementById('leaveSearchSuggestBox');
+  if (!box) return;
+  box._suggestData = employees;
+  box.innerHTML = employees.map((emp, i) => {
+    const fullname = `${emp.Emp_Sname || ''}${emp.Emp_Firstname || ''} ${emp.Emp_Lastname || ''}`.trim();
+    const sub = emp.Sub_Name || '';
+    const vsthBadge = emp.Emp_Vsth ? `<span style="font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:6px;padding:1px 5px;margin-left:4px;">${escHtml(emp.Emp_Vsth)}</span>` : '';
+    return `<div class="_leave-search-item" data-idx="${i}" style="padding:8px 14px;cursor:pointer;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;gap:8px;font-size:13px;transition:background .1s;"
+      onmousedown="leaveSearchSelectEmp('${escHtml(emp.Emp_ID)}')"
+      onmouseenter="this.style.background='var(--primary-light,#eff6ff)';document.querySelectorAll('._leave-search-item').forEach((el,j)=>{if(j!==${i})el.style.background=''})" onmouseleave="this.style.background=''">
+      <span style="font-weight:700;color:var(--primary);min-width:70px;">${escHtml(emp.Emp_ID)}</span>${vsthBadge}
+      <span style="color:var(--gray-800);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(fullname)}</span>
+      <span style="font-size:11px;color:var(--gray-400);white-space:nowrap;">${escHtml(sub)}</span>
+    </div>`;
+  }).join('');
+  box.style.display = 'block';
+}
+
+function _hideLeaveSearchSuggestions() {
+  const box = document.getElementById('leaveSearchSuggestBox');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+}
+
+export function leaveSearchSelectEmp(empId) {
+  const input = document.getElementById('leaveSearch');
+  if (input) input.value = empId;
+  _leaveSearchSelectedEmpId = empId; // Track exact selection
+  _hideLeaveSearchSuggestions();
+  clearTimeout(leaveSearchTimeout);
+  applyLeaveFilter();
 }
 
 export function renderLeaveTable() {
@@ -855,6 +919,10 @@ function _fillEmployeeFields(e) {
 }
 
 function _selectEmployee(emp) {
+  if (emp.Emp_Status && emp.Emp_Status !== 'Activated') {
+    showToast(`พนักงาน ${emp.Emp_ID} สถานะ "${emp.Emp_Status}" ไม่สามารถบันทึกรายการใหม่ได้`, 'error');
+    return;
+  }
   const input = document.getElementById('fLeaveEmpID');
   if (input) input.value = emp.Emp_ID || '';
   _fillEmployeeFields(emp);
@@ -886,13 +954,16 @@ function _showEmpSuggestions(results) {
   box.innerHTML = results.map((emp, i) => {
     const fullname = `${emp.Emp_Sname || ''}${emp.Emp_Firstname || ''} ${emp.Emp_Lastname || ''}`.trim();
     const sub = emp.Sub_Name ? `<span style="color:var(--gray-400);font-size:11px;margin-left:6px;">${escHtml(emp.Sub_Name)}</span>` : '';
-    const statusBadge = emp.Emp_Status !== 'Activated'
+    const vsthBadge = emp.Emp_Vsth ? `<span style="font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:6px;padding:1px 5px;margin-left:4px;">${escHtml(emp.Emp_Vsth)}</span>` : '';
+    const isInactive = emp.Emp_Status && emp.Emp_Status !== 'Activated';
+    const statusBadge = isInactive
       ? `<span style="font-size:10px;background:#fef3c7;color:#92400e;border-radius:6px;padding:1px 5px;margin-left:6px;">${escHtml(emp.Emp_Status || '')}</span>` : '';
+    const itemStyle = isInactive ? 'opacity:0.5;cursor:not-allowed;' : 'cursor:pointer;';
     return `<div class="_emp-suggest-item" data-idx="${i}"
-      style="padding:9px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;transition:background 0.12s;"
-      onmousedown="empSuggestSelect(${i})"
+      style="padding:9px 14px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;transition:background 0.12s;${itemStyle}"
+      onmousedown="${isInactive ? 'event.preventDefault()' : `empSuggestSelect(${i})`}"
       onmouseenter="empSuggestHover(${i})">
-      <span style="font-size:12px;font-weight:700;color:var(--primary);min-width:70px;">${escHtml(emp.Emp_ID || '')}</span>
+      <span style="font-size:12px;font-weight:700;color:var(--primary);min-width:70px;">${escHtml(emp.Emp_ID || '')}</span>${vsthBadge}
       <span style="font-size:13px;color:var(--gray-800);">${escHtml(fullname)}</span>
       ${sub}${statusBadge}
     </div>`;
@@ -926,8 +997,15 @@ export function empIDInput() {
   _empSearchTimer = setTimeout(async () => {
     try {
       const res = await window.api.searchEmployees({ keyword: val, limit: 10 });
-      if (res.success) _showEmpSuggestions(res.data);
-      else hideEmpSuggestions();
+      if (res.success && res.data?.length === 1) {
+        // Auto-select if only 1 result
+        hideEmpSuggestions();
+        _selectEmployee(res.data[0]);
+      } else if (res.success) {
+        _showEmpSuggestions(res.data);
+      } else {
+        hideEmpSuggestions();
+      }
     } catch { hideEmpSuggestions(); }
   }, 250);
 }
@@ -941,14 +1019,18 @@ export async function lookupEmployee() {
   try {
     const res = await window.api.getEmployeeById(empId);
     if (res.success && res.data) {
-      _fillEmployeeFields(res.data);
-      if (currentUser?.role === 'guest') {
-        setTimeout(() => {
-          showModal('leaveSaveConfirmModal');
-          document.getElementById('btnConfirmSaveLeave')?.focus();
-        }, 80);
+      if (res.data.Emp_Status && res.data.Emp_Status !== 'Activated') {
+        showToast(`พนักงาน ${empId} สถานะ "${res.data.Emp_Status}" ไม่สามารถบันทึกรายการใหม่ได้`, 'error');
       } else {
-        setTimeout(() => document.getElementById('fLeaveType')?.focus(), 80);
+        _fillEmployeeFields(res.data);
+        if (currentUser?.role === 'guest') {
+          setTimeout(() => {
+            showModal('leaveSaveConfirmModal');
+            document.getElementById('btnConfirmSaveLeave')?.focus();
+          }, 80);
+        } else {
+          setTimeout(() => document.getElementById('fLeaveType')?.focus(), 80);
+        }
       }
     } else {
       showToast('ไม่พบรหัสพนักงานนี้ในระบบ', 'error');

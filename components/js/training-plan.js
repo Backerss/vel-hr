@@ -491,7 +491,7 @@ function renderParticipantSuggestions(rows, keyword = '') {
   if (!resultEl) return;
 
   const selectedIds = new Set(selectedParticipants.map(p => String(p.Emp_ID)));
-  const filteredRows = (rows || []).filter(emp => !selectedIds.has(String(emp.Emp_ID)));
+  const filteredRows = (rows || []).filter(emp => !selectedIds.has(String(emp.Emp_ID)) && emp.Emp_Status === 'Activated');
   lastSuggestionRows = filteredRows;
 
   // Clean pending IDs no longer in current result set
@@ -536,6 +536,7 @@ function renderParticipantSuggestions(rows, keyword = '') {
         <div style="flex:1;min-width:0;">
           <div>
             <span class="suggest-id">${escHtml(String(emp.Emp_ID))}</span>
+            ${emp.Emp_Vsth ? `<span style="font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:6px;padding:1px 5px;margin-left:4px;">${escHtml(emp.Emp_Vsth)}</span>` : ''}
             <span class="suggest-name">${escHtml(getEmployeeDisplayName(emp) || '-')}</span>
           </div>
           <div class="suggest-sub">${escHtml(emp.Sub_Name || 'ไม่ระบุแผนก')}</div>

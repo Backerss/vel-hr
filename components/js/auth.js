@@ -93,7 +93,9 @@ export async function checkDBStatus() {
     const result = await window.api.getEmployeeCount();
     if (result.success) {
       dot.classList.add('connected');
-      txt.textContent = 'เชื่อมต่อแล้ว';
+      const host = result.dbHost || '';
+      const label = host === '192.168.66.11' ? 'เซิร์ฟเวอร์จริง' : 'เทส';
+      txt.textContent = `เชื่อมต่อแล้ว (${label})`;
     } else {
       txt.textContent = 'ไม่ได้เชื่อมต่อ';
     }

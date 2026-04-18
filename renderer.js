@@ -66,7 +66,8 @@ import {
   onLeaveTypeChange, onLeaveStartDTChange,
   loadDailyAbsencePage, loadAbsenceReport, clearSignature, printAbsenceReport,
   loadTodayLeave, applyTodayLeaveFilter, renderTodayLeaveTable, goTodayLeavePage,
-  empIDInput, hideEmpSuggestions, empSuggestHover, empSuggestSelect
+  empIDInput, hideEmpSuggestions, empSuggestHover, empSuggestSelect,
+  leaveSearchSelectEmp
 } from './components/js/leave.js';
 import {
   loadOtPage,
@@ -491,6 +492,20 @@ function _handleEnterKey(e) {
     }
     return;
   }
+  // ── 2b. Leave search with employee suggestion dropdown ──────────────────
+  if (id === 'leaveSearch') {
+    const box = document.getElementById('leaveSearchSuggestBox');
+    if (box?.style.display !== 'none' && box?._suggestData?.length) {
+      const items = [...document.querySelectorAll('._leave-search-item')];
+      const hiIdx = items.findIndex(item => item.style.background !== '');
+      if (hiIdx >= 0 && box._suggestData[hiIdx]) {
+        e.preventDefault();
+        window.leaveSearchSelectEmp?.(box._suggestData[hiIdx].Emp_ID);
+        return;
+      }
+    }
+    // No selection — fall through to generic search handler below
+  }
   // ── 2. Search inputs → fire immediately (bypass debounce) ───────────────
   // Detected by class or id convention (*Search* / *search*)
   if (el.classList.contains('search-input') || /search/i.test(id)) {
@@ -596,6 +611,30 @@ function _handleArrowNav(e) {
   // Escape on fLeaveEmpID → hide suggestions
   if (el.id === 'fLeaveEmpID' && e.key === 'Escape') {
     window.hideEmpSuggestions?.();
+    return;
+  }
+
+  // ArrowDown / ArrowUp on leaveSearch → navigate search suggestions
+  if (el.id === 'leaveSearch' && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    const box = document.getElementById('leaveSearchSuggestBox');
+    if (!box || box.style.display === 'none' || !box._suggestData) return;
+    const items = [...document.querySelectorAll('._leave-search-item')];
+    if (!items.length) return;
+    e.preventDefault();
+    let cur = items.findIndex(item => item.style.background !== '');
+    if (e.key === 'ArrowDown') cur = Math.min(cur + 1, items.length - 1);
+    else cur = Math.max(cur - 1, 0);
+    items.forEach((item, i) => {
+      item.style.background = i === cur ? 'var(--primary-light,#eff6ff)' : '';
+    });
+    items[cur]?.scrollIntoView({ block: 'nearest' });
+    return;
+  }
+
+  // Escape on leaveSearch → hide suggestions
+  if (el.id === 'leaveSearch' && e.key === 'Escape') {
+    const box = document.getElementById('leaveSearchSuggestBox');
+    if (box) { box.style.display = 'none'; box.innerHTML = ''; }
     return;
   }
 
@@ -765,7 +804,7 @@ Object.assign(window, {
   goLeavePage, loadAbsenceReport, clearSignature, printAbsenceReport,
   loadTodayLeave, applyTodayLeaveFilter, renderTodayLeaveTable, goTodayLeavePage,
   empIDInput, hideEmpSuggestions, empSuggestHover, empSuggestSelect,
-  // OT
+  leaveSearchSelectEmp,
   loadOtPage,
   otOnSubChange, otOnFilterChange, otOnEmpSearch,
   otToggleEmp, otSelectAll, otDeselectAll,

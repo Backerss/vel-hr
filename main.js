@@ -7,6 +7,7 @@ const ExcelJS = require('exceljs');
 let mainWindow;
 let db;
 let dbConfigNeeded = false;
+let currentDbHost = '';
 
 // ===================== DB CONFIG (AppData) =====================
 const DEFAULT_DB_CONFIG = {
@@ -55,6 +56,7 @@ async function createConnection(config) {
     });
     // Verify the pool can actually reach the server
     await db.execute('SELECT 1');
+    currentDbHost = config.host;
     console.log('Connected to MySQL database (pool)');
     return true;
   } catch (error) {
@@ -305,18 +307,18 @@ ipcMain.handle('search-employees', async (event, { keyword = '', limit = 20 } = 
     const [rows] = await db.execute(
       `SELECT e.Emp_ID, e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname,
         CONCAT(e.Emp_Sname, e.Emp_Firstname, ' ', e.Emp_Lastname) AS Fullname,
-        s.Sub_Name, e.Emp_Status
+        s.Sub_Name, e.Emp_Status, e.Emp_Vsth
       FROM employees e
       LEFT JOIN subdivision s ON s.Sub_ID = e.Sub_ID
-      WHERE e.Emp_Status = 'Activated'
-        AND (e.Emp_ID LIKE ?
+      WHERE (e.Emp_ID LIKE ?
          OR e.Emp_Firstname LIKE ?
          OR e.Emp_Lastname LIKE ?
          OR CONCAT(e.Emp_Sname, e.Emp_Firstname, ' ', e.Emp_Lastname) LIKE ?
-         OR s.Sub_Name LIKE ?)
+         OR s.Sub_Name LIKE ?
+         OR IFNULL(e.Emp_Vsth,'') LIKE ?)
       ORDER BY e.Emp_ID ASC
       LIMIT ${safeLimit}`,
-      [`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`]
+      [`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`]
     );
     return { success: true, data: rows };
 
@@ -342,7 +344,8 @@ ipcMain.handle('get-employee-count', async () => {
       success: true,
       total: all[0].total,
       active: active[0].total,
-      inactive: inactive[0].total
+      inactive: inactive[0].total,
+      dbHost: currentDbHost
     };
   } catch (error) {
     return { success: false, message: error.message };
@@ -496,7 +499,7 @@ ipcMain.handle('get-daily-reports', async (event, { search = '', dateFrom = '', 
       dr.drp_status, dr.drp_Remark,
       CONCAT(IFNULL(e.Emp_Sname,''),IFNULL(e.Emp_Firstname,''),' ',IFNULL(e.Emp_Lastname,'')) AS Fullname,
       e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname,
-      s.Sub_Name, s.Sub_ID,
+      s.Sub_Name, s.Sub_ID, e.Emp_Vsth,
       lt.leave_name
       FROM daily_report dr
       LEFT JOIN employees e ON e.Emp_ID = dr.drp_empID
@@ -505,8 +508,8 @@ ipcMain.handle('get-daily-reports', async (event, { search = '', dateFrom = '', 
       WHERE 1=1`;
     const params = [];
     if (search) {
-      q += ` AND (dr.drp_empID LIKE ? OR e.Emp_Firstname LIKE ? OR e.Emp_Lastname LIKE ?)`;
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      q += ` AND (dr.drp_empID LIKE ? OR e.Emp_Firstname LIKE ? OR e.Emp_Lastname LIKE ? OR IFNULL(e.Emp_Vsth,'') LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
     if (dateFrom) { q += ` AND dr.drp_Sdate >= ?`; params.push(dateFrom.replace(/-/g, '/')); }
     if (dateTo) { q += ` AND dr.drp_Sdate <= ?`; params.push(dateTo.replace(/-/g, '/')); }

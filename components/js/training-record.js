@@ -448,7 +448,7 @@ export function onEmpCheckinSearch() {
   empSearchTimer = setTimeout(async () => {
     const res = await window.api.searchEmployees({ keyword: q, limit: 20 });
     if (!res.success) return;
-    empDropdownItems = res.data || [];
+    empDropdownItems = (res.data || []).filter(e => e.Emp_Status === 'Activated');
     empDropdownIndex = -1;
     renderEmpDropdown();
   }, 200);
@@ -478,6 +478,7 @@ function renderEmpDropdown() {
       onmouseover="highlightEmpItem(${i})" onmouseout="this.style.background=''">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
         <span class="emp-id">${escHtml(e.Emp_ID)}</span>
+        ${e.Emp_Vsth ? `<span style="font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:6px;padding:1px 5px;">${escHtml(e.Emp_Vsth)}</span>` : ''}
         ${badge}
       </div>
       <div style="font-size:13px;font-weight:600;color:var(--gray-800);margin-top:2px;">

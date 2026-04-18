@@ -191,6 +191,7 @@ export async function otsgEmpSearch() {
         style="padding:8px 14px;font-size:13px;cursor:pointer;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--gray-100);"
         onmouseenter="this.style.background='var(--primary-light,#eff6ff)'" onmouseleave="this.style.background=''">
         <span class="emp-id" style="font-size:11.5px;">${escHtml(e.Emp_ID)}</span>
+        ${e.Emp_Vsth ? `<span style="font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:6px;padding:1px 5px;">${escHtml(e.Emp_Vsth)}</span>` : ''}
         <span>${escHtml(full)}</span>
         <span style="margin-left:auto;font-size:11.5px;color:var(--gray-400);">${escHtml(sub)}</span>
       </div>`;
