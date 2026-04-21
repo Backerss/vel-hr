@@ -421,16 +421,37 @@ ipcMain.handle('get-positions', async () => {
 ipcMain.handle('add-employee', async (event, data) => {
   if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
   try {
+    // ตรวจสอบรหัสพนักงานซ้ำ
+    const [[idRow]] = await db.execute('SELECT Emp_ID FROM employees WHERE Emp_ID = ?', [data.Emp_ID]);
+    if (idRow) return { success: false, message: `รหัสพนักงาน "${data.Emp_ID}" มีอยู่ในระบบแล้ว` };
+
+    // ตรวจสอบชื่อ-นามสกุลซ้ำ
+    const [[nameRow]] = await db.execute(
+      'SELECT Emp_ID FROM employees WHERE Emp_Firstname = ? AND Emp_Lastname = ?',
+      [data.Emp_Firstname, data.Emp_Lastname]
+    );
+    if (nameRow) return { success: false, message: `ชื่อ-นามสกุล "${data.Emp_Firstname} ${data.Emp_Lastname}" มีอยู่ในระบบแล้ว (รหัส: ${nameRow.Emp_ID})` };
+
+    // ตรวจสอบเลขบัตรประชาชนซ้ำ (ถ้ามีการกรอก)
+    if (data.Emp_IDCard) {
+      const [[idCardRow]] = await db.execute(
+        'SELECT Emp_ID, Emp_Firstname, Emp_Lastname FROM employees WHERE Emp_IDCard = ? AND Emp_IDCard != ""',
+        [data.Emp_IDCard]
+      );
+      if (idCardRow) return { success: false, message: `เลขบัตรประชาชน "${data.Emp_IDCard}" มีอยู่ในระบบแล้ว (${idCardRow.Emp_Firstname} ${idCardRow.Emp_Lastname}, รหัส: ${idCardRow.Emp_ID})` };
+    }
+
     await db.execute(
       `INSERT INTO employees (Emp_ID, Emp_Sname, Emp_Firstname, Emp_Lastname, Emp_IDCard, Emp_Start_date,
-       Emp_Packing_date, Emp_Level, Sub_ID, Position_ID, Emp_Status, Emp_Vsth)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       Emp_Packing_date, Emp_Level, Sub_ID, Position_ID, Emp_Status, Emp_Vsth, Emp_TimeStamp, Emp_NameEdit)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)`,
       [
         data.Emp_ID, data.Emp_Sname, data.Emp_Firstname, data.Emp_Lastname,
-        data.Emp_IDCard || '', data.Emp_Start_date || null,
+        data.Emp_IDCard || '', data.Emp_Start_date || '0000-00-00',
         data.Emp_Packing_date || '0000-00-00', data.Emp_Level || '',
         data.Sub_ID, data.Position_ID,
-        data.Emp_Status || 'Activated', data.Emp_Vsth || 'Vel'
+        data.Emp_Status || 'Activated', data.Emp_Vsth || 'Vel',
+        data.Emp_NameEdit || ''
       ]
     );
     return { success: true, message: 'เพิ่มพนักงานสำเร็จ' };
@@ -444,17 +465,33 @@ ipcMain.handle('add-employee', async (event, data) => {
 ipcMain.handle('update-employee', async (event, data) => {
   if (!db) return { success: false, message: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้' };
   try {
+    // ตรวจสอบชื่อ-นามสกุลซ้ำกับพนักงานคนอื่น
+    const [[nameRow]] = await db.execute(
+      'SELECT Emp_ID FROM employees WHERE Emp_Firstname = ? AND Emp_Lastname = ? AND Emp_ID != ?',
+      [data.Emp_Firstname, data.Emp_Lastname, data.Emp_ID]
+    );
+    if (nameRow) return { success: false, message: `ชื่อ-นามสกุล "${data.Emp_Firstname} ${data.Emp_Lastname}" มีอยู่ในระบบแล้ว (รหัส: ${nameRow.Emp_ID})` };
+
+    // ตรวจสอบเลขบัตรประชาชนซ้ำกับพนักงานคนอื่น (ถ้ามีการกรอก)
+    if (data.Emp_IDCard) {
+      const [[idCardRow]] = await db.execute(
+        'SELECT Emp_ID, Emp_Firstname, Emp_Lastname FROM employees WHERE Emp_IDCard = ? AND Emp_IDCard != "" AND Emp_ID != ?',
+        [data.Emp_IDCard, data.Emp_ID]
+      );
+      if (idCardRow) return { success: false, message: `เลขบัตรประชาชน "${data.Emp_IDCard}" มีอยู่ในระบบแล้ว (${idCardRow.Emp_Firstname} ${idCardRow.Emp_Lastname}, รหัส: ${idCardRow.Emp_ID})` };
+    }
+
     await db.execute(
       `UPDATE employees SET Emp_Sname=?, Emp_Firstname=?, Emp_Lastname=?, Emp_IDCard=?,
        Emp_Start_date=?, Emp_Packing_date=?, Emp_Level=?, Sub_ID=?, Position_ID=?,
-       Emp_Status=?, Emp_Vsth=? WHERE Emp_ID=?`,
+       Emp_Status=?, Emp_Vsth=?, Emp_NameEdit=?, Emp_TimeStamp=NOW() WHERE Emp_ID=?`,
       [
         data.Emp_Sname, data.Emp_Firstname, data.Emp_Lastname,
-        data.Emp_IDCard || '', data.Emp_Start_date || null,
+        data.Emp_IDCard || '', data.Emp_Start_date || '0000-00-00',
         data.Emp_Packing_date || '0000-00-00', data.Emp_Level || '',
         data.Sub_ID, data.Position_ID,
         data.Emp_Status || 'Activated', data.Emp_Vsth || 'Vel',
-        data.Emp_ID
+        data.Emp_NameEdit || '', data.Emp_ID
       ]
     );
     return { success: true, message: 'แก้ไขข้อมูลพนักงานสำเร็จ' };

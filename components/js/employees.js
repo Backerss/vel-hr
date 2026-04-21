@@ -502,7 +502,8 @@ export async function saveEmployee() {
     Emp_Start_date: startDateDb,
     Emp_Packing_date: packingDateDb,
     Emp_Status: editingEmpId ? document.getElementById('fEmpStatus').value : 'Activated',
-    Emp_Vsth: vsthVal
+    Emp_Vsth: vsthVal,
+    Emp_NameEdit: currentUser?.username || ''
   };
 
   const btn = document.getElementById('btnSaveEmp');
