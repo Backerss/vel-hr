@@ -939,22 +939,23 @@ export function onLeaveTypeChange() {
   const comm = document.getElementById('fLeaveComm');
   if (!sel) return;
 
-  // Handle 'Absent' (A) logic
+  // Handle 'Absent' (A) logic - auto-fill remark
   if (sel.value === 'A') {
-    // 1. Auto-fill remark
     if (rem) {
       const lt = leaveTypes.find(t => t.leave_abbreviation === 'A');
       rem.value = lt ? lt.leave_name : 'ขาดงาน';
     }
-    // 2. Disable communication field and clear it
-    if (comm) {
+  }
+
+  // Disable communication for A, X, N leave types or พ้นสภาพพนักงานใหม่ status
+  const sub = (document.getElementById('fLeaveSub')?.value || '').trim();
+  const skipComm = ['A', 'X', 'N'].includes(sel.value) || sub === 'พ้นสภาพพนักงานใหม่';
+  if (comm) {
+    if (skipComm) {
       comm.value = '';
       comm.disabled = true;
       comm.classList.add('leave-readonly');
-    }
-  } else {
-    // Re-enable and restore styling for other leave types
-    if (comm) {
+    } else {
       comm.disabled = false;
       comm.classList.remove('leave-readonly');
     }
@@ -1008,6 +1009,7 @@ function fillLeaveForm(r) {
   }
   document.getElementById('fLeaveRecordDate').value = dbDateToInput(r.drp_record) || todayInputFormat();
   document.getElementById('fLeaveRemark').value = (r.drp_Remark||'').replace(/\r\n/g,'\n').trim();
+  onLeaveTypeChange();
 }
 
 // ---- Employee ID autocomplete ----
@@ -1186,8 +1188,9 @@ export async function saveLeaveRecord() {
     const remark  = document.getElementById('fLeaveRemark')?.value || '';
 
     if (!ltype)  { showToast('กรุณาเลือกประเภทการลา', 'error'); return; }
-    // Skip communication validation for 'Absent' (A)
-    if (ltype !== 'A' && !comm) { showToast('กรุณาเลือกการสื่อสาร', 'error'); return; }
+    // Skip communication validation for A, X, N leave types or พ้นสภาพพนักงานใหม่ status
+    const skipComm = ['A', 'X', 'N'].includes(ltype) || sub.trim() === 'พ้นสภาพพนักงานใหม่';
+    if (!skipComm && !comm) { showToast('กรุณาเลือกการสื่อสาร', 'error'); return; }
     if (!startDate || !startTime) { showToast('กรุณากรอกวันและเวลาเริ่มต้น', 'error'); return; }
     if (!endDate || !endTime)     { showToast('กรุณากรอกวันและเวลาสิ้นสุด', 'error'); return; }
     if (!remark) { showToast('กรุณากรอกเหตุผลการลา', 'error'); return; }
