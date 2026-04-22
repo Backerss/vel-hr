@@ -18,6 +18,7 @@ let _leaveSearchSuggestTimer = null;
 let _leaveSearchSelectedEmpId = null;
 let currentAbsenceDate = '';
 let currentAbsenceData = [];
+const LEAVE_VSTH_OPTIONS = ['VEL', 'SK', 'TBS', 'CWS'];
 // ---- Today's Leave (guest-only) ----
 let todayLeaveAllData = [];
 let todayLeaveFiltered = [];
@@ -44,6 +45,17 @@ export function getCommunicateLabel(r) {
   if (r.drp_Communicate && r.drp_Communicate.trim()) return 'โทร';
   if (r.drp_Communicate1 && r.drp_Communicate1.trim()) return 'แจ้งล่วงหน้า';
   return '-';
+}
+
+function getLeaveEmployeeType(record) {
+  const rawType = String(record?.Emp_Vsth || record?.drp_status || '').trim().toUpperCase();
+  if (LEAVE_VSTH_OPTIONS.includes(rawType)) return rawType;
+
+  const empId = String(record?.drp_empID || '').trim().toUpperCase();
+  if (empId.startsWith('SK')) return 'SK';
+  if (empId.startsWith('TBS')) return 'TBS';
+  if (empId.startsWith('CWS')) return 'CWS';
+  return 'VEL';
 }
 
 // ---- Guest time-window check ----
@@ -91,6 +103,9 @@ export async function loadLeaveRecordPage() {
   const subOptions = subdivisions.map(s =>
     `<option value="${escHtml(String(s.Sub_ID))}">${escHtml(s.Sub_Name)}</option>`
   ).join('');
+  const vsthOptions = LEAVE_VSTH_OPTIONS.map(v =>
+    `<option value="${v}">${v}</option>`
+  ).join('');
 
   container.innerHTML = `
     <div class="table-section" style="padding:16px 20px;margin-bottom:16px;overflow:visible;">
@@ -117,6 +132,9 @@ export async function loadLeaveRecordPage() {
         </div>
         <select class="filter-select" id="leaveFilterSub" onchange="applyLeaveFilter()">
           <option value="">ทุกแผนก</option>${subOptions}
+        </select>
+        <select class="filter-select" id="leaveFilterVsth" onchange="applyLeaveFilter()">
+          <option value="">ทุกประเภทพนักงาน</option>${vsthOptions}
         </select>
         <select class="filter-select" id="leaveFilterType" onchange="applyLeaveFilter()">
           <option value="">ทุกประเภทการลา</option>${ltOptions}
@@ -220,6 +238,13 @@ export async function loadLeaveRecordPage() {
     </div>`;
 
   initAllThaiDatePickers();
+  // Set today as default date filter (both from and to)
+  const _todayFmt = todayInputFormat();
+  const _fromEl = document.getElementById('leaveDateFrom');
+  const _toEl   = document.getElementById('leaveDateTo');
+  if (_fromEl && !_fromEl.value) _fromEl.value = _todayFmt;
+  if (_toEl   && !_toEl.value)   _toEl.value   = _todayFmt;
+
   await fetchAndRenderLeave();
   if (isGuestUser) loadTodayLeave();
 }
@@ -480,7 +505,7 @@ function _leaveDurationMinutes(r) {
   return Math.max(0, total);
 }
 
-function _renderLeaveSummary(records, search, filterFrom = '', filterTo = '') {
+function _renderLeaveSummary(records, search, filterFrom = '', filterTo = '', yearAllRecords = null) {
   const panel = document.getElementById('leaveSummaryPanel');
   if (!panel) return;
   if (!search || currentUser?.role === 'guest') {
@@ -500,18 +525,86 @@ function _renderLeaveSummary(records, search, filterFrom = '', filterTo = '') {
   const sample = records.find(r => r.drp_empID === empIDs[0]);
   const empName = (sample ? ((sample.Fullname || '').trim() || `${sample.Emp_Firstname || ''} ${sample.Emp_Lastname || ''}`.trim()) : '') || empIDs[0];
 
-  // Period boundaries (CE)
+  // Determine display year: from filter date if active, otherwise current year
   const now = new Date();
   const thisYear  = now.getFullYear();
+  const hasDateFilter = !!(filterFrom || filterTo);
+  const filterYear = hasDateFilter
+    ? Number((filterFrom || filterTo).split('/')[0])
+    : thisYear;
   const thisMonth = now.getMonth(); // 0-indexed
   const dayOfWeek = now.getDay();   // 0=Sun
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const monday = new Date(now); monday.setDate(now.getDate() + mondayOffset); monday.setHours(0,0,0,0);
   const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6); sunday.setHours(23,59,59,999);
 
-  const yearPrefix  = `${thisYear}/`;
+  const yearPrefix  = `${filterYear}/`;
   const monthPrefix = `${thisYear}/${String(thisMonth + 1).padStart(2,'0')}/`;
 
+  // Format: primary = วัน (1 day = 8 h), sub-label = ชม.
+  const fmtDH = (m) => {
+    if (m <= 0) return { day: '0 วัน', hrs: '0 ชม.' };
+    const h = m / 60;
+    const days = h / 8;
+    const dayStr = Number.isInteger(days * 10)
+      ? (days % 1 === 0 ? days + ' วัน' : days.toFixed(1) + ' วัน')
+      : (Math.round(days * 10) / 10).toFixed(1) + ' วัน';
+    return { day: dayStr, hrs: h.toFixed(1) + ' ชม.' };
+  };
+
+  const typeColors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#84cc16','#f97316'];
+
+  // ── MODE A: date filter is active + yearAllRecords provided ──────────────
+  // Show only the year tile (computed from all records for that year),
+  // plus type badges from the full-year data. No month/week/total tiles.
+  if (hasDateFilter && yearAllRecords) {
+    const completeYear = yearAllRecords.filter(r => r.drp_Type && r.drp_Sdate);
+    let yearMinutes = 0;
+    const byTypeYear = {};
+    for (const r of completeYear) {
+      const mins = _leaveDurationMinutes(r);
+      yearMinutes += mins;
+      const key = r.drp_Type || '-';
+      if (!byTypeYear[key]) byTypeYear[key] = { type: key, name: r.leave_name || key, minutes: 0 };
+      byTypeYear[key].minutes += mins;
+    }
+    const yr = fmtDH(yearMinutes);
+    const typeEntriesYear = Object.values(byTypeYear);
+    const typeBadgesYear = typeEntriesYear.map((t, i) => {
+      const h = t.minutes / 60;
+      const days = (Math.round((h / 8) * 10) / 10).toFixed(1);
+      const col = typeColors[i % typeColors.length];
+      return `<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:${col}18;border:1px solid ${col}40;border-radius:10px;min-width:0;">
+        <span style="font-size:12px;font-weight:700;color:${col};">${escHtml(t.type)}</span>
+        <span style="font-size:12px;color:var(--gray-600);">${escHtml(t.name)}</span>
+        <span style="font-size:12px;font-weight:600;color:${col};white-space:nowrap;">${days} วัน (${h.toFixed(1)} ชม.)</span>
+      </div>`;
+    }).join('');
+
+    panel.style.display = 'block';
+    panel.innerHTML = `
+      <div style="background:var(--bg-card,#fff);border:1.5px solid var(--primary-light,#dbeafe);border-radius:14px;padding:14px 18px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+          <i class="bi bi-person-lines-fill" style="font-size:17px;color:var(--primary);"></i>
+          <span style="font-size:14px;font-weight:700;color:var(--gray-900);">${escHtml(empName)}</span>
+          <span style="font-size:12px;color:var(--gray-500);">· ${escHtml(empIDs[0])}</span>
+          <span style="margin-left:auto;font-size:12px;color:var(--gray-400);">แสดง ${records.length} รายการ (ฟิลเตอร์)</span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+          <div style="flex:1;min-width:140px;background:#eff6ff;border-radius:10px;padding:10px 14px;">
+            <div style="font-size:11px;color:var(--gray-500);margin-bottom:3px;">ลาปี ${filterYear} รวมทั้งปี</div>
+            <div style="font-size:20px;font-weight:800;color:var(--primary);">${yr.day}</div>
+            <div style="font-size:12px;color:var(--gray-400);margin-top:2px;">${yr.hrs}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          ${typeBadgesYear || '<span style="font-size:12.5px;color:var(--gray-400);">ยังไม่มีข้อมูลประเภทการลา</span>'}
+        </div>
+      </div>`;
+    return;
+  }
+
+  // ── MODE B: no date filter – show full summary as before ─────────────────
   // Compute total time (minutes) and count by type — only complete records
   const completeRecords = records.filter(r => r.drp_Type && r.drp_Sdate);
   let totalMinutes = 0, yearMinutes = 0, monthMinutes = 0, weekMinutes = 0;
@@ -534,19 +627,7 @@ function _renderLeaveSummary(records, search, filterFrom = '', filterTo = '') {
     }
   }
 
-  // Format: primary = วัน (1 day = 8 h), sub-label = ชม.
-  const fmtDH = (m) => {
-    if (m <= 0) return { day: '0 วัน', hrs: '0 ชม.' };
-    const h = m / 60;
-    const days = h / 8;
-    const dayStr = Number.isInteger(days * 10)
-      ? (days % 1 === 0 ? days + ' วัน' : days.toFixed(1) + ' วัน')
-      : (Math.round(days * 10) / 10).toFixed(1) + ' วัน';
-    return { day: dayStr, hrs: h.toFixed(1) + ' ชม.' };
-  };
   const incompleteCount = records.length - completeRecords.length;
-
-  const typeColors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#84cc16','#f97316'];
   const typeEntries = Object.values(byType);
 
   const typeBadges = typeEntries.map((t, i) => {
@@ -587,10 +668,9 @@ function _renderLeaveSummary(records, search, filterFrom = '', filterTo = '') {
           <div style="font-size:20px;font-weight:800;color:#f59e0b;">${wk.day}</div>
           <div style="font-size:12px;color:var(--gray-400);margin-top:2px;">${wk.hrs}</div>
         </div>
-        <div style="flex:1;min-width:120px;background:${filterFrom||filterTo?'#fdf4ff':'#f8fafc'};border-radius:10px;padding:10px 14px;">
-          <div style="font-size:11px;color:var(--gray-500);margin-bottom:3px;">${filterFrom||filterTo ? 'ช่วงที่เลือก' : 'รวมทั้งหมด'}</div>
-          ${filterFrom||filterTo ? `<div style="font-size:10px;color:var(--gray-400);margin-bottom:2px;">${filterFrom||''}${filterTo?' – '+filterTo:''}</div>` : ''}
-          <div style="font-size:20px;font-weight:800;color:${filterFrom||filterTo?'#7c3aed':'var(--gray-700)' };">${tot.day}</div>
+        <div style="flex:1;min-width:120px;background:#f8fafc;border-radius:10px;padding:10px 14px;">
+          <div style="font-size:11px;color:var(--gray-500);margin-bottom:3px;">รวมทั้งหมด</div>
+          <div style="font-size:20px;font-weight:800;color:var(--gray-700);">${tot.day}</div>
           <div style="font-size:12px;color:var(--gray-400);margin-top:2px;">${tot.hrs}</div>
         </div>
       </div>
@@ -607,12 +687,13 @@ export async function applyLeaveFilter() {
   const dateFrom    = displayDateToDbSlash(dateFromRaw) || '';
   const dateTo      = displayDateToDbSlash(dateToRaw) || '';
   const subID       = document.getElementById('leaveFilterSub')?.value  || '';
+  const vsth        = document.getElementById('leaveFilterVsth')?.value || '';
   const leaveType   = document.getElementById('leaveFilterType')?.value || '';
 
   const tb = document.getElementById('leaveTableBody');
   if (tb) tb.innerHTML = `<tr class="loading-row"><td colspan="12"><div class="spinner"></div><div>กำลังโหลด...</div></td></tr>`;
 
-  const res = await window.api.getDailyReports({ search, dateFrom, dateTo, subID, leaveType });
+  const res = await window.api.getDailyReports({ search, dateFrom, dateTo, subID, vsth, leaveType });
   if (!res.success) {
     if (tb) tb.innerHTML = `<tr><td colspan="12" class="text-center py-4" style="color:var(--danger);">เกิดข้อผิดพลาด: ${escHtml(res.message)}</td></tr>`;
     return;
@@ -621,6 +702,9 @@ export async function applyLeaveFilter() {
   // If user selected a specific employee from dropdown, filter to exact match
   if (_leaveSearchSelectedEmpId) {
     allLeaveRecords = allLeaveRecords.filter(r => r.drp_empID === _leaveSearchSelectedEmpId);
+  }
+  if (vsth) {
+    allLeaveRecords = allLeaveRecords.filter(r => getLeaveEmployeeType(r) === vsth);
   }
   filteredLeaveRecords = [...allLeaveRecords];
 
@@ -634,7 +718,28 @@ export async function applyLeaveFilter() {
     });
   }
   leaveCurrentPage = 1;
-  _renderLeaveSummary(filteredLeaveRecords, search, dateFromRaw, dateToRaw);
+
+  // When a date filter is active and results narrow to one employee,
+  // fetch full-year records for that employee so the summary can show the year total.
+  let yearAllRecords = null;
+  const hasDateFilter = !!(dateFrom || dateTo);
+  if (hasDateFilter && currentUser?.role !== 'guest' && search) {
+    const empIds = [...new Set(filteredLeaveRecords.map(r => r.drp_empID).filter(Boolean))];
+    if (empIds.length === 1) {
+      const filterYear = (dateFrom || dateTo).split('/')[0];
+      const res2 = await window.api.getDailyReports({
+        search: empIds[0],
+        dateFrom: `${filterYear}/01/01`,
+        dateTo:   `${filterYear}/12/31`,
+        subID: '', vsth: '', leaveType: ''
+      });
+      if (res2.success) {
+        yearAllRecords = res2.data.filter(r => r.drp_empID === empIds[0]);
+      }
+    }
+  }
+
+  _renderLeaveSummary(filteredLeaveRecords, search, dateFromRaw, dateToRaw, yearAllRecords);
   renderLeaveTable();
 }
 
@@ -751,7 +856,7 @@ export function renderLeaveTable() {
         <td><span class="emp-id">${escHtml(r.drp_empID||'-')}</span></td>
         <td><span class="emp-name">${escHtml((r.Fullname||'').trim()||'-')}</span></td>
         <td style="font-size:12.5px;">${escHtml(r.Sub_Name||'-')}</td>
-        <td><span style="font-size:11.5px;font-weight:600;color:var(--gray-600);">${escHtml(r.drp_status||'-')}</span></td>
+        <td><span style="font-size:11.5px;font-weight:600;color:var(--gray-600);">${escHtml(getLeaveEmployeeType(r))}</span></td>
         <td>${ltBadge}</td>
         <td>${commBadge}</td>
         <td style="font-size:12px;">${sdate}</td>
