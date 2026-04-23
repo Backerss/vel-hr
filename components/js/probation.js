@@ -662,9 +662,9 @@ function _renderPeriodDetail() {
 function _buildMonthLabels(startDate, count) {
   const labels = [];
   const d = new Date(startDate + 'T00:00:00');
+  const monthBase = new Date(d.getFullYear(), d.getMonth(), 1);
   for (let i = 0; i < count; i++) {
-    const dt = new Date(d);
-    dt.setMonth(dt.getMonth() + i);
+    const dt = new Date(monthBase.getFullYear(), monthBase.getMonth() + i, 1);
     const ym = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
     const thMonth = dt.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
     labels.push({ monthNo: i + 1, yearMonth: ym, label: thMonth });

@@ -545,8 +545,23 @@ ipcMain.handle('get-daily-reports', async (event, { search = '', dateFrom = '', 
       q += ` AND (dr.drp_empID LIKE ? OR e.Emp_Firstname LIKE ? OR e.Emp_Lastname LIKE ? OR IFNULL(e.Emp_Vsth,'') LIKE ?)`;
       params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
-    if (dateFrom) { q += ` AND dr.drp_Sdate >= ?`; params.push(dateFrom.replace(/-/g, '/')); }
-    if (dateTo) { q += ` AND dr.drp_Sdate <= ?`; params.push(dateTo.replace(/-/g, '/')); }
+    const fromDate = dateFrom ? dateFrom.replace(/-/g, '/') : '';
+    const toDate = dateTo ? dateTo.replace(/-/g, '/') : '';
+    if (fromDate && toDate) {
+      q += ` AND STR_TO_DATE(REPLACE(COALESCE(NULLIF(dr.drp_Sdate,''), NULLIF(dr.drp_Edate,'')), '/', '-'), '%Y-%m-%d')
+               <= STR_TO_DATE(REPLACE(?, '/', '-'), '%Y-%m-%d')
+             AND STR_TO_DATE(REPLACE(COALESCE(NULLIF(dr.drp_Edate,''), NULLIF(dr.drp_Sdate,'')), '/', '-'), '%Y-%m-%d')
+               >= STR_TO_DATE(REPLACE(?, '/', '-'), '%Y-%m-%d')`;
+      params.push(toDate, fromDate);
+    } else if (fromDate) {
+      q += ` AND STR_TO_DATE(REPLACE(COALESCE(NULLIF(dr.drp_Edate,''), NULLIF(dr.drp_Sdate,'')), '/', '-'), '%Y-%m-%d')
+               >= STR_TO_DATE(REPLACE(?, '/', '-'), '%Y-%m-%d')`;
+      params.push(fromDate);
+    } else if (toDate) {
+      q += ` AND STR_TO_DATE(REPLACE(COALESCE(NULLIF(dr.drp_Sdate,''), NULLIF(dr.drp_Edate,'')), '/', '-'), '%Y-%m-%d')
+               <= STR_TO_DATE(REPLACE(?, '/', '-'), '%Y-%m-%d')`;
+      params.push(toDate);
+    }
     if (subID) { q += ` AND e.Sub_ID = ?`; params.push(subID); }
     if (vsth) {
       q += ` AND UPPER(COALESCE(NULLIF(TRIM(e.Emp_Vsth), ''), NULLIF(TRIM(dr.drp_status), ''),
@@ -663,9 +678,11 @@ ipcMain.handle('get-daily-report-by-date', async (event, dateStr) => {
         LEFT JOIN employees e ON e.Emp_ID = dr.drp_empID
         LEFT JOIN subdivision s ON s.Sub_ID = e.Sub_ID
         LEFT JOIN leave_type lt ON lt.leave_abbreviation = dr.drp_Type
-        WHERE dr.drp_record = ?
+        WHERE dr.drp_Sdate IS NOT NULL AND dr.drp_Sdate != ''
+          AND dr.drp_Sdate <= ?
+          AND (dr.drp_Edate IS NULL OR dr.drp_Edate = '' OR dr.drp_Edate >= ?)
         ORDER BY FIELD(IFNULL(e.Emp_Vsth,dr.drp_status),'Vel','SK','TBS','CWS'), dr.drp_empID ASC`,
-      [dbDate]
+      [dbDate, dbDate]
     );
     return { success: true, data: rows };
   } catch (e) { return { success: false, message: e.message }; }
@@ -3801,6 +3818,31 @@ ipcMain.handle('probation-get-period-detail', async (event, period_id) => {
       next.setDate(next.getDate() + days);
       return next;
     };
+    const parseTimeToMinutes = (value, fallback = 0) => {
+      if (!value) return fallback;
+      const text = String(value).trim();
+      const match = text.match(/^(\d{1,2}):(\d{2})/);
+      if (!match) return fallback;
+      const hh = Number.parseInt(match[1], 10);
+      const mm = Number.parseInt(match[2], 10);
+      if (!Number.isInteger(hh) || !Number.isInteger(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+        return fallback;
+      }
+      return (hh * 60) + mm;
+    };
+    const parseDbDateTime = (dateValue, timeValue, fallbackMinutes) => {
+      const base = parseDbDate(dateValue);
+      if (!base) return null;
+      const minutes = parseTimeToMinutes(timeValue, fallbackMinutes);
+      const dt = new Date(base.getTime());
+      dt.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+      return dt;
+    };
+    const lunchOverlapMinutes = (startMins, endMins) => {
+      const LUNCH_S = 12 * 60;
+      const LUNCH_E = 13 * 60;
+      return Math.max(0, Math.min(endMins, LUNCH_E) - Math.max(startMins, LUNCH_S));
+    };
     const toYearMonth = (date) =>
       `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
@@ -3809,9 +3851,9 @@ ipcMain.handle('probation-get-period-detail', async (event, period_id) => {
     const periodEnd = parseDbDate(period.end_date);
     if (period.emp_id && periodStart && periodEnd) {
       const monthRefMap = {};
+      const periodMonthBase = new Date(periodStart.getFullYear(), periodStart.getMonth(), 1);
       for (let i = 0; i < 4; i++) {
-        const monthDate = new Date(periodStart.getTime());
-        monthDate.setMonth(monthDate.getMonth() + i);
+        const monthDate = new Date(periodMonthBase.getFullYear(), periodMonthBase.getMonth() + i, 1);
         const yearMonth = toYearMonth(monthDate);
         monthRefMap[yearMonth] = {
           month_no: i + 1,
@@ -3831,44 +3873,62 @@ ipcMain.handle('probation-get-period-detail', async (event, period_id) => {
         [period.emp_id, period.end_date, period.start_date]
       );
 
+      const periodStartAt = new Date(periodStart.getTime());
+      periodStartAt.setHours(0, 0, 0, 0);
+      const periodEndAt = new Date(periodEnd.getTime());
+      periodEndAt.setHours(23, 59, 59, 999);
+      const MINUTES_PER_LEAVE_DAY = 8 * 60;
+
       leaveRows.forEach((row) => {
-        let rawStart = parseDbDate(row.drp_Sdate || row.drp_Edate);
-        let rawEnd = parseDbDate(row.drp_Edate || row.drp_Sdate);
+        const rawStart = parseDbDateTime(
+          row.drp_Sdate || row.drp_Edate,
+          row.drp_Stime || '08:00',
+          8 * 60
+        );
+        const rawEnd = parseDbDateTime(
+          row.drp_Edate || row.drp_Sdate,
+          row.drp_Etime || '17:00',
+          17 * 60
+        );
         if (!rawStart || !rawEnd) return;
-        if (rawEnd < rawStart) [rawStart, rawEnd] = [rawEnd, rawStart];
 
-        const overlapStart = rawStart > periodStart ? new Date(rawStart.getTime()) : new Date(periodStart.getTime());
-        const overlapEnd = rawEnd < periodEnd ? new Date(rawEnd.getTime()) : new Date(periodEnd.getTime());
-        if (overlapStart > overlapEnd) return;
+        let startAt = rawStart;
+        let endAt = rawEnd;
+        if (endAt < startAt) [startAt, endAt] = [endAt, startAt];
 
-        const startTime = String(row.drp_Stime || '08:00');
-        const endTime = String(row.drp_Etime || '17:00');
-        const hasPartialBoundary = startTime > '08:00' || endTime < '17:00';
+        const overlapStart = startAt > periodStartAt ? new Date(startAt.getTime()) : new Date(periodStartAt.getTime());
+        const overlapEnd = endAt < periodEndAt ? new Date(endAt.getTime()) : new Date(periodEndAt.getTime());
+        if (overlapStart >= overlapEnd) return;
 
-        let fullStart = new Date(rawStart.getTime());
-        let fullEnd = new Date(rawEnd.getTime());
-        if (startTime > '08:00') fullStart = addDays(fullStart, 1);
-        if (endTime < '17:00') fullEnd = addDays(fullEnd, -1);
+        let cursor = new Date(overlapStart.getFullYear(), overlapStart.getMonth(), overlapStart.getDate());
+        const endCursor = new Date(overlapEnd.getFullYear(), overlapEnd.getMonth(), overlapEnd.getDate());
 
-        if (hasPartialBoundary) {
-          const touchedMonths = new Set();
-          for (let cursor = new Date(overlapStart.getTime()); cursor <= overlapEnd; cursor = addDays(cursor, 1)) {
-            const yearMonth = toYearMonth(cursor);
-            if (monthRefMap[yearMonth]) touchedMonths.add(yearMonth);
+        while (cursor <= endCursor) {
+          const dayStart = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), 0, 0, 0, 0);
+          const dayEnd = addDays(dayStart, 1);
+          const segStart = overlapStart > dayStart ? overlapStart : dayStart;
+          const segEnd = overlapEnd < dayEnd ? overlapEnd : dayEnd;
+
+          if (segEnd > segStart) {
+            let minutes = (segEnd.getTime() - segStart.getTime()) / 60000;
+            const startMins = segStart.getHours() * 60 + segStart.getMinutes();
+            const endMins = segEnd.getHours() * 60 + segEnd.getMinutes();
+            minutes -= lunchOverlapMinutes(startMins, endMins);
+            if (minutes < 0) minutes = 0;
+
+            if (minutes > 0) {
+              const yearMonth = toYearMonth(dayStart);
+              if (monthRefMap[yearMonth]) {
+                monthRefMap[yearMonth].leave_days_ref += (minutes / MINUTES_PER_LEAVE_DAY);
+              }
+            }
           }
-          touchedMonths.forEach((yearMonth) => {
-            monthRefMap[yearMonth].partial_records += 1;
-          });
+          cursor = addDays(cursor, 1);
         }
+      });
 
-        const countStart = fullStart > periodStart ? new Date(fullStart.getTime()) : new Date(periodStart.getTime());
-        const countEnd = fullEnd < periodEnd ? new Date(fullEnd.getTime()) : new Date(periodEnd.getTime());
-        if (countStart > countEnd) return;
-
-        for (let cursor = new Date(countStart.getTime()); cursor <= countEnd; cursor = addDays(cursor, 1)) {
-          const yearMonth = toYearMonth(cursor);
-          if (monthRefMap[yearMonth]) monthRefMap[yearMonth].leave_days_ref += 1;
-        }
+      Object.values(monthRefMap).forEach((monthRef) => {
+        monthRef.leave_days_ref = Number.parseFloat(monthRef.leave_days_ref.toFixed(2));
       });
 
       leaveReference.push(...Object.values(monthRefMap));

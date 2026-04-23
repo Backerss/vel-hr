@@ -523,125 +523,39 @@ function _renderLeaveSummary(records, search, filterFrom = '', filterTo = '', ye
   }
 
   const sample = records.find(r => r.drp_empID === empIDs[0]);
-  const empName = (sample ? ((sample.Fullname || '').trim() || `${sample.Emp_Firstname || ''} ${sample.Emp_Lastname || ''}`.trim()) : '') || empIDs[0];
+  const sampleName = sample
+    ? ((sample.Fullname || '').trim() || (((sample.Emp_Firstname || '') + ' ' + (sample.Emp_Lastname || '')).trim()))
+    : '';
+  const empName = sampleName || empIDs[0];
 
-  // Determine display year: from filter date if active, otherwise current year
+  // Year to summarize: use year from filter if provided; otherwise current year.
   const now = new Date();
-  const thisYear  = now.getFullYear();
+  const thisYear = now.getFullYear();
   const hasDateFilter = !!(filterFrom || filterTo);
-  const filterYear = hasDateFilter
-    ? Number((filterFrom || filterTo).split('/')[0])
-    : thisYear;
-  const thisMonth = now.getMonth(); // 0-indexed
-  const dayOfWeek = now.getDay();   // 0=Sun
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(now); monday.setDate(now.getDate() + mondayOffset); monday.setHours(0,0,0,0);
-  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6); sunday.setHours(23,59,59,999);
+  const pickedYear = Number((filterFrom || filterTo || '').split('/')[0]);
+  const displayYear = hasDateFilter && Number.isInteger(pickedYear) ? pickedYear : thisYear;
+  const yearPrefix = `${displayYear}/`;
 
-  const yearPrefix  = `${filterYear}/`;
-  const monthPrefix = `${thisYear}/${String(thisMonth + 1).padStart(2,'0')}/`;
-
-  // Format: primary = วัน (1 day = 8 h), sub-label = ชม.
+  // 1 day = 8 hours
   const fmtDH = (m) => {
-    if (m <= 0) return { day: '0 วัน', hrs: '0 ชม.' };
+    if (m <= 0) return { day: '0 วัน', hrs: '0 ชม' };
     const h = m / 60;
-    const days = h / 8;
-    const dayStr = Number.isInteger(days * 10)
-      ? (days % 1 === 0 ? days + ' วัน' : days.toFixed(1) + ' วัน')
-      : (Math.round(days * 10) / 10).toFixed(1) + ' วัน';
-    return { day: dayStr, hrs: h.toFixed(1) + ' ชม.' };
+    const dayRounded = Math.round((h / 8) * 10) / 10;
+    const dayStr = dayRounded % 1 === 0 ? `${dayRounded} วัน` : `${dayRounded.toFixed(1)} วัน`;
+    return { day: dayStr, hrs: `${h.toFixed(1)} ชม` };
   };
 
-  const typeColors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#84cc16','#f97316'];
+  const sourceRecords = hasDateFilter && Array.isArray(yearAllRecords) ? yearAllRecords : records;
+  const completeRecords = sourceRecords.filter(r => r.drp_Type && r.drp_Sdate);
 
-  // ── MODE A: date filter is active + yearAllRecords provided ──────────────
-  // Show only the year tile (computed from all records for that year),
-  // plus type badges from the full-year data. No month/week/total tiles.
-  if (hasDateFilter && yearAllRecords) {
-    const completeYear = yearAllRecords.filter(r => r.drp_Type && r.drp_Sdate);
-    let yearMinutes = 0;
-    const byTypeYear = {};
-    for (const r of completeYear) {
-      const mins = _leaveDurationMinutes(r);
-      yearMinutes += mins;
-      const key = r.drp_Type || '-';
-      if (!byTypeYear[key]) byTypeYear[key] = { type: key, name: r.leave_name || key, minutes: 0 };
-      byTypeYear[key].minutes += mins;
-    }
-    const yr = fmtDH(yearMinutes);
-    const typeEntriesYear = Object.values(byTypeYear);
-    const typeBadgesYear = typeEntriesYear.map((t, i) => {
-      const h = t.minutes / 60;
-      const days = (Math.round((h / 8) * 10) / 10).toFixed(1);
-      const col = typeColors[i % typeColors.length];
-      return `<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:${col}18;border:1px solid ${col}40;border-radius:10px;min-width:0;">
-        <span style="font-size:12px;font-weight:700;color:${col};">${escHtml(t.type)}</span>
-        <span style="font-size:12px;color:var(--gray-600);">${escHtml(t.name)}</span>
-        <span style="font-size:12px;font-weight:600;color:${col};white-space:nowrap;">${days} วัน (${h.toFixed(1)} ชม.)</span>
-      </div>`;
-    }).join('');
-
-    panel.style.display = 'block';
-    panel.innerHTML = `
-      <div style="background:var(--bg-card,#fff);border:1.5px solid var(--primary-light,#dbeafe);border-radius:14px;padding:14px 18px;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-          <i class="bi bi-person-lines-fill" style="font-size:17px;color:var(--primary);"></i>
-          <span style="font-size:14px;font-weight:700;color:var(--gray-900);">${escHtml(empName)}</span>
-          <span style="font-size:12px;color:var(--gray-500);">· ${escHtml(empIDs[0])}</span>
-          <span style="margin-left:auto;font-size:12px;color:var(--gray-400);">แสดง ${records.length} รายการ (ฟิลเตอร์)</span>
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-          <div style="flex:1;min-width:140px;background:#eff6ff;border-radius:10px;padding:10px 14px;">
-            <div style="font-size:11px;color:var(--gray-500);margin-bottom:3px;">ลาปี ${filterYear} รวมทั้งปี</div>
-            <div style="font-size:20px;font-weight:800;color:var(--primary);">${yr.day}</div>
-            <div style="font-size:12px;color:var(--gray-400);margin-top:2px;">${yr.hrs}</div>
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          ${typeBadgesYear || '<span style="font-size:12.5px;color:var(--gray-400);">ยังไม่มีข้อมูลประเภทการลา</span>'}
-        </div>
-      </div>`;
-    return;
-  }
-
-  // ── MODE B: no date filter – show full summary as before ─────────────────
-  // Compute total time (minutes) and count by type — only complete records
-  const completeRecords = records.filter(r => r.drp_Type && r.drp_Sdate);
-  let totalMinutes = 0, yearMinutes = 0, monthMinutes = 0, weekMinutes = 0;
-  const byType = {};
+  let yearMinutes = 0;
   for (const r of completeRecords) {
-    const mins = _leaveDurationMinutes(r);
-    totalMinutes += mins;
-    const key = r.drp_Type || '-';
-    if (!byType[key]) byType[key] = { type: key, name: r.leave_name || key, minutes: 0 };
-    byType[key].minutes += mins;
-    // Period buckets — use drp_Sdate (YYYY/MM/DD)
     const sd = r.drp_Sdate || '';
-    if (sd.startsWith(yearPrefix)) yearMinutes += mins;
-    if (sd.startsWith(monthPrefix)) monthMinutes += mins;
-    // Week check
-    const parts = sd.split('/').map(Number);
-    if (parts[0] && parts[1] && parts[2]) {
-      const recDate = new Date(parts[0], parts[1] - 1, parts[2]);
-      if (recDate >= monday && recDate <= sunday) weekMinutes += mins;
-    }
+    if (!sd.startsWith(yearPrefix)) continue;
+    yearMinutes += _leaveDurationMinutes(r);
   }
 
-  const incompleteCount = records.length - completeRecords.length;
-  const typeEntries = Object.values(byType);
-
-  const typeBadges = typeEntries.map((t, i) => {
-    const h = t.minutes / 60;
-    const days = (Math.round((h / 8) * 10) / 10).toFixed(1);
-    const col = typeColors[i % typeColors.length];
-    return `<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:${col}18;border:1px solid ${col}40;border-radius:10px;min-width:0;">
-      <span style="font-size:12px;font-weight:700;color:${col};">${escHtml(t.type)}</span>
-      <span style="font-size:12px;color:var(--gray-600);">${escHtml(t.name)}</span>
-      <span style="font-size:12px;font-weight:600;color:${col};white-space:nowrap;">${days} วัน (${h.toFixed(1)} ชม.)</span>
-    </div>`;
-  }).join('');
-
-  const yr = fmtDH(yearMinutes), mo = fmtDH(monthMinutes), wk = fmtDH(weekMinutes), tot = fmtDH(totalMinutes);
+  const yr = fmtDH(yearMinutes);
 
   panel.style.display = 'block';
   panel.innerHTML = `
@@ -650,32 +564,14 @@ function _renderLeaveSummary(records, search, filterFrom = '', filterTo = '', ye
         <i class="bi bi-person-lines-fill" style="font-size:17px;color:var(--primary);"></i>
         <span style="font-size:14px;font-weight:700;color:var(--gray-900);">${escHtml(empName)}</span>
         <span style="font-size:12px;color:var(--gray-500);">· ${escHtml(empIDs[0])}</span>
-        <span style="margin-left:auto;font-size:12px;color:var(--gray-400);">รายการทั้งหมด ${records.length} รายการ${incompleteCount ? ` (ยังไม่บันทึก ${incompleteCount})` : ''}</span>
+        <span style="margin-left:auto;font-size:12px;color:var(--gray-400);">แสดง ${records.length} รายการ</span>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-        <div style="flex:1;min-width:120px;background:#eff6ff;border-radius:10px;padding:10px 14px;">
-          <div style="font-size:11px;color:var(--gray-500);margin-bottom:3px;">รายปีนี้ (${thisYear})</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:180px;background:#eff6ff;border-radius:10px;padding:10px 14px;">
+          <div style="font-size:11px;color:var(--gray-500);margin-bottom:3px;">วันลาในปี ${displayYear}</div>
           <div style="font-size:20px;font-weight:800;color:var(--primary);">${yr.day}</div>
           <div style="font-size:12px;color:var(--gray-400);margin-top:2px;">${yr.hrs}</div>
         </div>
-        <div style="flex:1;min-width:120px;background:#f0fdf4;border-radius:10px;padding:10px 14px;">
-          <div style="font-size:11px;color:var(--gray-500);margin-bottom:3px;">รายเดือนนี้</div>
-          <div style="font-size:20px;font-weight:800;color:#10b981;">${mo.day}</div>
-          <div style="font-size:12px;color:var(--gray-400);margin-top:2px;">${mo.hrs}</div>
-        </div>
-        <div style="flex:1;min-width:120px;background:#fefce8;border-radius:10px;padding:10px 14px;">
-          <div style="font-size:11px;color:var(--gray-500);margin-bottom:3px;">รายอาทิตย์นี้</div>
-          <div style="font-size:20px;font-weight:800;color:#f59e0b;">${wk.day}</div>
-          <div style="font-size:12px;color:var(--gray-400);margin-top:2px;">${wk.hrs}</div>
-        </div>
-        <div style="flex:1;min-width:120px;background:#f8fafc;border-radius:10px;padding:10px 14px;">
-          <div style="font-size:11px;color:var(--gray-500);margin-bottom:3px;">รวมทั้งหมด</div>
-          <div style="font-size:20px;font-weight:800;color:var(--gray-700);">${tot.day}</div>
-          <div style="font-size:12px;color:var(--gray-400);margin-top:2px;">${tot.hrs}</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-        ${typeBadges || '<span style="font-size:12.5px;color:var(--gray-400);">ยังไม่มีข้อมูลประเภทการลา</span>'}
       </div>
     </div>`;
 }
