@@ -60,7 +60,7 @@ export async function initAutoLogin() {
 }
 
 // ===================== MENU VISIBILITY BY ROLE =====================
-// guest: ซ่อน วันหยุด, กลุ่มการอบรมทั้งหมด, ซ่อน รายงานการหยุดงานประจำวัน
+// guest: ซ่อน วันหยุด, กลุ่มการอบรมทั้งหมด, ซ่อน รายงานการหยุดงานประจำวัน, ซ่อนกลุ่มทดลองงาน
 // admin/user: แสดงทั้งหมด
 export function applyMenuForRole(role) {
   const isGuest = role === 'guest';
@@ -84,6 +84,13 @@ export function applyMenuForRole(role) {
   // รายงานการหยุดงานประจำวัน (subitem inside leave group)
   const navDailyAbsence = document.getElementById('navDailyAbsence');
   if (navDailyAbsence) navDailyAbsence.style.display = isGuest ? 'none' : '';
+
+  // กลุ่มทดลองงาน (probation group header + submenu)
+  const groupProbation = document.getElementById('groupProbation');
+  if (groupProbation) groupProbation.style.display = isGuest ? 'none' : '';
+  document.querySelectorAll('.nav-section-label').forEach(el => {
+    if (el.textContent.trim() === 'ทดลองงาน') el.style.display = isGuest ? 'none' : '';
+  });
 }
 
 export async function checkDBStatus() {

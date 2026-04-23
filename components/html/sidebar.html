@@ -99,6 +99,27 @@
       <span>วันหยุดบริษัท</span>
     </button>
 
+    <!-- ── กลุ่ม: ทดลองงาน ── -->
+    <div class="nav-section-label" style="margin-top:12px;">ทดลองงาน</div>
+
+    <div class="nav-group" id="groupProbation">
+      <button class="nav-group-header" onclick="toggleGroup('groupProbation')">
+        <i class="bi bi-person-check group-icon"></i>
+        <span class="group-label">ประเมินผลทดลองงาน</span>
+        <i class="bi bi-chevron-down chevron"></i>
+      </button>
+      <div class="nav-submenu" id="subProbation">
+        <button class="nav-subitem" id="navProbation"
+          onclick="switchPage('probation')">
+          รายการทดลองงาน
+        </button>
+        <button class="nav-subitem" id="navProbationCriteria"
+          onclick="switchPage('probationCriteria')">
+          หัวข้อประเมิน
+        </button>
+      </div>
+    </div>
+
   </nav>
 
   <div class="sidebar-footer">

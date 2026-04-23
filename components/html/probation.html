@@ -1,0 +1,115 @@
+<!-- ===================== PROBATION CYCLE LIST PAGE ===================== -->
+<div class="table-section">
+  <div class="table-header">
+    <span class="table-title">รายการแฟ้มทดลองงาน</span>
+
+    <div class="search-box" style="max-width:300px;">
+      <i class="bi bi-search"></i>
+      <input type="text" class="search-input" id="probSearchInput"
+        placeholder="ค้นหา รหัส / ชื่อพนักงาน / แผนก..."
+        oninput="probOnSearch()">
+    </div>
+
+    <button class="btn-primary-custom" onclick="probOpenCreateCycleModal()">
+      <i class="bi bi-plus-lg me-1"></i> สร้างแฟ้มทดลองงาน
+    </button>
+  </div>
+
+  <!-- TABLE -->
+  <div style="overflow-x:auto;">
+    <table class="data-table" id="probTable">
+      <thead>
+        <tr>
+          <th style="width:46px;text-align:center;">#</th>
+          <th style="min-width:100px;">รหัสพนักงาน</th>
+          <th style="min-width:200px;">ชื่อ-นามสกุล</th>
+          <th style="min-width:140px;">แผนก</th>
+          <th style="min-width:110px;">วันเริ่มทดลองงาน</th>
+          <th style="min-width:70px;text-align:center;">รอบ</th>
+          <th style="min-width:120px;text-align:center;">ผลล่าสุด</th>
+          <th style="min-width:80px;text-align:center;">สถานะ</th>
+          <th style="width:110px;text-align:center;">จัดการ</th>
+        </tr>
+      </thead>
+      <tbody id="probTableBody">
+        <tr>
+          <td colspan="9" style="text-align:center;padding:40px;color:#94a3b8;">
+            <div class="spinner" style="margin:0 auto 12px;"></div>
+            <div>กำลังโหลดข้อมูล...</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- PAGINATION -->
+  <div class="table-footer" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:12px 16px;">
+    <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--gray-600);">
+      แสดง
+      <select class="filter-select" id="probPerPageSelect" onchange="probSetPageSize()" style="padding:4px 8px;font-size:13px;min-width:70px;">
+        <option value="25">25</option>
+        <option value="50" selected>50</option>
+        <option value="100">100</option>
+      </select>
+      รายการ / หน้า &nbsp;|&nbsp; ทั้งหมด <strong id="probTotalCount">0</strong> รายการ
+    </div>
+    <div id="probPagination" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+  </div>
+</div>
+
+<!-- ===================== CREATE CYCLE MODAL ===================== -->
+<div class="modal-overlay" id="probCycleModal">
+  <div class="modal-card" style="width:520px;max-width:96vw;">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="bi bi-person-check-fill"></i>
+        <span id="probCycleModalTitle">สร้างแฟ้มทดลองงานใหม่</span>
+      </div>
+      <button class="modal-close" onclick="probCloseCycleModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <!-- Employee picker -->
+      <div class="form-group" style="position:relative;">
+        <label>พนักงาน <span class="required">*</span></label>
+        <div class="search-box" style="max-width:100%;">
+          <i class="bi bi-search"></i>
+          <input type="text" class="search-input" id="probEmpSearch"
+            placeholder="ค้นหา รหัส / ชื่อพนักงาน..."
+            oninput="probEmpSearchInput()" autocomplete="off"
+            onblur="setTimeout(()=>{ const b=document.getElementById('probEmpSuggest'); if(b) b.style.display='none'; },200)">
+        </div>
+        <div id="probEmpSuggest" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:200;
+          background:#fff;border:1.5px solid var(--gray-200);border-radius:10px;margin-top:2px;
+          max-height:220px;overflow-y:auto;box-shadow:var(--shadow-md,0 4px 12px rgba(0,0,0,.12));"></div>
+        <input type="hidden" id="probEmpId">
+        <div id="probEmpSelected" style="margin-top:8px;display:none;padding:10px 14px;
+          background:var(--primary-light);border-radius:8px;font-size:13px;color:var(--primary-dark);">
+        </div>
+      </div>
+
+      <div class="form-row" style="margin-top:16px;">
+        <div class="form-group">
+          <label>วันเริ่มทดลองงาน <span class="required">*</span></label>
+          <input type="date" id="probCycleStartDate" class="form-control-m" readonly
+            style="background:var(--gray-100);cursor:not-allowed;">
+          <div style="font-size:12px;color:var(--gray-500);margin-top:6px;">
+            ระบบอ้างอิงจากวันเริ่มงานในฐานข้อมูลพนักงาน
+          </div>
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:12px;">
+        <label>หมายเหตุ</label>
+        <textarea id="probCycleRemark" class="form-control-m" rows="2"
+          placeholder="(ไม่บังคับ)" style="resize:vertical;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer" style="padding:16px 24px;display:flex;justify-content:flex-end;gap:10px;">
+      <button class="btn-outline-custom" onclick="probCloseCycleModal()">ยกเลิก</button>
+      <button class="btn-primary-custom" onclick="probSubmitCycle()">
+        <i class="bi bi-check-lg me-1"></i> บันทึก
+      </button>
+    </div>
+  </div>
+</div>

@@ -85,6 +85,18 @@ import {
   csOpenAddModal, csOpenEditModal, csCloseFormModal, csSubmitForm,
   csOpenDeleteModal, csDeleteCheckChanged, csCloseDeleteModal, csExecuteDelete
 } from './components/js/courses.js';
+import {
+  loadProbationPage, probRefreshList, probOnSearch, probSetPageSize, probGoPage,
+  probOpenCreateCycleModal, probOpenEditCycle, probCloseCycleModal, probSubmitCycle,
+  probEmpSearchInput, probSelectEmp,
+  probOpenCycleDetail, probOpenAddPeriodModal, probCloseAddPeriodModal,
+  probSubmitAddPeriod, probConfirmCloseCycle,
+  probOpenPeriodDetail, probSwitchTab, probSwitchScoreMonth,
+  probCalcAttPct, probValidateScore, probSaveAttendance, probSaveScores,
+  probOnDecisionChange, probFinalizePeriod,
+  loadProbationCriteriaPage, pcRefresh, pcOnSearch,
+  pcOpenAddModal, pcOpenEditModal, pcCloseFormModal, pcSubmitForm, pcToggle
+} from './components/js/probation.js';
 
 // ===================== COMPONENT LOADER =====================
 async function loadComponent(url, targetId) {
@@ -105,6 +117,8 @@ const PAGE_CONFIG = {
   ot:                   { title: 'OT',                         subtitle: 'จัดการข้อมูลการทำงานล่วงเวลา',   icon: 'bi-clock-history',      group: 'groupOT' },
   otSigners:            { title: 'จัดการผู้เซ็นชื่อ OT',           subtitle: 'กำหนดหัวหน้างานผู้เซ็นชื่อในแบบฟอร์ม OT',   icon: 'bi-pen-fill',           group: 'groupOT' },
   holiday:              { title: 'วันหยุดบริษัท',                  subtitle: 'กำหนดวันหยุดประจำปีของบริษัท',         icon: 'bi-calendar2-heart',    group: null },
+  probation:            { title: 'รายการทดลองงาน',                 subtitle: 'จัดการการทดลองงานพนักงาน',              icon: 'bi-person-check-fill',  group: 'groupProbation' },
+  probationCriteria:    { title: 'หัวข้อประเมิน',                  subtitle: 'จัดการหัวข้อประเมินผลทดลองงาน',        icon: 'bi-list-check',         group: 'groupProbation' },
 };
 
 // ===================== NAV GROUP TOGGLE =====================
@@ -123,6 +137,12 @@ function toggleGroup(groupId) {
 let currentPage = 'employees';
 
 async function switchPage(page) {
+  const restrictedGuestPages = new Set(['probation', 'probationCriteria']);
+  if (currentUser?.role === 'guest' && restrictedGuestPages.has(page)) {
+    showToast('บัญชี Guest ไม่มีสิทธิ์เข้าดูข้อมูลทดลองงาน', 'warning');
+    page = currentPage && !restrictedGuestPages.has(currentPage) ? currentPage : 'employees';
+  }
+
   currentPage = page;
   const cfg = PAGE_CONFIG[page] || { title: page, subtitle: '', icon: 'bi-grid', group: null };
 
@@ -168,6 +188,10 @@ async function switchPage(page) {
     await loadOtSignersPage();
   } else if (page === 'holiday') {
     await loadHolidayPage();
+  } else if (page === 'probation') {
+    await loadProbationPage();
+  } else if (page === 'probationCriteria') {
+    await loadProbationCriteriaPage();
   } else {
     loadPlaceholderPage(cfg);
   }
@@ -817,6 +841,17 @@ Object.assign(window, {
   loadCoursesPage, csRefresh, csOnSearch, csSortBy, csSetPageSize, csGoPage,
   csOpenAddModal, csOpenEditModal, csCloseFormModal, csSubmitForm,
   csOpenDeleteModal, csDeleteCheckChanged, csCloseDeleteModal, csExecuteDelete,
+  // Probation Evaluation
+  loadProbationPage, probRefreshList, probOnSearch, probSetPageSize, probGoPage,
+  probOpenCreateCycleModal, probOpenEditCycle, probCloseCycleModal, probSubmitCycle,
+  probEmpSearchInput, probSelectEmp,
+  probOpenCycleDetail, probOpenAddPeriodModal, probCloseAddPeriodModal,
+  probSubmitAddPeriod, probConfirmCloseCycle,
+  probOpenPeriodDetail, probSwitchTab, probSwitchScoreMonth,
+  probCalcAttPct, probValidateScore, probSaveAttendance, probSaveScores,
+  probOnDecisionChange, probFinalizePeriod,
+  loadProbationCriteriaPage, pcRefresh, pcOnSearch,
+  pcOpenAddModal, pcOpenEditModal, pcCloseFormModal, pcSubmitForm, pcToggle,
   // Shared modal util
   closeModal, showModal, showToast,
   // DB config

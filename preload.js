@@ -62,4 +62,17 @@ contextBridge.exposeInMainWorld('api', {
   isDbConfigNeeded: () => ipcRenderer.invoke('is-db-config-needed'),
   testDbConfig: (config) => ipcRenderer.invoke('test-db-config', config),
   saveDbConfig: (config) => ipcRenderer.invoke('save-db-config', config),
+  // Probation Evaluation
+  probationGetCriteria: (payload) => ipcRenderer.invoke('probation-get-criteria', payload),
+  probationSaveCriteria: (data) => ipcRenderer.invoke('probation-save-criteria', data),
+  probationToggleCriteria: (data) => ipcRenderer.invoke('probation-toggle-criteria', data),
+  probationGetCycles: (payload) => ipcRenderer.invoke('probation-get-cycles', payload),
+  probationSaveCycle: (data) => ipcRenderer.invoke('probation-save-cycle', data),
+  probationCloseCycle: (cycleId) => ipcRenderer.invoke('probation-close-cycle', cycleId),
+  probationGetCycleDetail: (cycleId) => ipcRenderer.invoke('probation-get-cycle-detail', cycleId),
+  probationSavePeriod: (data) => ipcRenderer.invoke('probation-save-period', data),
+  probationGetPeriodDetail: (periodId) => ipcRenderer.invoke('probation-get-period-detail', periodId),
+  probationSaveAttendance: (data) => ipcRenderer.invoke('probation-save-attendance', data),
+  probationSaveScores: (data) => ipcRenderer.invoke('probation-save-scores', data),
+  probationFinalizePeriod: (data) => ipcRenderer.invoke('probation-finalize-period', data),
 });

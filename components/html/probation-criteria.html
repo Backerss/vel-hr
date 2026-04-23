@@ -1,0 +1,96 @@
+<!-- ===================== PROBATION CRITERIA MANAGEMENT PAGE ===================== -->
+<div class="table-section">
+  <div class="table-header">
+    <span class="table-title">หัวข้อประเมินผลทดลองงาน</span>
+
+    <div class="search-box" style="max-width:280px;">
+      <i class="bi bi-search"></i>
+      <input type="text" class="search-input" id="pcSearchInput"
+        placeholder="ค้นหาหัวข้อ..."
+        oninput="pcOnSearch()">
+    </div>
+
+    <select class="filter-select" id="pcFilterStatus" onchange="pcOnSearch()" style="min-width:130px;">
+      <option value="">ทั้งหมด</option>
+      <option value="1">ใช้งาน</option>
+      <option value="0">ปิดใช้งาน</option>
+    </select>
+
+    <button class="btn-primary-custom" onclick="pcOpenAddModal()">
+      <i class="bi bi-plus-lg me-1"></i> เพิ่มหัวข้อ
+    </button>
+  </div>
+
+  <!-- TABLE -->
+  <div style="overflow-x:auto;">
+    <table class="data-table" id="pcTable">
+      <thead>
+        <tr>
+          <th style="width:46px;text-align:center;">#</th>
+          <th style="width:70px;text-align:center;">ลำดับ</th>
+          <th style="min-width:240px;">ชื่อหัวข้อประเมิน</th>
+          <th style="min-width:200px;">คำอธิบาย</th>
+          <th style="min-width:100px;text-align:center;">คะแนนเต็ม</th>
+          <th style="min-width:90px;text-align:center;">สถานะ</th>
+          <th style="width:120px;text-align:center;">จัดการ</th>
+        </tr>
+      </thead>
+      <tbody id="pcTableBody">
+        <tr>
+          <td colspan="7" style="text-align:center;padding:40px;color:#94a3b8;">
+            <div class="spinner" style="margin:0 auto 12px;"></div>
+            <div>กำลังโหลดข้อมูล...</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-footer" style="padding:12px 16px;">
+    <span style="font-size:13px;color:var(--gray-500);">ทั้งหมด <strong id="pcTotalCount">0</strong> รายการ</span>
+  </div>
+</div>
+
+<!-- ===================== ADD / EDIT CRITERIA MODAL ===================== -->
+<div class="modal-overlay" id="pcFormModal">
+  <div class="modal-card" style="width:500px;max-width:96vw;">
+    <div class="modal-header">
+      <div class="modal-title">
+        <i class="bi bi-list-check"></i>
+        <span id="pcFormTitle">เพิ่มหัวข้อประเมิน</span>
+      </div>
+      <button class="modal-close" onclick="pcCloseFormModal()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="pcEditId">
+      <div class="form-group">
+        <label>ชื่อหัวข้อประเมิน <span class="required">*</span></label>
+        <input type="text" id="pcName" class="form-control-m" placeholder="เช่น ความรู้และทักษะในงาน" maxlength="200">
+      </div>
+      <div class="form-group" style="margin-top:12px;">
+        <label>คำอธิบาย</label>
+        <textarea id="pcDesc" class="form-control-m" rows="2"
+          style="resize:vertical;" placeholder="(ไม่บังคับ)" maxlength="500"></textarea>
+      </div>
+      <div class="form-row" style="margin-top:12px;">
+        <div class="form-group">
+          <label>คะแนนเต็ม <span class="required">*</span></label>
+          <input type="number" id="pcMaxScore" class="form-control-m" value="100" min="1" max="9999" step="1">
+        </div>
+        <div class="form-group">
+          <label>ลำดับการแสดง</label>
+          <input type="number" id="pcSortOrder" class="form-control-m" value="0" min="0" max="999" step="1"
+            placeholder="0 = ไม่กำหนด">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="padding:16px 24px;display:flex;justify-content:flex-end;gap:10px;">
+      <button class="btn-outline-custom" onclick="pcCloseFormModal()">ยกเลิก</button>
+      <button class="btn-primary-custom" onclick="pcSubmitForm()">
+        <i class="bi bi-check-lg me-1"></i> บันทึก
+      </button>
+    </div>
+  </div>
+</div>

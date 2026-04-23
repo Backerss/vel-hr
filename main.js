@@ -8,6 +8,7 @@ let mainWindow;
 let db;
 let dbConfigNeeded = false;
 let currentDbHost = '';
+let probationAttendanceSchemaEnsured = false;
 
 // ===================== DB CONFIG (AppData) =====================
 const DEFAULT_DB_CONFIG = {
@@ -56,6 +57,7 @@ async function createConnection(config) {
     });
     // Verify the pool can actually reach the server
     await db.execute('SELECT 1');
+    await ensureProbationAttendanceSchema();
     currentDbHost = config.host;
     console.log('Connected to MySQL database (pool)');
     return true;
@@ -63,6 +65,38 @@ async function createConnection(config) {
     console.error('Database connection failed:', error.message);
     db = null;
     return false;
+  }
+}
+
+async function ensureProbationAttendanceSchema() {
+  if (!db || probationAttendanceSchemaEnsured) return;
+  try {
+    const [rows] = await db.execute(
+      `SELECT DATA_TYPE, NUMERIC_PRECISION, NUMERIC_SCALE
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'tb_probation_attendance'
+         AND COLUMN_NAME = 'leave_days'`
+    );
+
+    if (!rows.length) return;
+
+    const column = rows[0];
+    const needsAlter = String(column.DATA_TYPE || '').toLowerCase() !== 'decimal'
+      || Number(column.NUMERIC_PRECISION || 0) !== 5
+      || Number(column.NUMERIC_SCALE || 0) !== 2;
+
+    if (needsAlter) {
+      await db.execute(
+        `ALTER TABLE tb_probation_attendance
+         MODIFY leave_days DECIMAL(5,2) NOT NULL DEFAULT 0.00 COMMENT 'ลา (รองรับเศษวัน)'`
+      );
+      console.log('Auto-migrated tb_probation_attendance.leave_days to DECIMAL(5,2)');
+    }
+
+    probationAttendanceSchemaEnsured = true;
+  } catch (error) {
+    console.error('Failed to ensure probation attendance schema:', error.message);
   }
 }
 
@@ -3535,4 +3569,473 @@ ipcMain.handle('delete-course', async (event, courseId) => {
   } finally {
     conn.release();
   }
+});
+
+// ===================== PROBATION EVALUATION IPC =====================
+
+// ---- Criteria ----
+ipcMain.handle('probation-get-criteria', async (event, { includeInactive = false } = {}) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const where = includeInactive ? '' : 'WHERE is_active = 1';
+    const [rows] = await db.execute(
+      `SELECT criteria_id, criteria_name, criteria_desc, max_score, sort_order, is_active
+       FROM tb_probation_criteria ${where} ORDER BY sort_order ASC, criteria_id ASC`
+    );
+    return { success: true, data: rows };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+ipcMain.handle('probation-save-criteria', async (event, d) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  const name = String(d.criteria_name || '').trim();
+  if (!name) return { success: false, message: 'กรุณากรอกชื่อหัวข้อประเมิน' };
+  const maxScore = parseFloat(d.max_score) || 100;
+  if (maxScore <= 0) return { success: false, message: 'คะแนนเต็มต้องมากกว่า 0' };
+  try {
+    if (d.criteria_id) {
+      await db.execute(
+        `UPDATE tb_probation_criteria
+         SET criteria_name=?, criteria_desc=?, max_score=?, sort_order=?, is_active=?
+         WHERE criteria_id=?`,
+        [name, d.criteria_desc || '', maxScore, Number(d.sort_order) || 0,
+         d.is_active ? 1 : 0, d.criteria_id]
+      );
+      return { success: true, message: 'แก้ไขหัวข้อสำเร็จ' };
+    } else {
+      await db.execute(
+        `INSERT INTO tb_probation_criteria (criteria_name, criteria_desc, max_score, sort_order, is_active)
+         VALUES (?, ?, ?, ?, 1)`,
+        [name, d.criteria_desc || '', maxScore, Number(d.sort_order) || 0]
+      );
+      return { success: true, message: 'เพิ่มหัวข้อสำเร็จ' };
+    }
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+ipcMain.handle('probation-toggle-criteria', async (event, { criteria_id, is_active }) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    await db.execute(
+      `UPDATE tb_probation_criteria SET is_active=? WHERE criteria_id=?`,
+      [is_active ? 1 : 0, criteria_id]
+    );
+    return { success: true };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// ---- Cycle ----
+ipcMain.handle('probation-get-cycles', async (event, { search = '', page = 1, perPage = 50 } = {}) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const safePerPage = Math.max(1, Math.min(Number(perPage) || 50, 100));
+    const safePage    = Math.max(1, Number(page) || 1);
+    const offset      = (safePage - 1) * safePerPage;
+    const params      = [];
+    let   where       = 'WHERE 1=1';
+    if (search) {
+      where += ` AND (c.emp_id LIKE ? OR CONCAT(e.Emp_Sname,e.Emp_Firstname,' ',e.Emp_Lastname) LIKE ? OR s.Sub_Name LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    const baseQ = `FROM tb_probation_cycle c
+      LEFT JOIN employees e ON e.Emp_ID = c.emp_id
+      LEFT JOIN subdivision s ON s.Sub_ID = e.Sub_ID
+      ${where}`;
+    const [countRows] = await db.execute(`SELECT COUNT(*) AS total ${baseQ}`, params);
+    const total = countRows[0].total;
+    const [rows] = await db.execute(
+      `SELECT c.cycle_id, c.emp_id, DATE_FORMAT(c.start_date,'%Y-%m-%d') AS start_date, c.status, c.remark,
+        CONCAT(IFNULL(e.Emp_Sname,''),IFNULL(e.Emp_Firstname,''),' ',IFNULL(e.Emp_Lastname,'')) AS Fullname,
+        s.Sub_Name,
+        (SELECT COUNT(*) FROM tb_probation_period p WHERE p.cycle_id = c.cycle_id) AS period_count,
+        (SELECT p2.decision FROM tb_probation_period p2 WHERE p2.cycle_id = c.cycle_id
+         ORDER BY p2.period_no DESC LIMIT 1) AS last_decision,
+        (SELECT p3.avg_score FROM tb_probation_period p3 WHERE p3.cycle_id = c.cycle_id
+         ORDER BY p3.period_no DESC LIMIT 1) AS last_avg_score
+      ${baseQ}
+      ORDER BY c.cycle_id DESC
+      LIMIT ${safePerPage} OFFSET ${offset}`,
+      params
+    );
+    return { success: true, data: rows, total, page: safePage, perPage: safePerPage };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+ipcMain.handle('probation-save-cycle', async (event, d) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  const empId = String(d.emp_id || '').trim();
+  if (!empId) return { success: false, message: 'กรุณาระบุรหัสพนักงาน' };
+  const requestedStartDate = String(d.start_date || '').trim();
+  try {
+    if (d.cycle_id) {
+      if (!requestedStartDate) return { success: false, message: 'กรุณาระบุวันเริ่มทดลองงาน' };
+      await db.execute(
+        `UPDATE tb_probation_cycle SET start_date=?, remark=? WHERE cycle_id=?`,
+        [requestedStartDate, d.remark || '', d.cycle_id]
+      );
+      return { success: true, message: 'แก้ไขข้อมูลทดลองงานสำเร็จ' };
+    } else {
+      const [existing] = await db.execute(
+        `SELECT cycle_id FROM tb_probation_cycle WHERE emp_id = ?`, [empId]
+      );
+      if (existing.length > 0) return { success: false, message: 'พนักงานนี้มีแฟ้มทดลองงานอยู่แล้ว' };
+
+      const [empRows] = await db.execute(
+        `SELECT DATE_FORMAT(Emp_Start_date, '%Y-%m-%d') AS Emp_Start_date
+         FROM employees WHERE Emp_ID = ?`,
+        [empId]
+      );
+      if (!empRows.length) return { success: false, message: 'ไม่พบข้อมูลพนักงาน' };
+
+      const employeeStartDate = String(empRows[0].Emp_Start_date || '').trim();
+      if (!employeeStartDate || employeeStartDate === '0000-00-00') {
+        return { success: false, message: 'ไม่พบวันเริ่มงานของพนักงานในฐานข้อมูล' };
+      }
+
+      const [result] = await db.execute(
+        `INSERT INTO tb_probation_cycle (emp_id, start_date, remark) VALUES (?, ?, ?)`,
+        [empId, employeeStartDate, d.remark || '']
+      );
+      return {
+        success: true,
+        message: 'สร้างแฟ้มทดลองงานสำเร็จ',
+        cycle_id: result.insertId,
+        start_date: employeeStartDate
+      };
+    }
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+ipcMain.handle('probation-close-cycle', async (event, cycle_id) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    await db.execute(
+      `UPDATE tb_probation_cycle SET status='CLOSED' WHERE cycle_id=?`, [cycle_id]
+    );
+    return { success: true, message: 'ปิดแฟ้มทดลองงานสำเร็จ' };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+ipcMain.handle('probation-get-cycle-detail', async (event, cycle_id) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const [cycles] = await db.execute(
+      `SELECT c.cycle_id, c.emp_id, DATE_FORMAT(c.start_date,'%Y-%m-%d') AS start_date,
+         c.status, c.remark,
+         CONCAT(IFNULL(e.Emp_Sname,''),IFNULL(e.Emp_Firstname,''),' ',IFNULL(e.Emp_Lastname,'')) AS Fullname,
+         e.Emp_Sname, e.Emp_Firstname, e.Emp_Lastname, e.Emp_Status,
+         s.Sub_Name, p.Position_Name, e.Emp_Vsth
+       FROM tb_probation_cycle c
+       LEFT JOIN employees e ON e.Emp_ID = c.emp_id
+       LEFT JOIN subdivision s ON s.Sub_ID = e.Sub_ID
+       LEFT JOIN position p ON p.Position_ID = e.Position_ID
+       WHERE c.cycle_id = ?`, [cycle_id]
+    );
+    if (!cycles.length) return { success: false, message: 'ไม่พบข้อมูล' };
+    const [periods] = await db.execute(
+      `SELECT period_id, period_no,
+         DATE_FORMAT(start_date,'%Y-%m-%d') AS start_date,
+         DATE_FORMAT(end_date,'%Y-%m-%d') AS end_date,
+         decision, decision_note, att_pct, quality_pct, avg_score, grade
+       FROM tb_probation_period WHERE cycle_id=? ORDER BY period_no ASC`, [cycle_id]
+    );
+    return { success: true, cycle: cycles[0], periods };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// ---- Period ----
+ipcMain.handle('probation-save-period', async (event, d) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  if (!d.cycle_id) return { success: false, message: 'ไม่ระบุ cycle_id' };
+  if (!d.start_date) return { success: false, message: 'กรุณาระบุวันที่รอบประเมิน' };
+  try {
+    const startDate = new Date(`${d.start_date}T00:00:00`);
+    if (Number.isNaN(startDate.getTime())) return { success: false, message: 'วันที่เริ่มรอบประเมินไม่ถูกต้อง' };
+    const endDate = new Date(startDate.getTime());
+    endDate.setDate(endDate.getDate() + 119);
+    const endDateIso = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+
+    const [maxRow] = await db.execute(
+      `SELECT IFNULL(MAX(period_no),0) AS max_no FROM tb_probation_period WHERE cycle_id=?`,
+      [d.cycle_id]
+    );
+    const nextNo = Number(maxRow[0].max_no) + 1;
+    const [result] = await db.execute(
+      `INSERT INTO tb_probation_period (cycle_id, period_no, start_date, end_date)
+       VALUES (?, ?, ?, ?)`,
+      [d.cycle_id, nextNo, d.start_date, endDateIso]
+    );
+    return {
+      success: true,
+      message: `สร้างรอบที่ ${nextNo} สำเร็จ`,
+      period_id: result.insertId,
+      period_no: nextNo,
+      end_date: endDateIso
+    };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+ipcMain.handle('probation-get-period-detail', async (event, period_id) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  try {
+    const [periods] = await db.execute(
+      `SELECT p.period_id, p.cycle_id, c.emp_id, p.period_no,
+         DATE_FORMAT(p.start_date,'%Y-%m-%d') AS start_date,
+         DATE_FORMAT(p.end_date,'%Y-%m-%d') AS end_date,
+         p.decision, p.decision_note, p.att_pct, p.quality_pct, p.avg_score, p.grade
+       FROM tb_probation_period p
+       INNER JOIN tb_probation_cycle c ON c.cycle_id = p.cycle_id
+       WHERE p.period_id=?`, [period_id]
+    );
+    if (!periods.length) return { success: false, message: 'ไม่พบข้อมูลรอบประเมิน' };
+    const period = periods[0];
+
+    const parseDbDate = (value) => {
+      const normalized = String(value || '').trim().replace(/\//g, '-');
+      if (!normalized) return null;
+      const date = new Date(`${normalized}T00:00:00`);
+      return Number.isNaN(date.getTime()) ? null : date;
+    };
+    const addDays = (date, days) => {
+      const next = new Date(date.getTime());
+      next.setDate(next.getDate() + days);
+      return next;
+    };
+    const toYearMonth = (date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+    const leaveReference = [];
+    const periodStart = parseDbDate(period.start_date);
+    const periodEnd = parseDbDate(period.end_date);
+    if (period.emp_id && periodStart && periodEnd) {
+      const monthRefMap = {};
+      for (let i = 0; i < 4; i++) {
+        const monthDate = new Date(periodStart.getTime());
+        monthDate.setMonth(monthDate.getMonth() + i);
+        const yearMonth = toYearMonth(monthDate);
+        monthRefMap[yearMonth] = {
+          month_no: i + 1,
+          year_month: yearMonth,
+          leave_days_ref: 0,
+          partial_records: 0
+        };
+      }
+
+      const [leaveRows] = await db.execute(
+        `SELECT drp_Sdate, TIME_FORMAT(drp_Stime,'%H:%i') AS drp_Stime,
+           drp_Edate, TIME_FORMAT(drp_Etime,'%H:%i') AS drp_Etime
+         FROM daily_report
+         WHERE drp_empID = ?
+           AND STR_TO_DATE(REPLACE(COALESCE(NULLIF(drp_Sdate,''), NULLIF(drp_Edate,'')), '/', '-'), '%Y-%m-%d') <= ?
+           AND STR_TO_DATE(REPLACE(COALESCE(NULLIF(drp_Edate,''), NULLIF(drp_Sdate,'')), '/', '-'), '%Y-%m-%d') >= ?`,
+        [period.emp_id, period.end_date, period.start_date]
+      );
+
+      leaveRows.forEach((row) => {
+        let rawStart = parseDbDate(row.drp_Sdate || row.drp_Edate);
+        let rawEnd = parseDbDate(row.drp_Edate || row.drp_Sdate);
+        if (!rawStart || !rawEnd) return;
+        if (rawEnd < rawStart) [rawStart, rawEnd] = [rawEnd, rawStart];
+
+        const overlapStart = rawStart > periodStart ? new Date(rawStart.getTime()) : new Date(periodStart.getTime());
+        const overlapEnd = rawEnd < periodEnd ? new Date(rawEnd.getTime()) : new Date(periodEnd.getTime());
+        if (overlapStart > overlapEnd) return;
+
+        const startTime = String(row.drp_Stime || '08:00');
+        const endTime = String(row.drp_Etime || '17:00');
+        const hasPartialBoundary = startTime > '08:00' || endTime < '17:00';
+
+        let fullStart = new Date(rawStart.getTime());
+        let fullEnd = new Date(rawEnd.getTime());
+        if (startTime > '08:00') fullStart = addDays(fullStart, 1);
+        if (endTime < '17:00') fullEnd = addDays(fullEnd, -1);
+
+        if (hasPartialBoundary) {
+          const touchedMonths = new Set();
+          for (let cursor = new Date(overlapStart.getTime()); cursor <= overlapEnd; cursor = addDays(cursor, 1)) {
+            const yearMonth = toYearMonth(cursor);
+            if (monthRefMap[yearMonth]) touchedMonths.add(yearMonth);
+          }
+          touchedMonths.forEach((yearMonth) => {
+            monthRefMap[yearMonth].partial_records += 1;
+          });
+        }
+
+        const countStart = fullStart > periodStart ? new Date(fullStart.getTime()) : new Date(periodStart.getTime());
+        const countEnd = fullEnd < periodEnd ? new Date(fullEnd.getTime()) : new Date(periodEnd.getTime());
+        if (countStart > countEnd) return;
+
+        for (let cursor = new Date(countStart.getTime()); cursor <= countEnd; cursor = addDays(cursor, 1)) {
+          const yearMonth = toYearMonth(cursor);
+          if (monthRefMap[yearMonth]) monthRefMap[yearMonth].leave_days_ref += 1;
+        }
+      });
+
+      leaveReference.push(...Object.values(monthRefMap));
+    }
+
+    const [attendance] = await db.execute(
+      `SELECT att_id, month_no, \`year_month\`, work_days, present_days,
+         absent_days, late_days, leave_days, att_pct, remark
+       FROM tb_probation_attendance WHERE period_id=? ORDER BY month_no ASC`, [period_id]
+    );
+    const [scores] = await db.execute(
+      `SELECT score_id, month_no, criteria_id, score, remark
+       FROM tb_probation_score WHERE period_id=? ORDER BY month_no ASC, criteria_id ASC`,
+      [period_id]
+    );
+    const [criteria] = await db.execute(
+      `SELECT criteria_id, criteria_name, criteria_desc, max_score, sort_order
+       FROM tb_probation_criteria WHERE is_active=1
+       ORDER BY sort_order ASC, criteria_id ASC`
+    );
+    return { success: true, period, attendance, scores, criteria, leaveReference };
+  } catch (e) { return { success: false, message: e.message }; }
+});
+
+// ---- Attendance ----
+ipcMain.handle('probation-save-attendance', async (event, { period_id, rows }) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  if (!period_id || !Array.isArray(rows)) return { success: false, message: 'ข้อมูลไม่ถูกต้อง' };
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const parseDayValue = (value, label, monthNo) => {
+      const raw = String(value ?? '').trim();
+      if (raw === '') return 0;
+      const parsed = Number.parseInt(raw, 10);
+      if (!Number.isInteger(parsed) || parsed < 0) {
+        throw new Error(`เดือนที่ ${monthNo}: ${label}ไม่ถูกต้อง`);
+      }
+      if (parsed > 31) {
+        throw new Error(`เดือนที่ ${monthNo}: ${label}ห้ามเกิน 31 วัน`);
+      }
+      return parsed;
+    };
+    const parseLeaveDayValue = (value, monthNo) => {
+      const raw = String(value ?? '').trim();
+      if (raw === '') return 0;
+      const parsed = Number.parseFloat(raw);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new Error(`เดือนที่ ${monthNo}: วันลาไม่ถูกต้อง`);
+      }
+      if (parsed > 31) {
+        throw new Error(`เดือนที่ ${monthNo}: วันลาห้ามเกิน 31 วัน`);
+      }
+      return parseFloat(parsed.toFixed(2));
+    };
+    const warnings = [];
+
+    for (const r of rows) {
+      const monthNo = Number.parseInt(r.month_no, 10);
+      if (!Number.isInteger(monthNo) || monthNo < 1 || monthNo > 4) {
+        throw new Error('month_no ต้องอยู่ระหว่าง 1 ถึง 4');
+      }
+
+      const yearMonth = String(r.year_month || '').trim();
+      if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
+        throw new Error(`เดือนที่ ${monthNo}: ปี-เดือนไม่ถูกต้อง`);
+      }
+
+      const workDays = parseDayValue(r.work_days, 'วันทำงาน', monthNo);
+      const presentDays = parseDayValue(r.present_days, 'วันมาทำงาน', monthNo);
+      const absentDays = parseDayValue(r.absent_days, 'วันขาดงาน', monthNo);
+      const lateDays = parseDayValue(r.late_days, 'วันมาสาย', monthNo);
+      const leaveDays = parseLeaveDayValue(r.leave_days, monthNo);
+
+      if (presentDays + absentDays + leaveDays > workDays) {
+        throw new Error(`เดือนที่ ${monthNo}: มาทำงาน + ขาดงาน + ลา ต้องไม่เกินวันทำงาน`);
+      }
+      if (lateDays > presentDays) {
+        throw new Error(`เดือนที่ ${monthNo}: วันมาสายต้องไม่มากกว่าวันมาทำงาน`);
+      }
+      if (absentDays > 3) {
+        warnings.push(`เดือนที่ ${monthNo} ขาดงาน ${absentDays} วัน`);
+      }
+
+      const attPct      = workDays > 0 ? parseFloat(((presentDays / workDays) * 100).toFixed(2)) : 0;
+      await conn.execute(
+        `INSERT INTO tb_probation_attendance
+           (period_id, month_no, \`year_month\`, work_days, present_days, absent_days, late_days, leave_days, att_pct, remark)
+         VALUES (?,?,?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE
+           \`year_month\`=VALUES(\`year_month\`), work_days=VALUES(work_days),
+           present_days=VALUES(present_days), absent_days=VALUES(absent_days),
+           late_days=VALUES(late_days), leave_days=VALUES(leave_days),
+           att_pct=VALUES(att_pct), remark=VALUES(remark)`,
+        [period_id, monthNo, yearMonth,
+         workDays, presentDays,
+         absentDays,
+         lateDays,
+         leaveDays,
+         attPct, r.remark || '']
+      );
+    }
+    await conn.commit();
+    return { success: true, message: 'บันทึกข้อมูลการมาทำงานสำเร็จ', warnings };
+  } catch (e) {
+    await conn.rollback();
+    return { success: false, message: e.message };
+  } finally {
+    conn.release();
+  }
+});
+
+// ---- Scores ----
+ipcMain.handle('probation-save-scores', async (event, { period_id, month_no, scores }) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  if (!period_id || !month_no || !Array.isArray(scores)) return { success: false, message: 'ข้อมูลไม่ถูกต้อง' };
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    for (const s of scores) {
+      const score = Math.max(0, parseFloat(s.score) || 0);
+      await conn.execute(
+        `INSERT INTO tb_probation_score (period_id, month_no, criteria_id, score, remark)
+         VALUES (?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE score=VALUES(score), remark=VALUES(remark)`,
+        [period_id, month_no, s.criteria_id, score, s.remark || '']
+      );
+    }
+    await conn.commit();
+    return { success: true, message: 'บันทึกคะแนนสำเร็จ' };
+  } catch (e) {
+    await conn.rollback();
+    return { success: false, message: e.message };
+  } finally {
+    conn.release();
+  }
+});
+
+// ---- Finalize period (save summary + decision) ----
+ipcMain.handle('probation-finalize-period', async (event, d) => {
+  if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
+  const validDecisions = ['PENDING','PASS','EXTEND','TERMINATE','OTHER'];
+  if (!validDecisions.includes(d.decision)) return { success: false, message: 'decision ไม่ถูกต้อง' };
+  try {
+    await db.execute(
+      `UPDATE tb_probation_period
+       SET decision=?, decision_note=?, att_pct=?, quality_pct=?, avg_score=?, grade=?
+       WHERE period_id=?`,
+      [d.decision, d.decision_note || '',
+       d.att_pct != null ? parseFloat(d.att_pct) : null,
+       d.quality_pct != null ? parseFloat(d.quality_pct) : null,
+       d.avg_score != null ? parseFloat(d.avg_score) : null,
+       d.grade || null,
+       d.period_id]
+    );
+    // If PASS or TERMINATE, auto-close the cycle
+    if (d.decision === 'PASS' || d.decision === 'TERMINATE') {
+      const [pRow] = await db.execute(
+        `SELECT cycle_id FROM tb_probation_period WHERE period_id=?`, [d.period_id]
+      );
+      if (pRow.length) {
+        await db.execute(
+          `UPDATE tb_probation_cycle SET status='CLOSED' WHERE cycle_id=?`,
+          [pRow[0].cycle_id]
+        );
+      }
+    }
+    return { success: true, message: 'บันทึกผลการประเมินสำเร็จ' };
+  } catch (e) { return { success: false, message: e.message }; }
 });
