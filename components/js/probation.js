@@ -341,6 +341,7 @@ export async function probSelectEmp(empId, fullname, subName) {
 // ══════════════════════════════════════════════════════════════════════
 let _currentCycleId = null;
 let _probSuggestedPeriodStart = null;
+let _isFirstPeriod = true;
 
 export async function probOpenCycleDetail(cycleId) {
   _currentCycleId = cycleId;
@@ -356,13 +357,13 @@ export async function probOpenCycleDetail(cycleId) {
       container.innerHTML = `<p class="text-danger p-4">${escHtml(res?.message || 'โหลดไม่สำเร็จ')}</p>`;
       return;
     }
-    _renderCycleDetail(res.cycle, res.periods);
+    _renderCycleDetail(res.cycle, res.periods, res.totalPresentDays || 0);
   } catch (e) {
     container.innerHTML = `<p class="text-danger p-4">เกิดข้อผิดพลาด: ${escHtml(e.message)}</p>`;
   }
 }
 
-function _renderCycleDetail(cycle, periods) {
+function _renderCycleDetail(cycle, periods, totalPresentDays = 0) {
   const container = document.getElementById('pageContent');
 
   const lastPeriod   = periods.length ? periods[periods.length - 1] : null;
@@ -370,6 +371,7 @@ function _renderCycleDetail(cycle, periods) {
   _probSuggestedPeriodStart = lastPeriod
     ? addOneDayIso(lastPeriod.end_date)
     : cycle.start_date;
+  _isFirstPeriod = periods.length === 0;
   const canAddPeriod = cycle.status === 'ACTIVE' &&
     (!lastPeriod || lastPeriod.decision === 'EXTEND' || lastPeriod.decision === 'PENDING');
   const canCloseCycle = cycle.status === 'ACTIVE';
@@ -436,6 +438,13 @@ function _renderCycleDetail(cycle, periods) {
     <div class="table-section">
       <div class="table-header">
         <span class="table-title">รอบการประเมิน (${periods.length} รอบ)</span>
+        ${cycle.status === 'CLOSED' && totalPresentDays > 0 ? `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 16px;background:${periods.some(p=>p.decision==='PASS')?'#dcfce7':'#f1f5f9'};border-radius:10px;font-size:13px;">
+            <i class="bi bi-calendar-check" style="color:${periods.some(p=>p.decision==='PASS')?'var(--success)':'var(--gray-500)'}"></i>
+            <span style="font-weight:600;color:${periods.some(p=>p.decision==='PASS')?'#15803d':'var(--gray-700)'};">
+              มาทำงานจริงทั้งสิ้น: ${totalPresentDays} วัน
+            </span>
+          </div>` : ''}
       </div>
       <div style="overflow-x:auto;">
         <table class="data-table">
@@ -457,7 +466,7 @@ function _renderCycleDetail(cycle, periods) {
 
     <!-- Add Period Modal (inline) -->
     <div class="modal-overlay" id="probAddPeriodModal">
-      <div class="modal-card" style="width:460px;max-width:96vw;">
+      <div class="modal-card" style="width:480px;max-width:96vw;">
         <div class="modal-header">
           <div class="modal-title">
             <i class="bi bi-calendar-plus"></i>
@@ -471,15 +480,17 @@ function _renderCycleDetail(cycle, periods) {
           <div class="form-row">
             <div class="form-group">
               <label>วันที่เริ่มต้น <span class="required">*</span></label>
-              <input type="date" id="probPeriodStart" class="form-control-m">
+              <input type="date" id="probPeriodStart" class="form-control-m"
+                oninput="probUpdatePeriodDuration()">
             </div>
             <div class="form-group">
               <label>วันที่สิ้นสุด <span class="required">*</span></label>
-              <input type="date" id="probPeriodEnd" class="form-control-m" readonly
-                style="background:var(--gray-100);">
+              <input type="date" id="probPeriodEnd" class="form-control-m"
+                oninput="probUpdatePeriodDuration()">
             </div>
           </div>
-          <p style="font-size:12px;color:var(--gray-500);margin-top:8px;">
+          <div id="probPeriodDuration" style="font-size:12.5px;color:var(--primary);margin-top:8px;font-weight:600;min-height:18px;"></div>
+          <p id="probPeriodHint" style="font-size:12px;color:var(--gray-500);margin-top:6px;">
             <i class="bi bi-info-circle me-1"></i>
             วันสิ้นสุดจะถูกคำนวณอัตโนมัติจากวันเริ่มต้น + 119 วัน
           </p>
@@ -495,21 +506,48 @@ function _renderCycleDetail(cycle, periods) {
   `;
 }
 
+export function probUpdatePeriodDuration() {
+  const startVal = document.getElementById('probPeriodStart')?.value;
+  const endVal   = document.getElementById('probPeriodEnd')?.value;
+  const el       = document.getElementById('probPeriodDuration');
+  if (!el) return;
+  // For round 1: auto-fill end date when start changes
+  if (_isFirstPeriod) {
+    const endInput = document.getElementById('probPeriodEnd');
+    if (endInput && startVal) endInput.value = addDaysIso(startVal, 119);
+  }
+  const start = startVal ? new Date(startVal + 'T00:00:00') : null;
+  const end   = endVal   ? new Date(endVal   + 'T00:00:00') : null;
+  if (!start || !end) { el.textContent = ''; return; }
+  const diffDays = Math.round((end - start) / 86400000) + 1;
+  if (diffDays <= 0) { el.style.color = 'var(--danger)'; el.textContent = 'วันสิ้นสุดต้องมากกว่าวันเริ่มต้น'; return; }
+  el.style.color = 'var(--primary)';
+  const months   = Math.floor(diffDays / 30);
+  const remDays  = diffDays % 30;
+  let label = `ระยะเวลา: ${diffDays} วัน`;
+  if (months > 0) label += ` (${months} เดือน${remDays > 0 ? ` ${remDays} วัน` : ''})`;
+  el.textContent = label;
+}
+
 export function probOpenAddPeriodModal() {
   const startInput = document.getElementById('probPeriodStart');
   const endInput   = document.getElementById('probPeriodEnd');
+  const hintEl     = document.getElementById('probPeriodHint');
   if (!startInput) return;
-  // รอบแรก: เริ่มจากวันแรกเข้างาน (cycle.start_date)
-  // รอบถัดไป: เริ่มจากวันถัดจากสิ้นสุดรอบก่อน
+
   startInput.value = _probSuggestedPeriodStart || probTodayIso();
-  const calcEnd = () => {
-    if (startInput.value) {
-      const endDate = addDaysIso(startInput.value, 119);
-      if (endInput) endInput.value = endDate;
-    }
-  };
-  startInput.oninput = calcEnd;
-  calcEnd();
+
+  if (_isFirstPeriod) {
+    // Round 1: end date auto-calculated, not editable
+    if (endInput) { endInput.readOnly = true; endInput.style.background = 'var(--gray-100)'; endInput.style.cursor = 'not-allowed'; }
+    if (hintEl) hintEl.innerHTML = '<i class="bi bi-info-circle me-1"></i>วันสิ้นสุดจะถูกคำนวณอัตโนมัติจากวันเริ่มต้น + 119 วัน';
+  } else {
+    // Round 2+: HR sets end date freely
+    if (endInput) { endInput.readOnly = false; endInput.style.background = ''; endInput.style.cursor = ''; }
+    if (hintEl) hintEl.innerHTML = '<i class="bi bi-info-circle me-1"></i>ระบุวันสิ้นสุดของรอบนี้ได้อิสระตามที่ HR กำหนด';
+  }
+
+  probUpdatePeriodDuration();
   showModal('probAddPeriodModal');
 }
 
@@ -553,6 +591,65 @@ let _currentPeriodData = null; // { period, attendance, scores, criteria, leaveR
 let _activeProbTab     = 'attendance';
 let _activeScoreMonth  = 1;
 
+// ── Workday hint calculator ────────────────────────────────────────────
+// Returns array of { monthNo, yearMonth, rangeStart, rangeEnd, totalDays, sundays, companyHolidays, suggestedWorkDays }
+// เดือนแรก: นับจาก periodStartDate ถึงสิ้นเดือน
+// เดือนกลาง: นับทั้งเดือน
+// เดือนสุดท้าย: นับจากต้นเดือนถึง periodEndDate
+async function _fetchWorkdayHints(periodStartDate, periodEndDate) {
+  const labels = _buildMonthLabels(periodStartDate, _calcMonthCount(periodStartDate, periodEndDate));
+  const hints = [];
+  const pStart = new Date(periodStartDate + 'T00:00:00');
+  const pEnd   = periodEndDate ? new Date(periodEndDate + 'T00:00:00') : null;
+
+  for (const ml of labels) {
+    const [yearStr, monthStr] = ml.yearMonth.split('-');
+    const year  = parseInt(yearStr,  10);
+    const month = parseInt(monthStr, 10);
+    const lastDayOfMonth = new Date(year, month, 0).getDate();
+
+    // ช่วงวันที่แท้จริงของเดือนนี้ (ตัดตามวันเริ่ม/สิ้นสุดรอบ)
+    let dayFrom = 1;
+    let dayTo   = lastDayOfMonth;
+    if (year === pStart.getFullYear() && month === pStart.getMonth() + 1) {
+      dayFrom = pStart.getDate();
+    }
+    if (pEnd && year === pEnd.getFullYear() && month === pEnd.getMonth() + 1) {
+      dayTo = pEnd.getDate();
+    }
+
+    const totalDays = dayTo - dayFrom + 1;
+
+    // นับวันอาทิตย์ในช่วงนี้
+    let sundays = 0;
+    for (let d = dayFrom; d <= dayTo; d++) {
+      if (new Date(year, month - 1, d).getDay() === 0) sundays++;
+    }
+
+    // ดึงวันหยุดบริษัทจาก DB กรองเฉพาะที่อยู่ในช่วงนี้
+    let companyHolidays = 0;
+    try {
+      const hRes = await window.api.getHolidaysForMonth({ year, month });
+      if (hRes?.success) {
+        (hRes.data || []).forEach(h => {
+          const parts = String(h.Date || '').split('/');
+          if (parts.length === 3) {
+            const hDate = parseInt(parts[2], 10);
+            if (hDate >= dayFrom && hDate <= dayTo) {
+              const hDay = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, hDate);
+              if (hDay.getDay() !== 0) companyHolidays++;
+            }
+          }
+        });
+      }
+    } catch { /* ignore */ }
+
+    const suggestedWorkDays = Math.max(0, totalDays - sundays - companyHolidays);
+    hints.push({ monthNo: ml.monthNo, yearMonth: ml.yearMonth, totalDays, sundays, companyHolidays, suggestedWorkDays });
+  }
+  return hints;
+}
+
 export async function probOpenPeriodDetail(periodId) {
   const container = document.getElementById('pageContent');
   container.innerHTML = `<div class="text-center py-5">
@@ -567,6 +664,10 @@ export async function probOpenPeriodDetail(periodId) {
       return;
     }
     _currentPeriodData = res;
+    // naCriteriaIds โหลดจาก DB (คริเทียเทียพที่มี score=-1 ใน cycle นี้)
+    _currentPeriodData.naCriteriaIds = res.naCriteriaIds || [];
+    // คำนวณตัวช่วยวันทำงานสำหรับแต่ละเดือนของรอบนี้
+    _currentPeriodData.workdayHints = await _fetchWorkdayHints(res.period.start_date, res.period.end_date);
     _activeProbTab    = 'attendance';
     _activeScoreMonth = 1;
     _renderPeriodDetail();
@@ -579,8 +680,8 @@ function _renderPeriodDetail() {
   const { period, attendance, scores, criteria } = _currentPeriodData;
   const container = document.getElementById('pageContent');
 
-  // Build month labels for this period
-  const monthLabels = _buildMonthLabels(period.start_date, 4);
+  // Build month labels for this period (dynamic count based on start→end)
+  const monthLabels = _buildMonthLabels(period.start_date, _calcMonthCount(period.start_date, period.end_date));
 
   container.innerHTML = `
     <!-- Breadcrumb -->
@@ -652,11 +753,37 @@ function _renderPeriodDetail() {
         outline: none; border-color: var(--primary);
         box-shadow: 0 0 0 3px rgba(26,86,219,.1);
       }
+      .prob-na-row {
+        background: #f8f8f8 !important;
+        opacity: 0.6;
+      }
+      .prob-na-row td { color: #aaa !important; }
+      .prob-na-label {
+        text-decoration: line-through;
+        color: #aaa !important;
+      }
+      .prob-na-badge {
+        display: inline-block; font-size: 10px; font-weight: 700;
+        background: #e2e8f0; color: #64748b; border-radius: 4px;
+        padding: 1px 6px; margin-left: 6px; vertical-align: middle;
+        letter-spacing: 0.5px;
+      }
+      .prob-na-toggle-hint {
+        font-size: 11px; color: #94a3b8; margin-top: 2px;
+      }
     `;
     document.head.appendChild(s);
   }
 
   _renderActiveTab(monthLabels);
+}
+
+function _calcMonthCount(startDate, endDate) {
+  if (!startDate || !endDate) return 4;
+  const s = new Date(startDate + 'T00:00:00');
+  const e = new Date(endDate   + 'T00:00:00');
+  const months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()) + 1;
+  return Math.max(1, months);
 }
 
 function _buildMonthLabels(startDate, count) {
@@ -691,7 +818,7 @@ export function probSwitchTab(tab) {
     if (el) el.classList.toggle('active', t === tab);
   });
   const { period, attendance, scores, criteria } = _currentPeriodData;
-  const monthLabels = _buildMonthLabels(period.start_date, 4);
+  const monthLabels = _buildMonthLabels(period.start_date, _calcMonthCount(period.start_date, period.end_date));
   _renderActiveTab(monthLabels);
 }
 
@@ -728,7 +855,7 @@ function probGetAttendanceRowData(monthNo, fallbackYearMonth = '') {
   };
 }
 
-function probValidateAttendanceRow(row) {
+function probValidateAttendanceRow(row, maxDays = 31) {
   const errors = [];
   const warnings = [];
   const fields = [
@@ -742,11 +869,15 @@ function probValidateAttendanceRow(row) {
   fields.forEach(([key, label]) => {
     const value = Number(row[key]) || 0;
     if (value < 0) errors.push(`${label}ห้ามน้อยกว่า 0 วัน`);
-    if (value > 31) errors.push(`${label}ห้ามเกิน 31 วัน`);
+    if (key === 'present_days') {
+      if (value > maxDays) errors.push(`${label}ห้ามเกินจำนวนวันในเดือน (${maxDays} วัน)`);
+    } else {
+      if (value > 31) errors.push(`${label}ห้ามเกิน 31 วัน`);
+    }
   });
 
-  if (row.present_days + row.absent_days + row.leave_days > row.work_days) {
-    errors.push('มาทำงาน + ขาดงาน + ลา ต้องไม่เกินวันทำงาน');
+  if (row.absent_days + row.leave_days > row.work_days) {
+    errors.push('ขาดงาน + ลา ต้องไม่เกินวันทำงาน');
   }
   if (row.late_days > row.present_days) {
     errors.push('วันมาสายต้องไม่มากกว่าวันมาทำงาน');
@@ -759,8 +890,9 @@ function probValidateAttendanceRow(row) {
 }
 
 function probUpdateAttendanceMonthUi(monthNo) {
-  const monthMeta = _currentPeriodData?.period
-    ? _buildMonthLabels(_currentPeriodData.period.start_date, 4).find((item) => item.monthNo === monthNo)
+  const periodForMeta = _currentPeriodData?.period;
+  const monthMeta = periodForMeta
+    ? _buildMonthLabels(periodForMeta.start_date, _calcMonthCount(periodForMeta.start_date, periodForMeta.end_date)).find((item) => item.monthNo === monthNo)
     : null;
   const row = probGetAttendanceRowData(monthNo, monthMeta?.yearMonth || '');
   const pctEl = document.getElementById(`att_pct_${monthNo}`);
@@ -777,7 +909,10 @@ function probUpdateAttendanceMonthUi(monthNo) {
 
   if (!statusEl) return;
 
-  const { errors, warnings } = probValidateAttendanceRow(row);
+  const hintMap = {};
+  (_currentPeriodData?.workdayHints || []).forEach(h => { hintMap[h.monthNo] = h; });
+  const maxDays = hintMap[monthNo]?.totalDays ?? 31;
+  const { errors, warnings } = probValidateAttendanceRow(row, maxDays);
   if (errors.length) {
     statusEl.innerHTML = `<span class="badge bg-danger">ข้อมูลไม่ถูกต้อง</span>`;
     statusEl.title = errors.join('\n');
@@ -798,13 +933,16 @@ function probRenderAttendanceBanner() {
   const period = _currentPeriodData?.period;
   if (!banner || !period) return;
 
-  const monthLabels = _buildMonthLabels(period.start_date, 4);
+  const monthLabels = _buildMonthLabels(period.start_date, _calcMonthCount(period.start_date, period.end_date));
   const invalidNotes = [];
   const warningNotes = [];
+  const hintMapBanner = {};
+  (_currentPeriodData?.workdayHints || []).forEach(h => { hintMapBanner[h.monthNo] = h; });
 
   monthLabels.forEach((ml) => {
     const row = probGetAttendanceRowData(ml.monthNo, ml.yearMonth);
-    const { errors, warnings } = probValidateAttendanceRow(row);
+    const maxDays = hintMapBanner[ml.monthNo]?.totalDays ?? 31;
+    const { errors, warnings } = probValidateAttendanceRow(row, maxDays);
     if (errors.length) invalidNotes.push(`เดือนที่ ${ml.monthNo}: ${errors[0]}`);
     if (warnings.length) warningNotes.push(`เดือนที่ ${ml.monthNo}: ${warnings[0]}`);
   });
@@ -837,12 +975,17 @@ function _renderAttendanceTab(container, monthLabels) {
   const leaveRefMap = probGetAttendanceLeaveReferenceMap();
   (attendance || []).forEach(a => { attMap[a.month_no] = a; });
   const isPending = period.decision === 'PENDING';
+  const hintMap = {};
+  (_currentPeriodData.workdayHints || []).forEach(h => { hintMap[h.monthNo] = h; });
 
   const rows = monthLabels.map(ml => {
     const a = attMap[ml.monthNo] || {};
     const leaveRef = leaveRefMap[ml.monthNo] || {};
     const leaveRefDays = Number(leaveRef.leave_days_ref) || 0;
     const leaveValue = a.leave_days != null ? a.leave_days : (leaveRefDays > 0 ? leaveRefDays : '');
+    const hint = hintMap[ml.monthNo];
+    const suggestedWorkDays = hint?.suggestedWorkDays ?? a.work_days ?? '';
+
     return `
       <tr>
         <td style="font-weight:600;white-space:nowrap;">เดือนที่ ${ml.monthNo}<br>
@@ -855,7 +998,7 @@ function _renderAttendanceTab(container, monthLabels) {
         </td>
         <td class="prob-att-cell">
           <input type="number" class="prob-att-input" id="att_work_${ml.monthNo}"
-            value="${a.work_days ?? ''}" min="0" max="31"
+            value="${suggestedWorkDays}" min="0" max="31"
             oninput="probCalcAttPct(${ml.monthNo})"
             ${!isPending ? 'disabled' : ''}>
         </td>
@@ -946,7 +1089,7 @@ export function probCalcAttPct(monthNo) {
 
 export async function probSaveAttendance(periodId) {
   const { period } = _currentPeriodData;
-  const monthLabels = _buildMonthLabels(period.start_date, 4);
+  const monthLabels = _buildMonthLabels(period.start_date, _calcMonthCount(period.start_date, period.end_date));
   const rows = monthLabels.map(ml => ({
     month_no:     ml.monthNo,
     year_month:   ml.yearMonth,
@@ -958,8 +1101,10 @@ export async function probSaveAttendance(periodId) {
     remark:       document.getElementById(`att_remark_${ml.monthNo}`)?.value || ''
   }));
 
+  const hintMapSave = {};
+  (_currentPeriodData?.workdayHints || []).forEach(h => { hintMapSave[h.monthNo] = h; });
   const invalidRow = rows
-    .map((row) => ({ row, ...probValidateAttendanceRow(row) }))
+    .map((row) => ({ row, ...probValidateAttendanceRow(row, hintMapSave[row.month_no]?.totalDays ?? 31) }))
     .find((entry) => entry.errors.length > 0);
   if (invalidRow) {
     probRenderAttendanceBanner();
@@ -976,7 +1121,10 @@ export async function probSaveAttendance(periodId) {
     }
     // Refresh data
     const detail = await window.api.probationGetPeriodDetail(periodId);
-    if (detail?.success) { _currentPeriodData = detail; }
+    if (detail?.success) {
+      _currentPeriodData = detail;
+      _currentPeriodData.naCriteriaIds = detail.naCriteriaIds || [];
+    }
     probSwitchTab('attendance');
   } catch (e) {
     showToast('เกิดข้อผิดพลาด: ' + e.message, 'danger');
@@ -987,6 +1135,7 @@ export async function probSaveAttendance(periodId) {
 function _renderScoringTab(container, monthLabels) {
   const { period, scores, criteria } = _currentPeriodData;
   const isPending = period.decision === 'PENDING';
+  const naSet = new Set(_currentPeriodData.naCriteriaIds || []);
 
   // Month selector tabs
   const monthTabs = monthLabels.map(ml =>
@@ -1004,30 +1153,48 @@ function _renderScoringTab(container, monthLabels) {
 
   const scoreRows = criteria.length
     ? criteria.map((c, idx) => {
-        const s   = scoreMap[c.criteria_id] || {};
-        const val = s.score != null ? parseFloat(s.score) : '';
-        return `<tr>
+        const s     = scoreMap[c.criteria_id] || {};
+        const val   = s.score != null ? parseFloat(s.score) : '';
+        const isNa  = naSet.has(c.criteria_id);
+        const rowCls = isNa ? 'class="prob-na-row"' : '';
+        const nameHtml = isNa
+          ? `<span class="prob-na-label">${escHtml(c.criteria_name)}</span><span class="prob-na-badge">NA</span>`
+          : escHtml(c.criteria_name);
+        const toggleHint = isPending
+          ? `<div class="prob-na-toggle-hint">${isNa ? 'คลิกเพื่อยกเลิก NA' : 'คลิกเพื่อตั้งเป็น NA'}</div>`
+          : '';
+        const nameClick = isPending
+          ? `style="cursor:pointer;" onclick="probToggleNaCriteria(${c.criteria_id})"`
+          : '';
+        return `<tr ${rowCls}>
           <td style="text-align:center;color:var(--gray-400);">${idx + 1}</td>
-          <td>
-            <div style="font-weight:600;">${escHtml(c.criteria_name)}</div>
-            ${c.criteria_desc ? `<div style="font-size:11.5px;color:var(--gray-500);">${escHtml(c.criteria_desc)}</div>` : ''}
+          <td ${nameClick}>
+            <div style="font-weight:600;">${nameHtml}</div>
+            ${c.criteria_desc && !isNa ? `<div style="font-size:11.5px;color:var(--gray-500);">${escHtml(c.criteria_desc)}</div>` : ''}
+            ${toggleHint}
           </td>
-          <td style="text-align:center;color:var(--gray-500);">${parseFloat(c.max_score).toFixed(0)}</td>
+          <td style="text-align:center;color:var(--gray-500);">${isNa ? '<span style="color:#ccc;">—</span>' : parseFloat(c.max_score).toFixed(0)}</td>
           <td class="prob-score-cell">
-            <input type="number" id="score_${c.criteria_id}" value="${val}"
-              min="0" max="${parseFloat(c.max_score)}" step="1"
-              oninput="probValidateScore(this, ${parseFloat(c.max_score)})"
-              ${!isPending ? 'disabled' : ''}
-              placeholder="0">
+            ${isNa
+              ? `<input type="text" id="score_${c.criteria_id}" value="N/A" disabled
+                  style="width:90px;text-align:center;padding:4px 8px;border:1.5px solid var(--gray-200);
+                  border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;
+                  background:#f1f5f9;color:#94a3b8;font-style:italic;">`
+              : `<input type="number" id="score_${c.criteria_id}" value="${val}"
+                  min="0" max="${parseFloat(c.max_score)}" step="1"
+                  oninput="probValidateScore(this, ${parseFloat(c.max_score)})"
+                  ${!isPending ? 'disabled' : ''}
+                  placeholder="0">`
+            }
           </td>
           <td style="text-align:center;" id="score_pct_${c.criteria_id}">
-            ${val !== '' ? ((parseFloat(val) / parseFloat(c.max_score)) * 100).toFixed(1) + '%' : '-'}
+            ${isNa ? '<span style="color:#ccc;font-style:italic;">N/A</span>' : (val !== '' ? ((parseFloat(val) / parseFloat(c.max_score)) * 100).toFixed(1) + '%' : '-')}
           </td>
           <td class="prob-score-cell">
             <input type="text" id="score_remark_${c.criteria_id}"
-              value="${escHtml(s.remark || '')}" placeholder="หมายเหตุ"
-              style="width:140px;padding:4px 8px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:12.5px;"
-              ${!isPending ? 'disabled' : ''}>
+              value="${isNa ? 'N/A' : escHtml(s.remark || '')}" placeholder="${isNa ? '' : 'หมายเหตุ'}"
+              style="width:140px;padding:4px 8px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:12.5px;${isNa ? 'background:#f1f5f9;color:#94a3b8;font-style:italic;' : ''}"
+              ${!isPending || isNa ? 'disabled' : ''}>
           </td>
         </tr>`;
       }).join('')
@@ -1042,6 +1209,9 @@ function _renderScoringTab(container, monthLabels) {
           <i class="bi bi-floppy me-1"></i> บันทึกคะแนน เดือน ${_activeScoreMonth}
         </button>` : ''}
       </div>
+      ${isPending ? `<div style="padding:8px 16px;font-size:12px;color:var(--gray-500);background:var(--gray-50);border-bottom:1px solid var(--gray-100);">
+        <i class="bi bi-info-circle me-1"></i>คลิกที่ชื่อหัวข้อเพื่อตั้งเป็น <strong>NA</strong> (ไม่ประเมิน) หัวข้อที่ NA จะถูกข้ามทุกรอบการประเมิน
+      </div>` : ''}
 
       <!-- Month selector -->
       <div style="padding:0 16px 0;display:flex;gap:4px;border-bottom:2px solid var(--gray-200);margin-bottom:16px;">
@@ -1076,6 +1246,19 @@ export function probSwitchScoreMonth(monthNo) {
   probSwitchTab('scoring');
 }
 
+export function probToggleNaCriteria(criteriaId) {
+  const { period } = _currentPeriodData;
+  if (period.decision !== 'PENDING') return;
+  const naSet = new Set(_currentPeriodData.naCriteriaIds || []);
+  if (naSet.has(criteriaId)) {
+    naSet.delete(criteriaId);
+  } else {
+    naSet.add(criteriaId);
+  }
+  _currentPeriodData.naCriteriaIds = Array.from(naSet);
+  probSwitchTab('scoring');
+}
+
 export function probValidateScore(input, maxScore) {
   let v = parseFloat(input.value);
   if (isNaN(v) || v < 0) { input.value = 0; v = 0; }
@@ -1088,17 +1271,34 @@ export function probValidateScore(input, maxScore) {
 
 export async function probSaveScores(periodId, monthNo) {
   const { criteria } = _currentPeriodData;
-  const scores = criteria.map(c => ({
-    criteria_id: c.criteria_id,
-    score:       parseFloat(document.getElementById(`score_${c.criteria_id}`)?.value) || 0,
-    remark:      document.getElementById(`score_remark_${c.criteria_id}`)?.value || ''
-  }));
+  const naSet = new Set(_currentPeriodData.naCriteriaIds || []);
+  const scores = [
+    // หัวข้อปกติ อ่านค่าจาก input
+    ...criteria
+      .filter(c => !naSet.has(c.criteria_id))
+      .map(c => ({
+        criteria_id: c.criteria_id,
+        score:       parseFloat(document.getElementById(`score_${c.criteria_id}`)?.value) || 0,
+        remark:      document.getElementById(`score_remark_${c.criteria_id}`)?.value || ''
+      })),
+    // หัวข้อ NA: บันทึกเป็น score=-1 เพื่อเก็บลง DB
+    ...criteria
+      .filter(c => naSet.has(c.criteria_id))
+      .map(c => ({
+        criteria_id: c.criteria_id,
+        score:       -1,
+        remark:      'N/A'
+      }))
+  ];
   try {
     const res = await window.api.probationSaveScores({ period_id: periodId, month_no: monthNo, scores });
     if (!res?.success) { showToast(res?.message || 'บันทึกไม่สำเร็จ', 'danger'); return; }
     showToast(res.message || 'บันทึกคะแนนสำเร็จ', 'success');
     const detail = await window.api.probationGetPeriodDetail(periodId);
-    if (detail?.success) { _currentPeriodData = detail; }
+    if (detail?.success) {
+      _currentPeriodData = detail;
+      _currentPeriodData.naCriteriaIds = detail.naCriteriaIds || [];
+    }
     probSwitchTab('scoring');
   } catch (e) {
     showToast('เกิดข้อผิดพลาด: ' + e.message, 'danger');
@@ -1121,8 +1321,11 @@ function _renderSummaryTab(container, monthLabels) {
 
   // Quality % (B) = average of 4 monthly quality scores
   // Monthly quality = sum(scores for month) / sum(max_scores for month) * 100
+  // NA criteria are excluded from max_score denominator
+  const naSet = new Set(_currentPeriodData.naCriteriaIds || []);
   const monthQuality = {};
   (scores || []).forEach(s => {
+    if (naSet.has(s.criteria_id)) return; // skip NA
     if (!monthQuality[s.month_no]) monthQuality[s.month_no] = { got: 0, max: 0 };
     monthQuality[s.month_no].got += parseFloat(s.score) || 0;
     const crit = criteria.find(c => c.criteria_id === s.criteria_id);
@@ -1225,6 +1428,12 @@ function _renderSummaryTab(container, monthLabels) {
         รอบนี้ได้รับการตัดสินใจเรียบร้อยแล้ว
         ${period.decision_note ? `<div style="margin-top:6px;color:#047857;">หมายเหตุ: ${escHtml(period.decision_note)}</div>` : ''}
       </div>
+      ${period.decision === 'PASS' && _currentPeriodData.totalPresentDays != null ? `
+      <div style="margin-top:12px;padding:14px 20px;background:#f0fdf4;border-radius:12px;
+        border-left:3px solid #22c55e;font-size:13.5px;color:#15803d;font-weight:600;">
+        <i class="bi bi-calendar2-check me-2"></i>
+        ผ่านทดลองงาน — มาทำงานจริงทั้งสิ้น <span style="font-size:18px;font-weight:800;">${_currentPeriodData.totalPresentDays}</span> วัน
+      </div>` : ''}
       ${period.decision === 'EXTEND' ? `
         <div style="margin-top:16px;text-align:right;">
           <button class="btn-primary-custom" onclick="probOpenCycleDetail(${period.cycle_id})">
@@ -1259,9 +1468,19 @@ export async function probFinalizePeriod(periodId, attPct, qualityPct, avgScore,
       grade:        calcGradeVal || grade
     });
     if (!res?.success) { showToast(res?.message || 'บันทึกไม่สำเร็จ', 'danger'); return; }
-    showToast(res.message || 'บันทึกผลสำเร็จ', 'success');
+    if (decision === 'PASS' && res.totalPresentDays != null) {
+      showToast(`ผ่านทดลองงาน! มาทำงานจริงทั้งสิ้น ${res.totalPresentDays} วัน`, 'success');
+    } else {
+      showToast(res.message || 'บันทึกผลสำเร็จ', 'success');
+    }
     const detail = await window.api.probationGetPeriodDetail(periodId);
-    if (detail?.success) { _currentPeriodData = detail; }
+    if (detail?.success) {
+      _currentPeriodData = detail;
+      _currentPeriodData.naCriteriaIds = detail.naCriteriaIds || [];
+      if (decision === 'PASS' && res.totalPresentDays != null) {
+        _currentPeriodData.totalPresentDays = res.totalPresentDays;
+      }
+    }
     probSwitchTab('summary');
   } catch (e) {
     showToast('เกิดข้อผิดพลาด: ' + e.message, 'danger');

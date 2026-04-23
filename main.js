@@ -120,7 +120,7 @@ function createWindow() {
 
   Menu.setApplicationMenu(null);
   mainWindow.loadFile('index.html');
-  //mainWindow.webContents.openDevTools()
+  mainWindow.webContents.openDevTools()
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
   });
@@ -3756,7 +3756,14 @@ ipcMain.handle('probation-get-cycle-detail', async (event, cycle_id) => {
          decision, decision_note, att_pct, quality_pct, avg_score, grade
        FROM tb_probation_period WHERE cycle_id=? ORDER BY period_no ASC`, [cycle_id]
     );
-    return { success: true, cycle: cycles[0], periods };
+    const [attSum] = await db.execute(
+      `SELECT COALESCE(SUM(a.present_days),0) AS total_present
+       FROM tb_probation_attendance a
+       JOIN tb_probation_period p ON p.period_id = a.period_id
+       WHERE p.cycle_id = ?`, [cycle_id]
+    );
+    const totalPresentDays = Number(attSum[0]?.total_present) || 0;
+    return { success: true, cycle: cycles[0], periods, totalPresentDays };
   } catch (e) { return { success: false, message: e.message }; }
 });
 
@@ -3768,9 +3775,19 @@ ipcMain.handle('probation-save-period', async (event, d) => {
   try {
     const startDate = new Date(`${d.start_date}T00:00:00`);
     if (Number.isNaN(startDate.getTime())) return { success: false, message: 'วันที่เริ่มรอบประเมินไม่ถูกต้อง' };
-    const endDate = new Date(startDate.getTime());
-    endDate.setDate(endDate.getDate() + 119);
-    const endDateIso = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+    let endDateIso;
+    if (d.end_date) {
+      // HR provided end date (round 2+)
+      const providedEnd = new Date(`${d.end_date}T00:00:00`);
+      if (Number.isNaN(providedEnd.getTime())) return { success: false, message: 'วันที่สิ้นสุดไม่ถูกต้อง' };
+      if (providedEnd <= startDate) return { success: false, message: 'วันสิ้นสุดต้องมากกว่าวันเริ่มต้น' };
+      endDateIso = d.end_date;
+    } else {
+      // Default: start + 119 days (round 1)
+      const endDate = new Date(startDate.getTime());
+      endDate.setDate(endDate.getDate() + 119);
+      endDateIso = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+    }
 
     const [maxRow] = await db.execute(
       `SELECT IFNULL(MAX(period_no),0) AS max_no FROM tb_probation_period WHERE cycle_id=?`,
@@ -3852,7 +3869,12 @@ ipcMain.handle('probation-get-period-detail', async (event, period_id) => {
     if (period.emp_id && periodStart && periodEnd) {
       const monthRefMap = {};
       const periodMonthBase = new Date(periodStart.getFullYear(), periodStart.getMonth(), 1);
-      for (let i = 0; i < 4; i++) {
+      // นับเดือนจริงจาก start_date ถึง end_date (อาจเกิน 4 เดือน)
+      const periodMonthCount = (
+        (periodEnd.getFullYear() - periodStart.getFullYear()) * 12 +
+        (periodEnd.getMonth() - periodStart.getMonth()) + 1
+      );
+      for (let i = 0; i < periodMonthCount; i++) {
         const monthDate = new Date(periodMonthBase.getFullYear(), periodMonthBase.getMonth() + i, 1);
         const yearMonth = toYearMonth(monthDate);
         monthRefMap[yearMonth] = {
@@ -3941,7 +3963,7 @@ ipcMain.handle('probation-get-period-detail', async (event, period_id) => {
     );
     const [scores] = await db.execute(
       `SELECT score_id, month_no, criteria_id, score, remark
-       FROM tb_probation_score WHERE period_id=? ORDER BY month_no ASC, criteria_id ASC`,
+       FROM tb_probation_score WHERE period_id=? AND score >= 0 ORDER BY month_no ASC, criteria_id ASC`,
       [period_id]
     );
     const [criteria] = await db.execute(
@@ -3949,7 +3971,16 @@ ipcMain.handle('probation-get-period-detail', async (event, period_id) => {
        FROM tb_probation_criteria WHERE is_active=1
        ORDER BY sort_order ASC, criteria_id ASC`
     );
-    return { success: true, period, attendance, scores, criteria, leaveReference };
+    // NA คือ criteria ที่ถูกบันทึกไว้ด้วย score=-1 ในทุก period ของ cycle เดียวกัน
+    const [naRows] = await db.execute(
+      `SELECT DISTINCT s.criteria_id
+       FROM tb_probation_score s
+       INNER JOIN tb_probation_period p ON p.period_id = s.period_id
+       WHERE p.cycle_id = ? AND s.score = -1`,
+      [period.cycle_id]
+    );
+    const naCriteriaIds = naRows.map(r => r.criteria_id);
+    return { success: true, period, attendance, scores, criteria, leaveReference, naCriteriaIds };
   } catch (e) { return { success: false, message: e.message }; }
 });
 
@@ -3957,6 +3988,19 @@ ipcMain.handle('probation-get-period-detail', async (event, period_id) => {
 ipcMain.handle('probation-save-attendance', async (event, { period_id, rows }) => {
   if (!db) return { success: false, message: 'ไม่ได้เชื่อมต่อฐานข้อมูล' };
   if (!period_id || !Array.isArray(rows)) return { success: false, message: 'ข้อมูลไม่ถูกต้อง' };
+  // ดึงวันที่รอบจริงเพื่อคำนวณจำนวนเดือน
+  let maxMonthNo = 4;
+  try {
+    const [pRows] = await db.execute(
+      `SELECT DATE_FORMAT(start_date,'%Y-%m-%d') AS start_date, DATE_FORMAT(end_date,'%Y-%m-%d') AS end_date FROM tb_probation_period WHERE period_id=?`,
+      [period_id]
+    );
+    if (pRows.length) {
+      const ps = new Date(pRows[0].start_date + 'T00:00:00');
+      const pe = new Date(pRows[0].end_date   + 'T00:00:00');
+      maxMonthNo = (pe.getFullYear() - ps.getFullYear()) * 12 + (pe.getMonth() - ps.getMonth()) + 1;
+    }
+  } catch { /* fallback ไว้ที่ 4 */ }
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
@@ -3988,8 +4032,8 @@ ipcMain.handle('probation-save-attendance', async (event, { period_id, rows }) =
 
     for (const r of rows) {
       const monthNo = Number.parseInt(r.month_no, 10);
-      if (!Number.isInteger(monthNo) || monthNo < 1 || monthNo > 4) {
-        throw new Error('month_no ต้องอยู่ระหว่าง 1 ถึง 4');
+      if (!Number.isInteger(monthNo) || monthNo < 1 || monthNo > maxMonthNo) {
+        throw new Error(`month_no ต้องอยู่ระหว่าง 1 ถึง ${maxMonthNo}`);
       }
 
       const yearMonth = String(r.year_month || '').trim();
@@ -4003,8 +4047,8 @@ ipcMain.handle('probation-save-attendance', async (event, { period_id, rows }) =
       const lateDays = parseDayValue(r.late_days, 'วันมาสาย', monthNo);
       const leaveDays = parseLeaveDayValue(r.leave_days, monthNo);
 
-      if (presentDays + absentDays + leaveDays > workDays) {
-        throw new Error(`เดือนที่ ${monthNo}: มาทำงาน + ขาดงาน + ลา ต้องไม่เกินวันทำงาน`);
+      if (absentDays + leaveDays > workDays) {
+        throw new Error(`เดือนที่ ${monthNo}: ขาดงาน + ลา ต้องไม่เกินวันทำงาน`);
       }
       if (lateDays > presentDays) {
         throw new Error(`เดือนที่ ${monthNo}: วันมาสายต้องไม่มากกว่าวันมาทำงาน`);
@@ -4049,7 +4093,9 @@ ipcMain.handle('probation-save-scores', async (event, { period_id, month_no, sco
   try {
     await conn.beginTransaction();
     for (const s of scores) {
-      const score = Math.max(0, parseFloat(s.score) || 0);
+      const rawScore = parseFloat(s.score);
+      // score = -1 คือสัญลักษณ์ NA เก็บตรงๆ ฝั่น ค่าอื่นๆ clamp ไว้ >= 0
+      const score = (rawScore === -1) ? -1 : Math.max(0, rawScore || 0);
       await conn.execute(
         `INSERT INTO tb_probation_score (period_id, month_no, criteria_id, score, remark)
          VALUES (?,?,?,?,?)
@@ -4094,6 +4140,17 @@ ipcMain.handle('probation-finalize-period', async (event, d) => {
           `UPDATE tb_probation_cycle SET status='CLOSED' WHERE cycle_id=?`,
           [pRow[0].cycle_id]
         );
+        // If PASS: return total actual working days across all periods of cycle
+        if (d.decision === 'PASS') {
+          const [attSum] = await db.execute(
+            `SELECT COALESCE(SUM(a.present_days),0) AS total_present
+             FROM tb_probation_attendance a
+             JOIN tb_probation_period p ON p.period_id = a.period_id
+             WHERE p.cycle_id = ?`, [pRow[0].cycle_id]
+          );
+          const totalPresentDays = Number(attSum[0]?.total_present) || 0;
+          return { success: true, message: 'บันทึกผลการประเมินสำเร็จ', totalPresentDays };
+        }
       }
     }
     return { success: true, message: 'บันทึกผลการประเมินสำเร็จ' };
