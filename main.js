@@ -734,289 +734,151 @@ ipcMain.handle('get-today-on-leave', async (event) => {
 });
 
 
-// Export daily absence report to Excel (using template)
+// Export daily absence report to Excel (simple multi-sheet workbook)
 ipcMain.handle('export-absence-excel', async (event, { date, data }) => {
-  if (!data || !date) return { success: false, message: 'à¹„à¸¡à¹ˆà¸¡à¸µà¸‚à¹‰อมูล' };
+  if (!Array.isArray(data) || !date) return { success: false, message: 'ไม่มีข้อมูล' };
+
   try {
     const ExcelJS = require('exceljs');
-    const path = require('path');
-    const templatePath = path.join(__dirname, 'data', 'รายงานการหยุดงานประจำวัน.xlsx');
-    // Group data by company
-    const grouped = { Vel: [], SK: [], TBS: [], CWS: [] };
-    data.forEach(r => {
-      const vsth = (r.Emp_Vsth || r.drp_status || 'Vel').trim();
-      if (grouped[vsth] !== undefined) grouped[vsth].push(r);
-      else grouped['Vel'].push(r);
-    });
-    const outsourceList = [...grouped.SK, ...grouped.TBS, ...grouped.CWS];
-    const pageCount = Math.max(Math.ceil(grouped.Vel.length / 20), Math.ceil(outsourceList.length / 20), 1);
-    // Total employees per company
-    const totalByGroup = { Vel: 0, SK: 0, TBS: 0, CWS: 0 };
-    try {
-      const [empRows] = await db.execute(
-        `SELECT IFNULL(Emp_Vsth,'Vel') AS grp, COUNT(*) AS cnt FROM employees WHERE Emp_Status='Activated' GROUP BY IFNULL(Emp_Vsth,'Vel')`
-      );
-      empRows.forEach(r => { if (totalByGroup[r.grp] !== undefined) totalByGroup[r.grp] = r.cnt; });
-    } catch (e) { }
-    // Format date label (Thai month name, CE year)
-    const thMonths = ['à¸¡à¸à¸£à¸²à¸„ม', 'กุมภาพันธ์', 'à¸¡à¸µà¸™à¸²à¸„ม', 'เมษายน', 'à¸žà¸¤à¸©à¸ à¸²à¸„ม', 'มิถุนายน',
-      'à¸à¸£à¸à¸Žà¸²à¸„ม', 'à¸ªà¸´à¸‡à¸«à¸²à¸„ม', 'กันยายน', 'à¸•à¸¸à¸¥à¸²à¸„ม', 'พฤศจิกายน', 'à¸˜à¸±à¸™à¸§à¸²à¸„ม'];
-    const dObj = new Date(date + 'T00:00:00');
-    const thDateLabel = `${dObj.getDate()} ${thMonths[dObj.getMonth()]} ${dObj.getFullYear()}`;
-    // Show save dialog
+
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mi = String(now.getMinutes()).padStart(2, '0');
+    const fileStamp = `${yyyy}${mm}${dd}${hh}${mi}`;
+
     const saveResult = await dialog.showSaveDialog({
       title: 'บันทึกรายงาน Excel',
-      defaultPath: `รายงานการหยุดงาน_${date}.xlsx`,
+      defaultPath: `absence_${fileStamp}.xlsx`,
       filters: [{ name: 'Excel Files', extensions: ['xlsx'] }]
     });
-    if (saveResult.canceled || !saveResult.filePath) return { success: false, message: 'à¸¢à¸à¹€ลิก' };
-    const outputPath = saveResult.filePath;
-    // Load template workbook
+    if (saveResult.canceled || !saveResult.filePath) return { success: false, message: 'ยกเลิก' };
+
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.readFile(templatePath);
-    const tmplSheet = wb.getWorksheet('Sheet1');
-    // Snapshot template state before any modification (for copying to extra sheets)
-    const tmplMerges = tmplSheet.model.merges ? [...tmplSheet.model.merges] : [];
-    const tmplRows = [];
-    tmplSheet.eachRow({ includeEmpty: true }, (row, rn) => {
-      const cells = [];
-      row.eachCell({ includeEmpty: true }, (cell, cn) => {
-        cells.push({ cn, value: JSON.parse(JSON.stringify(cell.value ?? null)), style: JSON.parse(JSON.stringify(cell.style ?? {})) });
-      });
-      tmplRows.push({ rn, height: row.height, cells });
-    });
-    const tmplColWidths = [];
-    for (let c = 1; c <= 30; c++) {
-      const col = tmplSheet.getColumn(c);
-      if (col.width) tmplColWidths.push({ c, width: col.width });
-    }
-    // Apply template snapshot to a blank sheet
-    // ── helper: copy a template row (by rowNum) to any target row on sheet
-    function copyTmplRow(sheet, tmplRowNum, targetRowNum) {
-      const tr = tmplRows.find(r => r.rn === tmplRowNum);
-      if (!tr) return;
-      const row = sheet.getRow(targetRowNum);
-      if (tr.height) row.height = tr.height;
-      tr.cells.forEach(({ cn, value, style }) => {
-        const cell = row.getCell(cn);
-        cell.value = value;
-        if (style && Object.keys(style).length) cell.style = JSON.parse(JSON.stringify(style));
-      });
-      row.commit();
+    wb.creator = 'HR System';
+    wb.created = new Date();
+
+    const GROUP_ORDER = ['VEL', 'SK', 'TBS', 'CWS'];
+    const grouped = { VEL: [], SK: [], TBS: [], CWS: [] };
+
+    function normalizeGroup(raw) {
+      const v = String(raw || '').trim().toUpperCase();
+      if (v === 'VEL' || v === 'SK' || v === 'TBS' || v === 'CWS') return v;
+      return 'VEL';
     }
 
-    // ── helper: re-apply template merges for rows [srcStart..srcEnd] shifted by rowOffset
-    function shiftMerges(sheet, srcStart, srcEnd, rowOffset) {
-      tmplMerges.forEach(m => {
-        const match = m.match(/^([A-Za-z]+)(\d+):([A-Za-z]+)(\d+)$/);
-        if (!match) return;
-        const r1 = parseInt(match[2]);
-        const r2 = parseInt(match[4]);
-        if (r1 >= srcStart && r2 <= srcEnd) {
-          try { sheet.mergeCells(`${match[1]}${r1 + rowOffset}:${match[3]}${r2 + rowOffset}`); } catch (e) { }
-        }
-      });
-    }
-
-    // ── apply template rows minRow..maxRow (merges + styles + widths) to a sheet
-    function applyTemplate(sheet, minRow, maxRow) {
-      if (minRow === undefined) minRow = 1;
-      if (maxRow === undefined) maxRow = Infinity;
-      tmplMerges.forEach(m => {
-        const match = m.match(/^[A-Za-z]+(\d+):[A-Za-z]+(\d+)$/);
-        if (!match) return;
-        const r1 = parseInt(match[1]);
-        const r2 = parseInt(match[2]);
-        if (r1 >= minRow && r2 <= maxRow) {
-          try { sheet.mergeCells(m); } catch (e) { }
-        }
-      });
-      tmplRows.forEach(({ rn, height, cells }) => {
-        if (rn < minRow || rn > maxRow) return;
-        const row = sheet.getRow(rn);
-        if (height) row.height = height;
-        cells.forEach(({ cn, value, style }) => {
-          const cell = row.getCell(cn);
-          cell.value = value;
-          if (style && Object.keys(style).length) cell.style = style;
-        });
-        row.commit();
-      });
-      tmplColWidths.forEach(({ c, width }) => { sheet.getColumn(c).width = width; });
-    }
-
-    // ── helper: get communicate label
-    function commLabel(r) {
-      if (r.drp_Communicate && r.drp_Communicate.trim()) return '\u0E42\u0E17\u0E23';           // โทร
-      if (r.drp_Communicate1 && r.drp_Communicate1.trim()) return '\u0E41\u0E08\u0E49\u0E07\u0E25\u0E48\u0E27\u0E07\u0E2B\u0E19\u0E49\u0E32'; // แจ้งล่วงหน้า
+    function communicateLabel(row) {
+      if ((row.drp_Communicate || '').trim()) return 'โทร';
+      if ((row.drp_Communicate1 || '').trim()) return 'แจ้งล่วงหน้า';
       return '';
     }
 
-    // ── constants
-    const ROWS_PER_SECTION = 20;
-    const DATA_TMPL_START = 6;   // first data row in template
-    const DATA_TMPL_END = 25;  // last  data row in template
-    const SUMMARY_TMPL_START = 26;  // first summary row in template
-    const SUMMARY_TMPL_END = tmplRows.length > 0
-      ? Math.max.apply(null, tmplRows.map(r => r.rn))
-      : 36;
+    const normalizedRows = data.map((row) => {
+      const group = normalizeGroup(row.Emp_Vsth || row.drp_status || 'VEL');
+      const normalized = {
+        empId: row.drp_empID || '',
+        fullName: (row.Fullname || '').trim(),
+        department: row.Sub_Name || '',
+        leaveType: row.drp_Type || '',
+        communicate: communicateLabel(row),
+        startDate: row.drp_Sdate || '',
+        startTime: row.drp_Stime || '',
+        endDate: row.drp_Edate || '',
+        endTime: row.drp_Etime || '',
+        remark: (row.drp_Remark || '').replace(/\r\n/g, ' ').replace(/\n/g, ' ').trim(),
+        recordDate: row.drp_record || '',
+        group
+      };
+      grouped[group].push(normalized);
+      return normalized;
+    });
 
-    const velCount = grouped.Vel.length;
-    const outCount = outsourceList.length;
-    const sections = Math.ceil(Math.max(velCount, outCount, 1) / ROWS_PER_SECTION);
+    const columns = [
+      { header: 'รหัส', key: 'empId', width: 14 },
+      { header: 'ชื่อ-นามสกุล', key: 'fullName', width: 28 },
+      { header: 'แผนก', key: 'department', width: 20 },
+      { header: 'ประเภทลา', key: 'leaveType', width: 12 },
+      { header: 'สื่อสาร', key: 'communicate', width: 16 },
+      { header: 'วันที่ลา (เริ่ม)', key: 'startDate', width: 14 },
+      { header: 'เวลาเริ่ม', key: 'startTime', width: 12 },
+      { header: 'วันที่ลาถึง (สิ้นสุด)', key: 'endDate', width: 18 },
+      { header: 'เวลาสิ้นสุด', key: 'endTime', width: 12 },
+      { header: 'หมายเหตุ/เหตุผล', key: 'remark', width: 36 },
+      { header: 'วันที่บันทึก', key: 'recordDate', width: 14 },
+    ];
 
-    // ── choose / build the working sheet
-    let sheet;
-    if (sections === 1) {
-      // single section: use the loaded template sheet as-is
-      sheet = tmplSheet;
-    } else {
-      // multiple sections: start fresh so summary rows aren't duplicated
-      wb.removeWorksheet(tmplSheet.id);
-      sheet = wb.addWorksheet('Sheet1');
-      applyTemplate(sheet, 1, DATA_TMPL_END);
-    }
+    function fillSheet(sheetName, rows) {
+      const ws = wb.addWorksheet(sheetName);
+      ws.columns = columns;
 
-    // ── date label
-    sheet.getCell('U1').value = thDateLabel;
+      const headerRow = ws.getRow(1);
+      headerRow.values = columns.map(c => c.header);
+      headerRow.height = 24;
 
-    // ── write all data sections
-    let currentRow = DATA_TMPL_START;
-
-    for (let sec = 0; sec < sections; sec++) {
-      const offset = sec * ROWS_PER_SECTION;
-      const velChunk = grouped.Vel.slice(offset, offset + ROWS_PER_SECTION);
-      const outChunk = outsourceList.slice(offset, offset + ROWS_PER_SECTION);
-
-      if (sec > 0) {
-        // ── Leave 4 blank rows, then repeat the FULL header (rows 1-5):
-        //    row 1 = title + date,  rows 3-5 = section/column headers
-        //    (row 2 is blank spacer)
-        currentRow += 4;
-        const HEADER_ROWS = [1, 2, 3, 4, 5];
-        const headerOffset = currentRow - HEADER_ROWS[0]; // same for all
-        // shift ALL header merges in one call so multi-row spans (A4:A5, B4:D5…) are handled
-        shiftMerges(sheet, HEADER_ROWS[0], HEADER_ROWS[HEADER_ROWS.length - 1], headerOffset);
-        HEADER_ROWS.forEach((tmplHR, idx) => {
-          copyTmplRow(sheet, tmplHR, currentRow + idx);
-        });
-        // restore the date label on the new title row (tmplRows snapshot has original template value)
-        sheet.getCell(currentRow, 21).value = thDateLabel; // col 21 = U
-        currentRow += HEADER_ROWS.length;
-
-        // copy data-row styles/merges from template rows 6-25 for this new section in one pass
-        const dataOffset = currentRow - DATA_TMPL_START;
-        shiftMerges(sheet, DATA_TMPL_START, DATA_TMPL_END, dataOffset);
-        for (let i = 0; i < ROWS_PER_SECTION; i++) {
-          copyTmplRow(sheet, DATA_TMPL_START + i, currentRow + i);
-        }
-      }
-
-      // fill Vel (left) data
-      for (let i = 0; i < ROWS_PER_SECTION; i++) {
-        const rowNum = currentRow + i;
-        if (i < velChunk.length) {
-          const r = velChunk[i];
-          const comm = commLabel(r);
-          sheet.getCell(rowNum, 1).value = offset + i + 1;
-          sheet.getCell(rowNum, 2).value = (r.Fullname || '').trim();
-          sheet.getCell(rowNum, 5).value = r.Sub_Name || '';
-          sheet.getCell(rowNum, 6).value = r.drp_Type || '';
-          sheet.getCell(rowNum, 7).value = comm === '\u0E42\u0E17\u0E23' ? '\u2713' : '';
-          sheet.getCell(rowNum, 8).value = comm === '\u0E41\u0E08\u0E49\u0E07\u0E25\u0E48\u0E27\u0E07\u0E2B\u0E19\u0E49\u0E32' ? '\u2713' : '';
-          sheet.getCell(rowNum, 9).value = (r.drp_Remark || '').trim();
-        } else {
-          sheet.getCell(rowNum, 1).value = null;
-        }
-      }
-
-      // fill Outsource (right) data
-      for (let i = 0; i < ROWS_PER_SECTION; i++) {
-        const rowNum = currentRow + i;
-        if (i < outChunk.length) {
-          const r = outChunk[i];
-          const comm = commLabel(r);
-          const vsth = (r.Emp_Vsth || r.drp_status || '').trim();
-          sheet.getCell(rowNum, 12).value = offset + i + 1;
-          sheet.getCell(rowNum, 13).value = (r.Fullname || '').trim();
-          sheet.getCell(rowNum, 17).value = r.Sub_Name || '';
-          sheet.getCell(rowNum, 18).value = r.drp_Type || '';
-          sheet.getCell(rowNum, 19).value = comm === '\u0E42\u0E17\u0E23' ? '\u2713' : '';
-          sheet.getCell(rowNum, 20).value = comm === '\u0E41\u0E08\u0E49\u0E07\u0E25\u0E48\u0E27\u0E07\u0E2B\u0E19\u0E49\u0E32' ? '\u2713' : '';
-          sheet.getCell(rowNum, 21).value = vsth;
-          sheet.getCell(rowNum, 22).value = (r.drp_Remark || '').trim();
-        } else {
-          sheet.getCell(rowNum, 12).value = null;
-        }
-      }
-
-      currentRow += ROWS_PER_SECTION;
-    }
-
-    // ── write summary section
-    // currentRow is now just after the last data row
-    const summaryOffset = currentRow - SUMMARY_TMPL_START; // = 0 when sections === 1
-
-    if (sections > 1) {
-      // copy summary rows from template to their dynamic position
-      shiftMerges(sheet, SUMMARY_TMPL_START, SUMMARY_TMPL_END, summaryOffset);
-      for (let tr = SUMMARY_TMPL_START; tr <= SUMMARY_TMPL_END; tr++) {
-        copyTmplRow(sheet, tr, tr + summaryOffset);
-      }
-    }
-
-    // ── fill summary values (summaryOffset adjusts row numbers)
-    const S = summaryOffset;
-
-    // company totals
-    sheet.getCell(26 + S, 5).value = totalByGroup.Vel || 0;
-    sheet.getCell(26 + S, 9).value = grouped.Vel.length;
-    sheet.getCell(26 + S, 17).value = totalByGroup.SK || 0;
-    sheet.getCell(26 + S, 21).value = grouped.SK.length;
-    sheet.getCell(27 + S, 17).value = totalByGroup.TBS || 0;
-    sheet.getCell(27 + S, 21).value = grouped.TBS.length;
-    sheet.getCell(28 + S, 17).value = totalByGroup.CWS || 0;
-    sheet.getCell(28 + S, 21).value = grouped.CWS.length;
-
-    // leave-type matrix (rows 31-35)
-    const LT_MAP = { 'A': 2, 'B': 3, 'S': 4, 'H': 5, 'D': 6, 'F': 8, 'C': 10, 'O': 12, 'x': 14 };
-    const COMPANIES = ['Vel', 'SK', 'TBS', 'CWS'];
-
-    COMPANIES.forEach((co, ci) => {
-      const rd = grouped[co] || [];
-      Object.entries(LT_MAP).forEach(([lt, col]) => {
-        sheet.getCell(31 + ci + S, col).value = rd.filter(r => r.drp_Type === lt).length;
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF1E88E5' }
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF90CAF9' } },
+          left: { style: 'thin', color: { argb: 'FF90CAF9' } },
+          bottom: { style: 'thin', color: { argb: 'FF90CAF9' } },
+          right: { style: 'thin', color: { argb: 'FF90CAF9' } },
+        };
       });
-    });
 
-    Object.entries(LT_MAP).forEach(([lt, col]) => {
-      const tot = COMPANIES.reduce((sum, co) =>
-        sum + (grouped[co] || []).filter(r => r.drp_Type === lt).length, 0);
-      sheet.getCell(35 + S, col).value = tot;
-    });
+      if (rows.length === 0) {
+        ws.addRow({
+          empId: '-',
+          fullName: 'ไม่มีข้อมูล',
+          department: '',
+          leaveType: '',
+          communicate: '',
+          startDate: '',
+          startTime: '',
+          endDate: '',
+          endTime: '',
+          remark: '',
+          recordDate: ''
+        });
+      } else {
+        rows.forEach(r => ws.addRow(r));
+      }
 
-    // right summary
-    const totalEmp = Object.values(totalByGroup).reduce((a, b) => a + b, 0);
-    const totalAbsent = data.length;
-    sheet.getCell(31 + S, 18).value = totalEmp;
-    sheet.getCell(32 + S, 18).value = Math.max(0, totalEmp - totalAbsent);
-    sheet.getCell(33 + S, 18).value = totalAbsent;
+      ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+        if (rowNumber === 1) return;
+        row.eachCell((cell, colNumber) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE3F2FD' } },
+            left: { style: 'thin', color: { argb: 'FFE3F2FD' } },
+            bottom: { style: 'thin', color: { argb: 'FFE3F2FD' } },
+            right: { style: 'thin', color: { argb: 'FFE3F2FD' } },
+          };
+          if (colNumber === 10) cell.alignment = { vertical: 'top', wrapText: true };
+        });
+      });
 
-    await wb.xlsx.writeFile(outputPath);
+      ws.views = [{ state: 'frozen', ySplit: 1 }];
+      ws.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: 1, column: columns.length }
+      };
+    }
 
+    fillSheet('รวมทั้งหมด', normalizedRows);
+    GROUP_ORDER.forEach((group) => fillSheet(group, grouped[group] || []));
 
-    return { success: true, filePath: outputPath };
-
-
+    await wb.xlsx.writeFile(saveResult.filePath);
+    return { success: true, filePath: saveResult.filePath };
   } catch (e) {
-
-
     return { success: false, message: e.message };
-
-
   }
-
-
 });
 
 
@@ -3283,6 +3145,10 @@ ipcMain.handle('get-holidays-for-month', async (event, { year, month } = {}) => 
 
 // ===================== OT EXCEL EXPORT =====================
 ipcMain.handle('export-ot-excel', async (event, { forms, ceYear, month }) => {
+  if (!Array.isArray(forms) || forms.length === 0) {
+    return { success: false, message: 'ไม่มีข้อมูลสำหรับส่งออก' };
+  }
+
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
     title: 'บันทึกไฟล์ Excel',
     defaultPath: `OT_${ceYear + 543}_${String(month).padStart(2, '0')}.xlsx`,
@@ -3330,106 +3196,136 @@ ipcMain.handle('export-ot-excel', async (event, { forms, ceYear, month }) => {
   const monthName = THAI_MONTHS_XL[month];
   const daysInMonth = new Date(ceYear, month, 0).getDate();
 
-  // ── Load the original template once ──────────────────────────────────────
   const templatePath = path.join(__dirname, 'data', 'OT.xlsx');
-  const templateWb = new ExcelJS.Workbook();
-  await templateWb.xlsx.readFile(templatePath);
-  const templateWs = templateWb.worksheets[0]
-    || templateWb.worksheets.find(Boolean);
-  if (!templateWs) {
-    console.error('[OT Export] sheets in template:', templateWb.worksheets.map(s => s && s.name));
-    return { success: false, message: `ไม่พบ sheet ใน template: ${templatePath}` };
+  if (!fs.existsSync(templatePath)) {
+    return { success: false, message: `ไม่พบไฟล์ต้นฉบับ: ${templatePath}` };
   }
 
-  // ── Output workbook ───────────────────────────────────────────────────────
-  const outWb = new ExcelJS.Workbook();
+  const os = require('os');
+  const { execFile } = require('child_process');
+  const payloadPath = path.join(os.tmpdir(), `ot_export_payload_${Date.now()}.json`);
+  const scriptPath = path.join(os.tmpdir(), `ot_export_excel_${Date.now()}.ps1`);
 
-  // Helper: deep-copy one worksheet from template into outWb
-  function copySheet(srcWs, sheetName) {
-    const dstWs = outWb.addWorksheet(sheetName);
+  const exportPayload = {
+    title: `     รายงานการทำงานล่วงเวลาประจำเดือน ${monthName} ${beYear}`,
+    dateRange: `1 - ${daysInMonth} ${monthName} ${beYear}`,
+    forms: forms.map((form, index) => {
+      const emp = form.emp || {};
+      const sup = subSupMap.get(emp.Sub_ID) || {};
+      return {
+        sheetName: String(emp.Emp_ID || `OT${index + 1}`),
+        firstName: emp.Emp_Firstname || emp.Fullname || '',
+        lastName: emp.Emp_Lastname || '',
+        empId: String(emp.Emp_ID || ''),
+        subName: emp.Sub_Name || '',
+        supervisorName: sup.name || '',
+        supervisorPosition: sup.position || 'หัวหน้างาน',
+        days: (form.days || []).map((day) => {
+          let note = '';
+          if (day.isHoliday) note = day.holidayName;
+          else if (day.dow === 0) note = 'วันอาทิตย์';
+          return {
+            d: day.d,
+            note,
+            isHoliday: !!day.isHoliday,
+            isSunday: day.dow === 0,
+          };
+        })
+      };
+    })
+  };
 
-    // Page setup & margins (exact original)
-    Object.assign(dstWs.pageSetup, srcWs.pageSetup);
-
-    // Column widths
-    srcWs.columns.forEach((col, idx) => {
-      const dstCol = dstWs.getColumn(idx + 1);
-      if (col.width) dstCol.width = col.width;
-    });
-
-    // Rows: height + cells (value + full style deep-copy)
-    srcWs.eachRow({ includeEmpty: true }, (srcRow, rowNum) => {
-      const dstRow = dstWs.getRow(rowNum);
-      if (srcRow.height) {
-        dstRow.height = srcRow.height;
-        dstRow.customHeight = true;
-      }
-      srcRow.eachCell({ includeEmpty: true }, (srcCell, colNum) => {
-        const dstCell = dstRow.getCell(colNum);
-        dstCell.value = srcCell.value;
-        // Deep-copy style so each sheet is independent
-        dstCell.style = JSON.parse(JSON.stringify(srcCell.style));
-      });
-      dstRow.commit();
-    });
-
-    // Merge cells
-    const merges = srcWs.model && srcWs.model.merges;
-    if (Array.isArray(merges)) {
-      merges.forEach(m => { try { dstWs.mergeCells(m); } catch { } });
-    }
-
-    return dstWs;
-  }
-
-  // ── Build one sheet per employee ──────────────────────────────────────────
-  for (const { emp, days } of forms) {
-    const ws = copySheet(templateWs, String(emp.Emp_ID));
-
-    // ── Row 1: Title with month + year ──────────────────────────────────────
-    ws.getCell('A1').value =
-      `     รายงานการทำงานล่วงเวลาประจำเดือน ${monthName} ${beYear}`;
-
-    // ── Row 2: Employee name + ID ───────────────────────────────────────────
-    ws.getCell('D2').value = emp.Emp_Firstname || emp.Fullname || '';
-    ws.getCell('F2').value = emp.Emp_Lastname || '';
-    ws.getCell('I2').value = String(emp.Emp_ID);
-
-    // ── Row 3: Department + date range ────────────────────────────────────────
-    ws.getCell('D3').value = emp.Sub_Name || '';
-    ws.getCell('I3').value = `1 - ${daysInMonth} ${monthName} ${beYear}`;
-
-    // ── Day rows (6-35): day number + weekend/holiday label ───────────────────
-    for (let i = 0; i < days.length; i++) {
-      const day = days[i];
-      const rowNum = 6 + i;
-      ws.getCell(rowNum, 1).value = String(day.d);
-      let note = '';
-      if (day.isHoliday) note = day.holidayName;
-      else if (day.dow === 6) note = 'วันเสาร์';
-      else if (day.dow === 0) note = 'วันอาทิตย์';
-      ws.getCell(rowNum, 10).value = note;
-    }
-
-    // Clear leftover day cells if month is shorter than template (< 30 days)
-    for (let extra = days.length + 1; extra <= 30; extra++) {
-      ws.getCell(5 + extra, 1).value = null;
-      ws.getCell(5 + extra, 10).value = null;
-    }
-
-    // ── Signature rows: fill supervisor name/position from subdivision ──────
-    const sup = subSupMap.get(emp.Sub_ID);
-    if (sup && sup.name) {
-      ws.getCell(40, 9).value = `(  ${sup.name}  )`;
-      ws.getCell(41, 9).value = sup.position || 'หัวหน้างาน';
-    }
-  }
+  const psLines = [
+    'param([string]$templatePath, [string]$outputPath, [string]$payloadPath)',
+    '$ErrorActionPreference = "Stop"',
+    '$payload = Get-Content -LiteralPath $payloadPath -Raw -Encoding UTF8 | ConvertFrom-Json',
+    '$excel = New-Object -ComObject Excel.Application',
+    '$excel.Visible = $false',
+    '$excel.DisplayAlerts = $false',
+    'function Get-UniqueSheetName($workbook, $baseName) {',
+    '  if ([string]::IsNullOrWhiteSpace($baseName)) { $safe = "Sheet" } else { $safe = $baseName }',
+    '  if ($safe.Length -gt 31) { $safe = $safe.Substring(0, 31) }',
+    '  $name = $safe',
+    '  $n = 1',
+    '  while ($true) {',
+    '    $exists = $false',
+    '    foreach ($sheet in $workbook.Worksheets) { if ($sheet.Name -eq $name) { $exists = $true; break } }',
+    '    if (-not $exists) { return $name }',
+    '    $suffix = "_" + $n',
+    '    $trimLen = [Math]::Min(31 - $suffix.Length, $safe.Length)',
+    '    $name = $safe.Substring(0, $trimLen) + $suffix',
+    '    $n++',
+    '  }',
+    '}',
+    'try {',
+    '  $wb = $excel.Workbooks.Open($templatePath)',
+    '  $templateSheet = $wb.Worksheets.Item(1)',
+    '  for ($i = 0; $i -lt $payload.forms.Count; $i++) {',
+    '    $form = $payload.forms[$i]',
+    '    if ($i -eq 0) {',
+    '      $ws = $templateSheet',
+    '    } else {',
+    '      $templateSheet.Copy([Type]::Missing, $wb.Worksheets.Item($wb.Worksheets.Count))',
+    '      $ws = $wb.Worksheets.Item($wb.Worksheets.Count)',
+    '    }',
+    '    $ws.Name = Get-UniqueSheetName $wb $form.sheetName',
+    '    $ws.Range("A1").Value2 = $payload.title',
+    '    $ws.Range("D2").Value2 = $form.firstName',
+    '    $ws.Range("F2").Value2 = $form.lastName',
+    '    $ws.Range("I2").Value2 = $form.empId',
+    '    $ws.Range("D3").Value2 = $form.subName',
+    '    $ws.Range("I3").Value2 = $payload.dateRange',
+    '    for ($row = 6; $row -le 36; $row++) {',
+    '      $ws.Cells.Item($row, 1).Value2 = $null',
+    '      $ws.Cells.Item($row, 10).Value2 = $null',
+    '      $r = $ws.Range("A" + $row + ":J" + $row)',
+    '      $r.Interior.Pattern = -4142',
+    '      $r.Interior.ColorIndex = -4142',
+    '    }',
+    '    for ($d = 0; $d -lt $form.days.Count; $d++) {',
+    '      $excelRow = 6 + $d',
+    '      $ws.Cells.Item($excelRow, 1).Value2 = [string]$form.days[$d].d',
+    '      $ws.Cells.Item($excelRow, 10).Value2 = [string]$form.days[$d].note',
+    '      if ($form.days[$d].isHoliday -or $form.days[$d].isSunday) {',
+    '        $hl = $ws.Range("A" + $excelRow + ":J" + $excelRow)',
+    '        $hl.Interior.Pattern = 1',
+    '        $hl.Interior.ColorIndex = 15',
+    '      }',
+    '    }',
+    '    if (-not [string]::IsNullOrWhiteSpace($form.supervisorName)) {',
+    '      $ws.Cells.Item(40, 9).Value2 = "(  " + $form.supervisorName + "  )"',
+    '    }',
+    '    $ws.Cells.Item(41, 9).Value2 = $form.supervisorPosition',
+    '  }',
+    '  $wb.SaveAs($outputPath, 51)',
+    '  $wb.Close($false)',
+    '} finally {',
+    '  if ($wb) { try { $wb.Close($false) } catch {} }',
+    '  $excel.Quit()',
+    '  [System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel) | Out-Null',
+    '}',
+  ];
 
   try {
-    await outWb.xlsx.writeFile(filePath);
+    fs.writeFileSync(payloadPath, JSON.stringify(exportPayload), 'utf8');
+    fs.writeFileSync(scriptPath, psLines.join('\r\n'), 'utf8');
+
+    await new Promise((resolve, reject) => {
+      execFile('powershell', [
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-File', scriptPath, templatePath, filePath, payloadPath
+      ], { timeout: 120000 }, (err, stdout, stderr) => {
+        if (err) reject(new Error(stderr ? stderr.trim() : err.message));
+        else resolve();
+      });
+    });
+
     return { success: true, filePath };
   } catch (e) {
-    return { success: false, message: e.message };
+    return { success: false, message: `สร้างไฟล์ OT ไม่สำเร็จ: ${e.message}` };
+  } finally {
+    try { fs.unlinkSync(payloadPath); } catch {}
+    try { fs.unlinkSync(scriptPath); } catch {}
   }
 });
 

@@ -6,7 +6,6 @@ let otFilteredEmployees = [];       // after sub + search filter
 let otSelectedIds = new Set();      // checked employee IDs (current view)
 let otSelectedEmployees = new Map();// Emp_ID → employee data (persists across filter changes)
 let otHolidays = [];                // holidays for selected month
-let otGeneratedForms = [];          // { emp, days[] } per employee
 let otSubMap = new Map();           // Sub_ID → subdivision row (with supervisor info)
 let otSubTimer = null;
 let otEmpSearchTimer = null;
@@ -28,7 +27,6 @@ export async function loadOtPage() {
   otSelectedIds = new Set();
   otSelectedEmployees = new Map();
   otHolidays = [];
-  otGeneratedForms = [];
   otSubMap = new Map();
 
   try {
@@ -160,15 +158,10 @@ function otUpdateSelectedCount() {
     badge.style.display = hasCross ? 'inline' : 'none';
   }
 
-  const generated = otGeneratedForms.length;
-  const btnPrint = document.getElementById('otBtnPrint');
   const btnExport = document.getElementById('otBtnExport');
-  const cnt = document.getElementById('otPrintCount');
   const expCnt = document.getElementById('otExportCount');
-  if (btnPrint) btnPrint.disabled = generated === 0;
-  if (btnExport) btnExport.disabled = generated === 0;
-  if (cnt) cnt.textContent = generated;
-  if (expCnt) expCnt.textContent = generated;
+  if (btnExport) btnExport.disabled = total === 0;
+  if (expCnt) expCnt.textContent = total;
 }
 
 // ===================== EVENT HANDLERS =====================
@@ -178,14 +171,16 @@ export function otOnSubChange() {
 }
 
 export function otOnFilterChange() {
-  // When month/year changes, clear generated forms
-  otGeneratedForms = [];
+  // Keep selected employees; only clear preview area message
   otUpdateSelectedCount();
-  document.getElementById('otPreviewArea').innerHTML = `
-    <div style="text-align:center;padding:60px 20px;color:var(--gray-400);">
-      <i class="bi bi-file-earmark-text" style="font-size:48px;display:block;margin-bottom:12px;opacity:0.4;"></i>
-      <div style="font-size:14px;">เลือกพนักงานและกด <strong>สร้างแบบฟอร์ม</strong> เพื่อแสดงตัวอย่าง</div>
-    </div>`;
+  const area = document.getElementById('otPreviewArea');
+  if (area) {
+    area.innerHTML = `
+      <div style="text-align:center;padding:60px 20px;color:var(--gray-400);">
+        <i class="bi bi-file-earmark-arrow-down" style="font-size:48px;display:block;margin-bottom:12px;opacity:0.4;"></i>
+        <div style="font-size:14px;">เลือกพนักงานแล้วกด <strong>Export Excel + PDF</strong> ได้ทันที</div>
+      </div>`;
+  }
 }
 
 export function otOnEmpSearch() {
@@ -253,34 +248,44 @@ function otBuildDays(ceYear, month, holidays) {
   return rows;
 }
 
-// ===================== GENERATE FORMS =====================
-export async function otGenerate() {
-  if (otSelectedIds.size === 0) {
+async function otBuildFormsFromSelection() {
+  if (otSelectedEmployees.size === 0) {
     showToast('โปรดเลือกพนักงานอย่างน้อย 1 คน', 'warning');
-    return;
+    return null;
   }
 
   const ceYear = parseInt(document.getElementById('otYear')?.value, 10);
   const month  = parseInt(document.getElementById('otMonth')?.value, 10);
-  if (!ceYear || !month) { showToast('โปรดเลือกเดือน/ปี', 'warning'); return; }
+  if (!ceYear || !month) {
+    showToast('โปรดเลือกเดือน/ปี', 'warning');
+    return null;
+  }
 
+  otHolidays = await otFetchHolidays(ceYear, month);
+  const days = otBuildDays(ceYear, month, otHolidays);
+  const selected = [...otSelectedEmployees.values()];
+  if (selected.length === 0) {
+    showToast('ไม่พบข้อมูลพนักงานที่เลือก', 'warning');
+    return null;
+  }
+
+  return {
+    ceYear,
+    month,
+    forms: selected.map(emp => ({ emp, days }))
+  };
+}
+
+// ===================== GENERATE FORMS =====================
+export async function otGenerate() {
   const btn = document.getElementById('otBtnGenerate');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;margin:0 4px -2px 0;"></span>กำลังสร้าง...'; }
 
   try {
-    otHolidays = await otFetchHolidays(ceYear, month);
-    const days = otBuildDays(ceYear, month, otHolidays);
-
-    // Use otSelectedEmployees map — preserves cross-department selections
-    const selected = [...otSelectedEmployees.values()];
-    if (selected.length === 0) {
-      showToast('ไม่พบข้อมูลพนักงานที่เลือก', 'warning');
-      return;
-    }
-    otGeneratedForms = selected.map(emp => ({ emp, days }));
-
-    otRenderPreview(ceYear, month, otGeneratedForms);
-    otBuildPrintArea(ceYear, month, otGeneratedForms);
+    const payload = await otBuildFormsFromSelection();
+    if (!payload) return;
+    otRenderPreview(payload.ceYear, payload.month, payload.forms);
+    otBuildPrintArea(payload.ceYear, payload.month, payload.forms);
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> สร้างแบบฟอร์ม'; }
     otUpdateSelectedCount();
@@ -473,20 +478,16 @@ function otBuildPrintArea(ceYear, month, forms) {
 
 // ===================== EXPORT EXCEL =====================
 export async function otExport() {
-  if (otGeneratedForms.length === 0) {
-    showToast('โปรดสร้างแบบฟอร์มก่อน', 'warning');
-    return;
-  }
-
-  const ceYear = parseInt(document.getElementById('otYear')?.value, 10);
-  const month  = parseInt(document.getElementById('otMonth')?.value, 10);
+  const payload = await otBuildFormsFromSelection();
+  if (!payload) return;
+  const { ceYear, month, forms } = payload;
 
   const btn = document.getElementById('otBtnExport');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;margin:0 4px -2px 0;"></span>กำลัง Export...'; }
 
   try {
     // Step 1: Export Excel (opens Save dialog, user picks location)
-    const xlsxRes = await window.api.exportOtExcel({ forms: otGeneratedForms, ceYear, month });
+    const xlsxRes = await window.api.exportOtExcel({ forms, ceYear, month });
     if (xlsxRes?.canceled) return;
     if (!xlsxRes?.success) {
       showToast(xlsxRes?.message || 'Export Excel ไม่สำเร็จ', 'danger');
@@ -501,22 +502,19 @@ export async function otExport() {
       return;
     }
 
-    showToast(`Excel และ PDF บันทึกสำเร็จ (${otGeneratedForms.length} ชีท)`, 'success');
+    showToast(`Excel และ PDF บันทึกสำเร็จ (${forms.length} ชีท)`, 'success');
   } catch (e) {
     showToast('Export ไม่สำเร็จ: ' + e.message, 'danger');
   } finally {
     if (btn) {
-      btn.disabled = otGeneratedForms.length === 0;
-      btn.innerHTML = `<i class="bi bi-file-earmark-arrow-down-fill"></i> Export Excel + PDF (<span id="otExportCount">${otGeneratedForms.length}</span> ชีท)`;
+      const selectedCount = otSelectedEmployees.size;
+      btn.disabled = selectedCount === 0;
+      btn.innerHTML = `<i class="bi bi-file-earmark-arrow-down-fill"></i> Export Excel + PDF (<span id="otExportCount">${selectedCount}</span> ชีท)`;
     }
   }
 }
 
 // ===================== PRINT =====================
 export function otPrint() {
-  if (otGeneratedForms.length === 0) {
-    showToast('โปรดสร้างแบบฟอร์มก่อน', 'warning');
-    return;
-  }
-  window.print();
+  showToast('หน้านี้รองรับการ Export Excel + PDF ได้ทันที ไม่จำเป็นต้องพิมพ์จากหน้าจอ', 'info');
 }
