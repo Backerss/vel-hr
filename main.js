@@ -71,27 +71,37 @@ async function createConnection(config) {
 async function ensureProbationAttendanceSchema() {
   if (!db || probationAttendanceSchemaEnsured) return;
   try {
-    const [rows] = await db.execute(
-      `SELECT DATA_TYPE, NUMERIC_PRECISION, NUMERIC_SCALE
-       FROM INFORMATION_SCHEMA.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE()
-         AND TABLE_NAME = 'tb_probation_attendance'
-         AND COLUMN_NAME = 'leave_days'`
-    );
+    const targetColumns = [
+      { name: 'present_days', comment: 'มาทำงาน (รองรับเศษวัน)' },
+      { name: 'absent_days', comment: 'ขาดงาน (รองรับเศษวัน)' },
+      { name: 'late_days', comment: 'มาสาย (รองรับเศษวัน)' },
+      { name: 'leave_days', comment: 'ลา (รองรับเศษวัน)' }
+    ];
 
-    if (!rows.length) return;
-
-    const column = rows[0];
-    const needsAlter = String(column.DATA_TYPE || '').toLowerCase() !== 'decimal'
-      || Number(column.NUMERIC_PRECISION || 0) !== 5
-      || Number(column.NUMERIC_SCALE || 0) !== 2;
-
-    if (needsAlter) {
-      await db.execute(
-        `ALTER TABLE tb_probation_attendance
-         MODIFY leave_days DECIMAL(5,2) NOT NULL DEFAULT 0.00 COMMENT 'ลา (รองรับเศษวัน)'`
+    for (const col of targetColumns) {
+      const [rows] = await db.execute(
+        `SELECT DATA_TYPE, NUMERIC_PRECISION, NUMERIC_SCALE
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'tb_probation_attendance'
+           AND COLUMN_NAME = ?`,
+        [col.name]
       );
-      console.log('Auto-migrated tb_probation_attendance.leave_days to DECIMAL(5,2)');
+
+      if (!rows.length) continue;
+
+      const column = rows[0];
+      const needsAlter = String(column.DATA_TYPE || '').toLowerCase() !== 'decimal'
+        || Number(column.NUMERIC_PRECISION || 0) !== 6
+        || Number(column.NUMERIC_SCALE || 0) !== 3;
+
+      if (needsAlter) {
+        await db.execute(
+          `ALTER TABLE tb_probation_attendance
+           MODIFY ${col.name} DECIMAL(6,3) NOT NULL DEFAULT 0.000 COMMENT '${col.comment}'`
+        );
+        console.log(`Auto-migrated tb_probation_attendance.${col.name} to DECIMAL(6,3)`);
+      }
     }
 
     probationAttendanceSchemaEnsured = true;
@@ -4004,7 +4014,7 @@ ipcMain.handle('probation-save-attendance', async (event, { period_id, rows }) =
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const parseDayValue = (value, label, monthNo) => {
+    const parseWholeDayValue = (value, label, monthNo) => {
       const raw = String(value ?? '').trim();
       if (raw === '') return 0;
       const parsed = Number.parseInt(raw, 10);
@@ -4016,17 +4026,17 @@ ipcMain.handle('probation-save-attendance', async (event, { period_id, rows }) =
       }
       return parsed;
     };
-    const parseLeaveDayValue = (value, monthNo) => {
+    const parseDecimalDayValue = (value, label, monthNo) => {
       const raw = String(value ?? '').trim();
       if (raw === '') return 0;
       const parsed = Number.parseFloat(raw);
       if (!Number.isFinite(parsed) || parsed < 0) {
-        throw new Error(`เดือนที่ ${monthNo}: วันลาไม่ถูกต้อง`);
+        throw new Error(`เดือนที่ ${monthNo}: ${label}ไม่ถูกต้อง`);
       }
       if (parsed > 31) {
-        throw new Error(`เดือนที่ ${monthNo}: วันลาห้ามเกิน 31 วัน`);
+        throw new Error(`เดือนที่ ${monthNo}: ${label}ห้ามเกิน 31 วัน`);
       }
-      return parseFloat(parsed.toFixed(2));
+      return parseFloat(parsed.toFixed(3));
     };
     const warnings = [];
 
@@ -4041,11 +4051,11 @@ ipcMain.handle('probation-save-attendance', async (event, { period_id, rows }) =
         throw new Error(`เดือนที่ ${monthNo}: ปี-เดือนไม่ถูกต้อง`);
       }
 
-      const workDays = parseDayValue(r.work_days, 'วันทำงาน', monthNo);
-      const presentDays = parseDayValue(r.present_days, 'วันมาทำงาน', monthNo);
-      const absentDays = parseDayValue(r.absent_days, 'วันขาดงาน', monthNo);
-      const lateDays = parseDayValue(r.late_days, 'วันมาสาย', monthNo);
-      const leaveDays = parseLeaveDayValue(r.leave_days, monthNo);
+      const workDays = parseWholeDayValue(r.work_days, 'วันทำงาน', monthNo);
+      const presentDays = parseDecimalDayValue(r.present_days, 'วันมาทำงาน', monthNo);
+      const absentDays = parseDecimalDayValue(r.absent_days, 'วันขาดงาน', monthNo);
+      const lateDays = parseDecimalDayValue(r.late_days, 'วันมาสาย', monthNo);
+      const leaveDays = parseDecimalDayValue(r.leave_days, 'วันลา', monthNo);
 
       if (absentDays + leaveDays > workDays) {
         throw new Error(`เดือนที่ ${monthNo}: ขาดงาน + ลา ต้องไม่เกินวันทำงาน`);
@@ -4057,7 +4067,7 @@ ipcMain.handle('probation-save-attendance', async (event, { period_id, rows }) =
         warnings.push(`เดือนที่ ${monthNo} ขาดงาน ${absentDays} วัน`);
       }
 
-      const attPct      = workDays > 0 ? parseFloat(((presentDays / workDays) * 100).toFixed(2)) : 0;
+      const attPct      = workDays > 0 ? parseFloat(((presentDays / workDays) * 100).toFixed(3)) : 0;
       await conn.execute(
         `INSERT INTO tb_probation_attendance
            (period_id, month_no, \`year_month\`, work_days, present_days, absent_days, late_days, leave_days, att_pct, remark)

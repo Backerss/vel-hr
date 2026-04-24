@@ -185,9 +185,36 @@ export function initModalBackdropClose(modalIds) {
 
 // ===================== PASSWORD CONFIRM (delete guard) =====================
 let _pendingConfirmCallback = null;
+let _pwdConfirmBtnLabel = 'ยืนยันการลบ';
 
-export function requirePasswordConfirm(username, callback) {
+export function requirePasswordConfirm(username, callback, options = {}) {
   _pendingConfirmCallback = callback;
+  const {
+    title = 'ยืนยันตัวตนก่อนลบข้อมูล',
+    message = 'การลบข้อมูลนี้ไม่สามารถย้อนกลับได้ กรุณากรอกรหัสผ่านเพื่อยืนยัน',
+    btnLabel = 'ยืนยันการลบ',
+    titleColor = 'var(--danger)',
+    warningBg = 'var(--danger-light)',
+    messageColor = '#b91c1c',
+    btnBg = 'var(--danger)',
+  } = options;
+  _pwdConfirmBtnLabel = btnLabel;
+
+  const titleEl = document.getElementById('pwdConfirmTitle');
+  if (titleEl) { titleEl.textContent = title; titleEl.style.color = titleColor; }
+  const titleIcon = document.getElementById('pwdConfirmTitleIcon');
+  if (titleIcon) titleIcon.style.color = titleColor;
+  const msgEl = document.getElementById('pwdConfirmMessage');
+  if (msgEl) { msgEl.textContent = message; msgEl.style.color = messageColor; }
+  const warnBox = document.getElementById('pwdConfirmWarningBox');
+  if (warnBox) warnBox.style.background = warningBg;
+  const warnIcon = document.getElementById('pwdConfirmWarningIcon');
+  if (warnIcon) warnIcon.style.color = titleColor;
+  const btnLabelEl = document.getElementById('pwdConfirmBtnLabel');
+  if (btnLabelEl) btnLabelEl.textContent = btnLabel;
+  const btn = document.getElementById('btnPasswordConfirm');
+  if (btn) { btn.style.background = btnBg; btn.style.borderColor = btnBg; }
+
   const usernameEl = document.getElementById('pwdConfirmUsername');
   if (usernameEl) usernameEl.textContent = username;
   const inp = document.getElementById('pwdConfirmInput');
@@ -221,7 +248,7 @@ export async function submitPasswordConfirm() {
 
   if (btn) {
     btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-shield-check"></i> ยืนยันการลบ';
+    btn.innerHTML = `<i class="bi bi-shield-check"></i> <span id="pwdConfirmBtnLabel">${_pwdConfirmBtnLabel}</span>`;
   }
 
   if (res.success) {

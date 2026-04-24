@@ -2,7 +2,8 @@
 // Follows the same patterns as leave.js / courses.js / training-plan.js
 // All sub-views rendered inline (no additional HTML fetch for detail views)
 // ======================================================================
-import { escHtml, showToast, showModal, closeModal, isoDateToDisplayDate, displayDateToIso } from './utils.js';
+import { escHtml, showToast, showModal, closeModal, isoDateToDisplayDate, displayDateToIso, requirePasswordConfirm } from './utils.js';
+import { currentUser } from './auth.js';
 
 // ── Module state ─────────────────────────────────────────────────────
 let probCurrentPage  = 1;
@@ -48,6 +49,12 @@ function addDaysIso(isoDate, days) {
   const d = new Date(isoDate + 'T00:00:00');
   d.setDate(d.getDate() + days);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function startOfNextMonthIso(isoDate) {
+  const d = new Date(isoDate + 'T00:00:00');
+  const n = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
 }
 
 /** Add 1 day to a YYYY-MM-DD string */
@@ -367,9 +374,9 @@ function _renderCycleDetail(cycle, periods, totalPresentDays = 0) {
   const container = document.getElementById('pageContent');
 
   const lastPeriod   = periods.length ? periods[periods.length - 1] : null;
-  // Set suggested start: first period → cycle.start_date; subsequent → day after last period end
+  // Set suggested start: first period → cycle.start_date; subsequent → first day of next month
   _probSuggestedPeriodStart = lastPeriod
-    ? addOneDayIso(lastPeriod.end_date)
+    ? startOfNextMonthIso(lastPeriod.end_date)
     : cycle.start_date;
   _isFirstPeriod = periods.length === 0;
   const canAddPeriod = cycle.status === 'ACTIVE' &&
@@ -382,7 +389,7 @@ function _renderCycleDetail(cycle, periods, totalPresentDays = 0) {
         <tr style="cursor:pointer;" onclick="probOpenPeriodDetail(${p.period_id})">
           <td style="text-align:center;font-weight:700;color:var(--primary);">รอบที่ ${p.period_no}</td>
           <td>${probFmtDate(p.start_date)} — ${probFmtDate(p.end_date)}</td>
-          <td style="text-align:center;">${p.att_pct != null ? parseFloat(p.att_pct).toFixed(1)+'%' : '-'}</td>
+          <td style="text-align:center;">${p.att_pct != null ? parseFloat(p.att_pct).toFixed(3)+'%' : '-'}</td>
           <td style="text-align:center;">${p.quality_pct != null ? parseFloat(p.quality_pct).toFixed(1)+'%' : '-'}</td>
           <td style="text-align:center;font-weight:700;">${p.avg_score != null ? parseFloat(p.avg_score).toFixed(1)+'%' : '-'}</td>
           <td style="text-align:center;">${gradeBadge(p.grade || '-')}</td>
@@ -836,7 +843,7 @@ function probGetAttendanceRowData(monthNo, fallbackYearMonth = '') {
     const parsed = Number.parseInt(document.getElementById(id)?.value, 10);
     return Number.isFinite(parsed) ? parsed : 0;
   };
-  const parseLeaveField = (id) => {
+  const parseDecimalField = (id) => {
     const raw = String(document.getElementById(id)?.value || '').trim();
     if (!raw) return 0;
     const parsed = Number.parseFloat(raw);
@@ -847,11 +854,10 @@ function probGetAttendanceRowData(monthNo, fallbackYearMonth = '') {
     month_no: monthNo,
     year_month: fallbackYearMonth,
     work_days: parseWholeField(`att_work_${monthNo}`),
-    present_days: parseWholeField(`att_present_${monthNo}`),
-    absent_days: parseWholeField(`att_absent_${monthNo}`),
-    late_days: parseWholeField(`att_late_${monthNo}`),
-    leave_days: parseLeaveField(`att_leave_${monthNo}`),
-    remark: document.getElementById(`att_remark_${monthNo}`)?.value || ''
+    present_days: parseDecimalField(`att_present_${monthNo}`),
+    absent_days: parseDecimalField(`att_absent_${monthNo}`),
+    late_days: parseDecimalField(`att_late_${monthNo}`),
+    leave_days: parseDecimalField(`att_leave_${monthNo}`)
   };
 }
 
@@ -900,8 +906,8 @@ function probUpdateAttendanceMonthUi(monthNo) {
 
   if (pctEl) {
     if (row.work_days > 0) {
-      const pct = Math.min(100, (row.present_days / row.work_days) * 100);
-      pctEl.textContent = `${pct.toFixed(1)}%`;
+      const pct = (row.present_days / row.work_days) * 100;
+      pctEl.textContent = `${pct.toFixed(3)}%`;
     } else {
       pctEl.textContent = '-';
     }
@@ -982,7 +988,7 @@ function _renderAttendanceTab(container, monthLabels) {
     const a = attMap[ml.monthNo] || {};
     const leaveRef = leaveRefMap[ml.monthNo] || {};
     const leaveRefDays = Number(leaveRef.leave_days_ref) || 0;
-    const leaveValue = a.leave_days != null ? a.leave_days : (leaveRefDays > 0 ? leaveRefDays : '');
+    const leaveValue = a.leave_days != null ? parseFloat(a.leave_days) : (leaveRefDays > 0 ? leaveRefDays : '');
     const hint = hintMap[ml.monthNo];
     const suggestedWorkDays = hint?.suggestedWorkDays ?? a.work_days ?? '';
 
@@ -1004,37 +1010,32 @@ function _renderAttendanceTab(container, monthLabels) {
         </td>
         <td class="prob-att-cell">
           <input type="number" class="prob-att-input" id="att_present_${ml.monthNo}"
-            value="${a.present_days ?? ''}" min="0" max="31"
+            value="${a.present_days != null ? parseFloat(a.present_days) : ''}" min="0" max="31" step="0.001"
             oninput="probCalcAttPct(${ml.monthNo})"
             ${!isPending ? 'disabled' : ''}>
         </td>
         <td class="prob-att-cell">
           <input type="number" class="prob-att-input" id="att_absent_${ml.monthNo}"
-            value="${a.absent_days ?? ''}" min="0" max="31"
+            value="${a.absent_days != null ? parseFloat(a.absent_days) : ''}" min="0" max="31" step="0.001"
             oninput="probCalcAttPct(${ml.monthNo})"
             ${!isPending ? 'disabled' : ''}>
         </td>
         <td class="prob-att-cell">
           <input type="number" class="prob-att-input" id="att_late_${ml.monthNo}"
-            value="${a.late_days ?? ''}" min="0" max="31"
+            value="${a.late_days != null ? parseFloat(a.late_days) : ''}" min="0" max="31" step="0.001"
             oninput="probCalcAttPct(${ml.monthNo})"
             ${!isPending ? 'disabled' : ''}>
         </td>
         <td class="prob-att-cell">
           <input type="number" class="prob-att-input" id="att_leave_${ml.monthNo}"
-            value="${leaveValue}" min="0" max="31" step="0.01"
+            value="${leaveValue}" min="0" max="31" step="0.001"
             oninput="probCalcAttPct(${ml.monthNo})"
             ${!isPending ? 'disabled' : ''}>
         </td>
         <td style="text-align:center;font-weight:700;color:var(--primary);" id="att_pct_${ml.monthNo}">
-          ${a.att_pct != null ? parseFloat(a.att_pct).toFixed(1)+'%' : '-'}
+          ${a.att_pct != null ? parseFloat(a.att_pct).toFixed(3)+'%' : '-'}
         </td>
         <td style="text-align:center;" id="att_status_${ml.monthNo}"></td>
-        <td class="prob-att-cell">
-          <input type="text" class="prob-att-input" id="att_remark_${ml.monthNo}"
-            value="${escHtml(a.remark || '')}" placeholder="หมายเหตุ" style="width:140px;"
-            ${!isPending ? 'disabled' : ''}>
-        </td>
       </tr>`;
   }).join('');
 
@@ -1044,7 +1045,7 @@ function _renderAttendanceTab(container, monthLabels) {
         <div style="display:flex;flex-direction:column;gap:4px;">
           <span class="table-title">ข้อมูลการมาทำงาน — รอบที่ ${period.period_no}</span>
           <span style="font-size:12px;color:var(--gray-500);">
-            ปี-เดือนถูกกำหนดอัตโนมัติ และ มาทำงาน + ขาดงาน + ลา ต้องไม่เกินวันทำงาน
+            ปี-เดือนถูกกำหนดอัตโนมัติ และ ขาดงาน + ลา ต้องไม่เกินวันทำงาน
           </span>
         </div>
         ${isPending ? `<button class="btn-primary-custom" onclick="probSaveAttendance(${period.period_id})">
@@ -1065,7 +1066,6 @@ function _renderAttendanceTab(container, monthLabels) {
               <th style="min-width:80px;text-align:center;">ลา</th>
               <th style="min-width:100px;text-align:center;">Att %</th>
               <th style="min-width:130px;text-align:center;">สถานะ</th>
-              <th style="min-width:150px;">หมายเหตุ</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -1094,11 +1094,10 @@ export async function probSaveAttendance(periodId) {
     month_no:     ml.monthNo,
     year_month:   ml.yearMonth,
     work_days:    parseInt(document.getElementById(`att_work_${ml.monthNo}`)?.value) || 0,
-    present_days: parseInt(document.getElementById(`att_present_${ml.monthNo}`)?.value) || 0,
-    absent_days:  parseInt(document.getElementById(`att_absent_${ml.monthNo}`)?.value) || 0,
-    late_days:    parseInt(document.getElementById(`att_late_${ml.monthNo}`)?.value) || 0,
-    leave_days:   parseFloat(document.getElementById(`att_leave_${ml.monthNo}`)?.value) || 0,
-    remark:       document.getElementById(`att_remark_${ml.monthNo}`)?.value || ''
+    present_days: parseFloat(document.getElementById(`att_present_${ml.monthNo}`)?.value) || 0,
+    absent_days:  parseFloat(document.getElementById(`att_absent_${ml.monthNo}`)?.value) || 0,
+    late_days:    parseFloat(document.getElementById(`att_late_${ml.monthNo}`)?.value) || 0,
+    leave_days:   parseFloat(document.getElementById(`att_leave_${ml.monthNo}`)?.value) || 0
   }));
 
   const hintMapSave = {};
@@ -1190,15 +1189,9 @@ function _renderScoringTab(container, monthLabels) {
           <td style="text-align:center;" id="score_pct_${c.criteria_id}">
             ${isNa ? '<span style="color:#ccc;font-style:italic;">N/A</span>' : (val !== '' ? ((parseFloat(val) / parseFloat(c.max_score)) * 100).toFixed(1) + '%' : '-')}
           </td>
-          <td class="prob-score-cell">
-            <input type="text" id="score_remark_${c.criteria_id}"
-              value="${isNa ? 'N/A' : escHtml(s.remark || '')}" placeholder="${isNa ? '' : 'หมายเหตุ'}"
-              style="width:140px;padding:4px 8px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:12.5px;${isNa ? 'background:var(--gray-100);color:var(--gray-400);font-style:italic;' : ''}"
-              ${!isPending || isNa ? 'disabled' : ''}>
-          </td>
         </tr>`;
       }).join('')
-    : `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--gray-400);">ยังไม่มีหัวข้อประเมิน</td></tr>`;
+    : `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--gray-400);">ยังไม่มีหัวข้อประเมิน</td></tr>`;
 
   container.innerHTML = `
     <div class="table-section">
@@ -1227,7 +1220,6 @@ function _renderScoringTab(container, monthLabels) {
               <th style="min-width:90px;text-align:center;">คะแนนเต็ม</th>
               <th style="min-width:110px;text-align:center;">คะแนนที่ได้</th>
               <th style="min-width:80px;text-align:center;">%</th>
-              <th style="min-width:160px;">หมายเหตุ</th>
             </tr>
           </thead>
           <tbody>${scoreRows}</tbody>
@@ -1279,7 +1271,7 @@ export async function probSaveScores(periodId, monthNo) {
       .map(c => ({
         criteria_id: c.criteria_id,
         score:       parseFloat(document.getElementById(`score_${c.criteria_id}`)?.value) || 0,
-        remark:      document.getElementById(`score_remark_${c.criteria_id}`)?.value || ''
+        remark:      ''
       })),
     // หัวข้อ NA: บันทึกเป็น score=-1 เพื่อเก็บลง DB
     ...criteria
@@ -1287,7 +1279,7 @@ export async function probSaveScores(periodId, monthNo) {
       .map(c => ({
         criteria_id: c.criteria_id,
         score:       -1,
-        remark:      'N/A'
+        remark:      ''
       }))
   ];
   try {
@@ -1311,29 +1303,62 @@ function _renderSummaryTab(container, monthLabels) {
   const isPending = period.decision === 'PENDING';
 
   // ── Recalculate from current data ──────────────────────────────────
-  // Attendance % (A)
-  let totalWork = 0, totalPresent = 0;
-  (attendance || []).forEach(a => {
-    totalWork    += parseInt(a.work_days)    || 0;
-    totalPresent += parseInt(a.present_days) || 0;
+  // A/B/AVG ต้องคำนวณและแสดงรายเดือนก่อน แล้วค่อยสรุปรวมระดับรอบ
+  const criteriaMaxMap = {};
+  (criteria || []).forEach(c => {
+    criteriaMaxMap[c.criteria_id] = parseFloat(c.max_score) || 0;
   });
-  const attPct = totalWork > 0 ? parseFloat(((totalPresent / totalWork) * 100).toFixed(2)) : null;
 
-  // Quality % (B) = average of 4 monthly quality scores
-  // Monthly quality = sum(scores for month) / sum(max_scores for month) * 100
-  // NA criteria are excluded from max_score denominator
-  const naSet = new Set(_currentPeriodData.naCriteriaIds || []);
-  const monthQuality = {};
-  (scores || []).forEach(s => {
-    if (naSet.has(s.criteria_id)) return; // skip NA
-    if (!monthQuality[s.month_no]) monthQuality[s.month_no] = { got: 0, max: 0 };
-    monthQuality[s.month_no].got += parseFloat(s.score) || 0;
-    const crit = criteria.find(c => c.criteria_id === s.criteria_id);
-    monthQuality[s.month_no].max += crit ? parseFloat(crit.max_score) : 0;
+  const attByMonth = {};
+  (attendance || []).forEach(a => {
+    attByMonth[a.month_no] = a;
   });
-  const monthPcts = Object.values(monthQuality)
-    .filter(v => v.max > 0)
-    .map(v => (v.got / v.max) * 100);
+
+  // B รายเดือน: (คะแนนรวมที่ได้ * 100) / คะแนนเต็มรวมเฉพาะหัวข้อที่ไม่เป็น NA (-1)
+  // หมายเหตุ: scores ถูกโหลดจาก DB ด้วยเงื่อนไข score >= 0 อยู่แล้ว จึงไม่มี NA ปน
+  const qualityByMonth = {};
+  (scores || []).forEach(s => {
+    if (!qualityByMonth[s.month_no]) qualityByMonth[s.month_no] = { got: 0, max: 0 };
+    qualityByMonth[s.month_no].got += parseFloat(s.score) || 0;
+    qualityByMonth[s.month_no].max += criteriaMaxMap[s.criteria_id] || 0;
+  });
+
+  const monthlySummary = monthLabels.map((ml) => {
+    const att = attByMonth[ml.monthNo] || {};
+    const workDays = parseInt(att.work_days, 10) || 0;
+    const presentDays = parseInt(att.present_days, 10) || 0;
+    const absentDays = parseFloat(att.absent_days) || 0;
+    const monthA = workDays > 0 ? parseFloat(((presentDays / workDays) * 100).toFixed(3)) : null;
+
+    const q = qualityByMonth[ml.monthNo] || { got: 0, max: 0 };
+    const monthB = q.max > 0 ? parseFloat(((q.got * 100) / q.max).toFixed(2)) : null;
+
+    const monthAvg = (monthA != null && monthB != null)
+      ? parseFloat((((monthA + monthB) / 2)).toFixed(2))
+      : null;
+    const monthGrade = monthAvg != null ? calcGrade(monthAvg) : '-';
+
+    return {
+      monthNo: ml.monthNo,
+      label: ml.label,
+      presentDays,
+      workDays,
+      absentDays,
+      monthA,
+      monthB,
+      monthAvg,
+      monthGrade
+    };
+  });
+
+  const totalWork = monthlySummary.reduce((sum, m) => sum + (m.workDays || 0), 0);
+  const totalPresent = monthlySummary.reduce((sum, m) => sum + (m.presentDays || 0), 0);
+  const totalAbsent = monthlySummary.reduce((sum, m) => sum + (m.absentDays || 0), 0);
+  const attPct = totalWork > 0 ? parseFloat(((totalPresent / totalWork) * 100).toFixed(3)) : null;
+
+  const monthPcts = monthlySummary
+    .map(m => m.monthB)
+    .filter(v => v != null);
   const qualityPct = monthPcts.length > 0
     ? parseFloat((monthPcts.reduce((a, b) => a + b, 0) / monthPcts.length).toFixed(2))
     : null;
@@ -1351,8 +1376,8 @@ function _renderSummaryTab(container, monthLabels) {
   const displayGrade   = isPending ? grade      : (period.grade || '-');
   const displayDecision = period.decision;
 
-  function pctDisplay(v) {
-    return v != null ? `${parseFloat(v).toFixed(2)}%` : '-';
+  function pctDisplay(v, digits = 2) {
+    return v != null ? `${parseFloat(v).toFixed(digits)}%` : '-';
   }
   function pctColor(v) {
     if (v == null) return 'var(--gray-400)';
@@ -1360,6 +1385,40 @@ function _renderSummaryTab(container, monthLabels) {
     if (v >= 60) return 'var(--warning)';
     return 'var(--danger)';
   }
+
+  const monthlyRowsHtml = monthlySummary.map((m) => {
+    let statusHtml;
+    if (m.monthAvg == null) {
+      statusHtml = '<span class="badge bg-secondary" title="ยังไม่มีข้อมูลประเมิน">-</span>';
+    } else if (m.monthAvg >= 80) {
+      statusHtml = '<span class="badge bg-success">ผ่านเดือน</span>';
+    } else {
+      const reasons = [];
+      if (m.monthA != null && m.monthA < 80)
+        reasons.push(`การมาทำงาน (A) ต่ำกว่าเกณฑ์: ${m.monthA.toFixed(3)}%`);
+      if (m.monthB != null && m.monthB < 80)
+        reasons.push(`คุณภาพงาน (B) ต่ำกว่าเกณฑ์: ${m.monthB.toFixed(2)}%`);
+      if (m.absentDays > 3)
+        reasons.push(`ขาดงาน ${m.absentDays} วัน (เกิน 3 วัน)`);
+      if (m.monthA == null)
+        reasons.push('ยังไม่มีข้อมูลการมาทำงาน');
+      if (m.monthB == null)
+        reasons.push('ยังไม่มีข้อมูลคะแนนคุณภาพ');
+      const tooltipText = reasons.length > 0 ? reasons.join(' | ') : 'คะแนนรวมต่ำกว่าเกณฑ์ (ต้องการ ≥80%)';
+      statusHtml = `<span class="badge bg-danger" title="${escHtml(tooltipText)}" style="cursor:help;">ไม่ผ่านเดือน ⓘ</span>`;
+    }
+    return `
+      <tr>
+        <td style="text-align:center;font-weight:700;">${m.monthNo}</td>
+        <td>${escHtml(m.label)}</td>
+        <td style="text-align:center;">${pctDisplay(m.monthA, 3)}</td>
+        <td style="text-align:center;color:var(--gray-500);font-size:12px;">${m.presentDays}/${m.workDays}</td>
+        <td style="text-align:center;">${pctDisplay(m.monthB)}</td>
+        <td style="text-align:center;font-weight:700;color:${pctColor(m.monthAvg)};">${pctDisplay(m.monthAvg)}</td>
+        <td style="text-align:center;">${m.monthGrade || '-'}</td>
+        <td style="text-align:center;">${statusHtml}</td>
+      </tr>`;
+  }).join('');
 
   const decisionOptions = ['PENDING','PASS','EXTEND','TERMINATE','OTHER'].map(d => {
     const labels = { PENDING:'รอผล',PASS:'ผ่านทดลองงาน',EXTEND:'ต่อรอบทดลองงาน',TERMINATE:'ยุติการจ้างงาน',OTHER:'อื่นๆ' };
@@ -1374,11 +1433,30 @@ function _renderSummaryTab(container, monthLabels) {
         (${probFmtDate(period.start_date)} — ${probFmtDate(period.end_date)})
       </div>
 
-      <!-- Score cards -->
+      <!-- Monthly summary (หลัก) -->
+      <div style="overflow-x:auto;margin-bottom:20px;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="min-width:70px;text-align:center;">เดือนที่</th>
+              <th style="min-width:140px;">ช่วงเดือน</th>
+              <th style="min-width:120px;text-align:center;">A: Attendance %</th>
+              <th style="min-width:110px;text-align:center;">มาทำงาน/วันทำงาน</th>
+              <th style="min-width:120px;text-align:center;">B: Quality %</th>
+              <th style="min-width:110px;text-align:center;">(A+B)/2</th>
+              <th style="min-width:80px;text-align:center;">เกรด</th>
+              <th style="min-width:110px;text-align:center;">ผลรายเดือน</th>
+            </tr>
+          </thead>
+          <tbody>${monthlyRowsHtml || `<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--gray-400);">ยังไม่มีข้อมูลรายเดือน</td></tr>`}</tbody>
+        </table>
+      </div>
+
+      <!-- Score cards (สรุประดับรอบ) -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px;">
         <div style="background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:14px;padding:18px;text-align:center;">
           <div style="font-size:12px;color:var(--gray-500);margin-bottom:8px;">Attendance % (A)</div>
-          <div style="font-size:28px;font-weight:800;color:${pctColor(displayAtt)};">${pctDisplay(displayAtt)}</div>
+          <div style="font-size:28px;font-weight:800;color:${pctColor(displayAtt)};">${pctDisplay(displayAtt, 3)}</div>
           <div style="font-size:11.5px;color:var(--gray-400);margin-top:4px;">${totalPresent}/${totalWork} วัน</div>
         </div>
         <div style="background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:14px;padding:18px;text-align:center;">
@@ -1411,10 +1489,17 @@ function _renderSummaryTab(container, monthLabels) {
             </select>
           </div>
         </div>
+        ${totalAbsent >= 3 ? `
+        <div style="display:flex;align-items:flex-start;gap:10px;background:#fef9c3;border:1.5px solid #ca8a04;border-radius:10px;padding:12px 14px;margin-top:12px;">
+          <i class="bi bi-exclamation-triangle-fill" style="color:#b45309;font-size:16px;flex-shrink:0;margin-top:2px;"></i>
+          <span style="font-size:13px;color:#92400e;line-height:1.6;">
+            <strong>แจ้งเตือน:</strong> ผู้ทดลองงานมีวันขาดงานรวมทั้งสิ้น <strong>${totalAbsent}</strong> วัน (เกินเกณฑ์ 3 วัน) — ขอให้ HR พิจารณาผลการทดลองงานตามความเหมาะสม
+          </span>
+        </div>` : ''}
         <div class="form-group" style="margin-top:12px;">
           <label>หมายเหตุ</label>
           <textarea id="probDecisionNote" class="form-control-m" rows="2"
-            style="resize:vertical;" placeholder="(ไม่บังคับ)">${escHtml(period.decision_note || '')}</textarea>
+            style="resize:vertical;" placeholder="(ไม่บังคับ)">${escHtml(period.decision_note || (totalAbsent >= 3 ? `ผู้ทดลองงานขาดงานรวม ${totalAbsent} วัน (เกินเกณฑ์ 3 วัน)` : ''))}</textarea>
         </div>
         <div style="margin-top:16px;display:flex;justify-content:flex-end;">
           <button class="btn-primary-custom" onclick="probFinalizePeriod(${period.period_id}, ${JSON.stringify(attPct)}, ${JSON.stringify(qualityPct)}, ${JSON.stringify(avgScore)}, '${grade || ''}')">
@@ -1456,35 +1541,53 @@ export async function probFinalizePeriod(periodId, attPct, qualityPct, avgScore,
     showToast('กรุณาเลือกผลการตัดสินใจ (ไม่ใช่ "รอผล")', 'warning');
     return;
   }
-  const calcGradeVal = calcGrade(avgScore);
-  try {
-    const res = await window.api.probationFinalizePeriod({
-      period_id:    periodId,
-      decision,
-      decision_note: decisionNote,
-      att_pct:      attPct,
-      quality_pct:  qualityPct,
-      avg_score:    avgScore,
-      grade:        calcGradeVal || grade
-    });
-    if (!res?.success) { showToast(res?.message || 'บันทึกไม่สำเร็จ', 'danger'); return; }
-    if (decision === 'PASS' && res.totalPresentDays != null) {
-      showToast(`ผ่านทดลองงาน! มาทำงานจริงทั้งสิ้น ${res.totalPresentDays} วัน`, 'success');
-    } else {
-      showToast(res.message || 'บันทึกผลสำเร็จ', 'success');
-    }
-    const detail = await window.api.probationGetPeriodDetail(periodId);
-    if (detail?.success) {
-      _currentPeriodData = detail;
-      _currentPeriodData.naCriteriaIds = detail.naCriteriaIds || [];
-      if (decision === 'PASS' && res.totalPresentDays != null) {
-        _currentPeriodData.totalPresentDays = res.totalPresentDays;
+
+  const decisionLabels = { PASS:'ผ่านทดลองงาน', EXTEND:'ต่อรอบทดลองงาน', TERMINATE:'ยุติการจ้างงาน', OTHER:'อื่นๆ' };
+  const decisionLabel = decisionLabels[decision] || decision;
+
+  requirePasswordConfirm(
+    window._currentUser?.username || currentUser?.username || '',
+    async () => {
+      const calcGradeVal = calcGrade(avgScore);
+      try {
+        const res = await window.api.probationFinalizePeriod({
+          period_id:    periodId,
+          decision,
+          decision_note: decisionNote,
+          att_pct:      attPct,
+          quality_pct:  qualityPct,
+          avg_score:    avgScore,
+          grade:        calcGradeVal || grade
+        });
+        if (!res?.success) { showToast(res?.message || 'บันทึกไม่สำเร็จ', 'danger'); return; }
+        if (decision === 'PASS' && res.totalPresentDays != null) {
+          showToast(`ผ่านทดลองงาน! มาทำงานจริงทั้งสิ้น ${res.totalPresentDays} วัน`, 'success');
+        } else {
+          showToast(res.message || 'บันทึกผลสำเร็จ', 'success');
+        }
+        const detail = await window.api.probationGetPeriodDetail(periodId);
+        if (detail?.success) {
+          _currentPeriodData = detail;
+          _currentPeriodData.naCriteriaIds = detail.naCriteriaIds || [];
+          if (decision === 'PASS' && res.totalPresentDays != null) {
+            _currentPeriodData.totalPresentDays = res.totalPresentDays;
+          }
+        }
+        probSwitchTab('summary');
+      } catch (e) {
+        showToast('เกิดข้อผิดพลาด: ' + e.message, 'danger');
       }
+    },
+    {
+      title: `ยืนยันการบันทึกผล: ${decisionLabel}`,
+      message: 'การบันทึกผลนี้ไม่สามารถแก้ไขได้ด้วยตัวเอง หากต้องการแก้ไขต้องติดต่อ IT โทร #123 หรือ อาสาฬ โดยตรง กรุณากรอกรหัสผ่านเพื่อยืนยัน',
+      btnLabel: 'ยืนยันการบันทึกผล',
+      titleColor: 'var(--primary)',
+      warningBg: 'var(--primary-light)',
+      messageColor: 'var(--primary-dark)',
+      btnBg: 'var(--primary)',
     }
-    probSwitchTab('summary');
-  } catch (e) {
-    showToast('เกิดข้อผิดพลาด: ' + e.message, 'danger');
-  }
+  );
 }
 
 // ══════════════════════════════════════════════════════════════════════
