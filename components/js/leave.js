@@ -116,7 +116,7 @@ export async function loadLeaveRecordPage() {
         <div class="search-box" style="max-width:280px;min-width:240px;position:relative;">
           <i class="bi bi-search"></i>
           <input type="text" class="search-input" id="leaveSearch" placeholder="ค้นหา รหัส / ชื่อ..." oninput="onLeaveSearch()" onfocus="onLeaveSearch()" onblur="setTimeout(()=>{const b=document.getElementById('leaveSearchSuggestBox');if(b)b.style.display='none';},150)" autocomplete="off">
-          <div id="leaveSearchSuggestBox" style="display:none;position:absolute;top:100%;left:0;min-width:340px;z-index:100;background:#fff;border:1.5px solid var(--gray-200);border-radius:10px;margin-top:4px;max-height:260px;overflow-y:auto;box-shadow:var(--shadow-md,0 4px 12px rgba(0,0,0,.12));"></div>
+          <div id="leaveSearchSuggestBox" style="display:none;position:absolute;top:100%;left:0;min-width:340px;z-index:100;background:var(--gray-100);border:1.5px solid var(--gray-200);border-radius:10px;margin-top:4px;max-height:260px;overflow-y:auto;box-shadow:var(--shadow-md,0 4px 12px rgba(0,0,0,.12));"></div>
         </div>
         <div style="display:flex;align-items:center;gap:5px;">
           <span style="font-size:12px;color:var(--gray-500);white-space:nowrap;">วันที่ลา ตั้งแต่</span>
@@ -149,7 +149,7 @@ export async function loadLeaveRecordPage() {
     <div id="todayLeaveSection">
       <div class="table-section" style="padding:16px 20px;margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <i class="bi bi-person-check-fill" style="font-size:19px;color:#10b981;"></i>
+          <i class="bi bi-person-check-fill" style="font-size:19px;color:var(--success);"></i>
           <span style="font-size:15px;font-weight:700;color:var(--gray-900);">วันนี้มีใครลาบ้าง</span>
           <span id="todayLeaveDate" style="font-size:13px;color:var(--gray-500);"></span>
           <div style="flex:1;min-width:8px;"></div>
@@ -168,7 +168,7 @@ export async function loadLeaveRecordPage() {
       </div>
       <div class="table-section" style="margin-bottom:16px;">
         <div class="table-header" style="padding:13px 20px;">
-          <span class="table-title" style="color:#10b981;"><i class="bi bi-calendar-check" style="margin-right:6px;"></i>รายชื่อผู้ลาวันนี้</span>
+          <span class="table-title" style="color:var(--success);"><i class="bi bi-calendar-check" style="margin-right:6px;"></i>รายชื่อผู้ลาวันนี้</span>
           <span style="margin-left:auto;font-size:12.5px;color:var(--gray-500);">แสดง <strong id="todayLeaveDisplayCount">0</strong> จาก <strong id="todayLeaveTotalCount">0</strong> คน</span>
         </div>
         <div class="table-responsive-custom">
@@ -257,7 +257,7 @@ function _renderGuestTimeLock(container) {
       <div id="_guestClock" style="font-size:56px;font-weight:700;color:var(--primary);
         letter-spacing:4px;font-variant-numeric:tabular-nums;"></div>
       <div style="font-size:17px;font-weight:700;color:var(--gray-800);">ขณะนี้อยู่นอกเวลาที่เปิดให้บันทึกลางาน</div>
-      <div style="background:#eff6ff;border-radius:14px;padding:16px 28px;max-width:420px;">
+      <div style="background:var(--primary-light);border-radius:14px;padding:16px 28px;max-width:420px;">
         <div style="font-size:13.5px;color:var(--gray-700);line-height:2.1;">
           ⏰ เวลาที่เปิดให้บันทึก:<br>
           <strong>กะแรก &nbsp; 08:00 – 10:00 น.</strong><br>
@@ -275,7 +275,7 @@ function _renderGuestTimeLock(container) {
     <div id="todayLeaveSection" style="padding:0 0 24px;">
       <div class="table-section" style="padding:16px 20px;margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <i class="bi bi-person-check-fill" style="font-size:19px;color:#10b981;"></i>
+          <i class="bi bi-person-check-fill" style="font-size:19px;color:var(--success);"></i>
           <span style="font-size:15px;font-weight:700;color:var(--gray-900);">วันนี้มีใครลาบ้าง</span>
           <span id="todayLeaveDate" style="font-size:13px;color:var(--gray-500);"></span>
           <div style="flex:1;min-width:8px;"></div>
@@ -294,7 +294,7 @@ function _renderGuestTimeLock(container) {
       </div>
       <div class="table-section">
         <div class="table-header" style="padding:13px 20px;">
-          <span class="table-title" style="color:#10b981;"><i class="bi bi-calendar-check" style="margin-right:6px;"></i>รายชื่อผู้ลาวันนี้</span>
+          <span class="table-title" style="color:var(--success);"><i class="bi bi-calendar-check" style="margin-right:6px;"></i>รายชื่อผู้ลาวันนี้</span>
           <span style="margin-left:auto;font-size:12.5px;color:var(--gray-500);">แสดง <strong id="todayLeaveDisplayCount">0</strong> จาก <strong id="todayLeaveTotalCount">0</strong> คน</span>
         </div>
         <div class="table-responsive-custom">
@@ -567,7 +567,7 @@ function _renderLeaveSummary(records, search, filterFrom = '', filterTo = '', ye
         <span style="margin-left:auto;font-size:12px;color:var(--gray-400);">แสดง ${records.length} รายการ</span>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:180px;background:#eff6ff;border-radius:10px;padding:10px 14px;">
+        <div style="flex:1;min-width:180px;background:var(--primary-light);border-radius:10px;padding:10px 14px;">
           <div style="font-size:11px;color:var(--gray-500);margin-bottom:3px;">วันลาในปี ${displayYear}</div>
           <div style="font-size:20px;font-weight:800;color:var(--primary);">${yr.day}</div>
           <div style="font-size:12px;color:var(--gray-400);margin-top:2px;">${yr.hrs}</div>
@@ -733,11 +733,11 @@ export function renderLeaveTable() {
       const num  = start + i + 1;
       const comm = getCommunicateLabel(r);
       const isIncomplete = currentUser?.role !== 'guest' && (!r.drp_Type || !r.drp_Sdate);
-      const rowStyle = isIncomplete ? ' style="background:#fffbeb;border-left:3px solid #f59e0b;"' : '';
+      const rowStyle = isIncomplete ? ' style="background:var(--warning-light);border-left:3px solid var(--warning);"' : '';
       const ltBadge = r.leave_name
         ? `<span style="background:var(--primary-light);color:var(--primary);padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:600;">${escHtml(r.drp_Type)} - ${escHtml(r.leave_name)}</span>`
         : isIncomplete
-          ? `<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:600;"><i class="bi bi-exclamation-circle-fill me-1"></i>รอบันทึกรายละเอียด</span>`
+          ? `<span style="background:var(--warning-light);color:var(--warning);padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:600;"><i class="bi bi-exclamation-circle-fill me-1"></i>รอบันทึกรายละเอียด</span>`
           : `<span style="color:var(--gray-500);">${escHtml(r.drp_Type||'-')}</span>`;
       const commBadge = comm === 'โทร'
         ? `<span style="color:var(--success);font-size:12px;"><i class="bi bi-telephone-fill me-1"></i>โทร</span>`
@@ -960,7 +960,7 @@ function _showEmpSuggestions(results) {
     const vsthBadge = emp.Emp_Vsth ? `<span style="font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:6px;padding:1px 5px;margin-left:4px;">${escHtml(emp.Emp_Vsth)}</span>` : '';
     const isInactive = emp.Emp_Status && emp.Emp_Status !== 'Activated';
     const statusBadge = isInactive
-      ? `<span style="font-size:10px;background:#fef3c7;color:#92400e;border-radius:6px;padding:1px 5px;margin-left:6px;">${escHtml(emp.Emp_Status || '')}</span>` : '';
+      ? `<span style="font-size:10px;background:var(--warning-light);color:var(--warning);border-radius:6px;padding:1px 5px;margin-left:6px;">${escHtml(emp.Emp_Status || '')}</span>` : '';
     const itemStyle = isInactive ? 'opacity:0.5;cursor:not-allowed;' : 'cursor:pointer;';
     return `<div class="_emp-suggest-item" data-idx="${i}"
       style="padding:9px 14px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;transition:background 0.12s;${itemStyle}"
@@ -1245,7 +1245,7 @@ export async function loadAbsenceReport() {
     return `
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin:0;">
         <thead>
-          <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+          <tr style="background:var(--gray-100);border-bottom:2px solid var(--gray-200);">
             <th style="padding:10px 12px;text-align:center;width:40px;color:var(--gray-600);font-weight:600;">#</th>
             <th style="padding:10px 12px;text-align:left;width:85px;color:var(--gray-600);font-weight:600;">รหัส</th>
             <th style="padding:10px 12px;text-align:left;min-width:160px;color:var(--gray-600);font-weight:600;">ชื่อ-นามสกุล</th>
@@ -1262,8 +1262,8 @@ export async function loadAbsenceReport() {
             const remark = (r.drp_Remark||'').replace(/\r\n/g,' ').replace(/\n/g,' ').trim();
             const timeStr = r.drp_Stime ? `${r.drp_Stime}–${r.drp_Etime||'17:00'}` : '';
             return `<tr style="border-bottom:1px solid #f1f5f9;">
-              <td style="padding:10px 12px;text-align:center;color:#94a3b8;font-size:12px;">${offset+i+1}</td>
-              <td style="padding:10px 12px;color:#64748b;font-weight:500;">${escHtml(r.drp_empID||'-')}</td>
+              <td style="padding:10px 12px;text-align:center;color:var(--gray-400);font-size:12px;">${offset+i+1}</td>
+              <td style="padding:10px 12px;color:var(--gray-500);font-weight:500;">${escHtml(r.drp_empID||'-')}</td>
               <td style="padding:10px 12px;font-weight:600;color:var(--gray-800);">${escHtml((r.Fullname||'').trim()||'-')}</td>
               <td style="padding:10px 12px;color:var(--gray-600);">${escHtml(r.Sub_Name||'-')}</td>
               <td style="padding:10px 12px;text-align:center;">
@@ -1378,7 +1378,7 @@ function buildSignatureBlock(id, label) {
           style="display:block;width:100%;height:100px;cursor:crosshair;touch-action:none;"></canvas>
         <div style="position:absolute;bottom:4px;left:8px;font-size:10px;color:var(--gray-300);pointer-events:none;">วาดลายเซ็น</div>
         <button onclick="clearSignature('${id}Canvas')"
-          style="position:absolute;top:4px;right:4px;background:white;border:1px solid var(--gray-200);border-radius:5px;
+          style="position:absolute;top:4px;right:4px;background:var(--gray-100);border:1px solid var(--gray-200);border-radius:5px;
           padding:2px 7px;font-size:10.5px;color:var(--gray-500);cursor:pointer;font-family:'Sarabun',sans-serif;">
           ล้าง
         </button>

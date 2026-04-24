@@ -14,6 +14,15 @@
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <!-- App Styles -->
   <link rel="stylesheet" href="./components/css/app.css" />
+  <!-- Early dark-mode detection: set data-theme before first paint to avoid flash -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('hr_theme');
+        if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
 

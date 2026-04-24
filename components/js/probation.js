@@ -157,7 +157,7 @@ export async function probRefreshList() {
 
 function probRenderTableLoading() {
   const tbody = document.getElementById('probTableBody');
-  if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:#94a3b8;">
+  if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400);">
     <div class="spinner" style="margin:0 auto 12px;"></div><div>กำลังโหลดข้อมูล...</div></td></tr>`;
 }
 
@@ -165,7 +165,7 @@ function probRenderTable(rows) {
   const tbody = document.getElementById('probTableBody');
   if (!tbody) return;
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:#94a3b8;">
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-400);">
       <i class="bi bi-inbox" style="font-size:32px;"></i><br>ไม่พบข้อมูล</td></tr>`;
     return;
   }
@@ -388,7 +388,7 @@ function _renderCycleDetail(cycle, periods, totalPresentDays = 0) {
           <td style="text-align:center;">${gradeBadge(p.grade || '-')}</td>
           <td style="text-align:center;">${decisionBadge(p.decision)}</td>
         </tr>`).join('')
-    : `<tr><td colspan="7" style="text-align:center;padding:30px;color:#94a3b8;">ยังไม่มีรอบประเมิน</td></tr>`;
+    : `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--gray-400);">ยังไม่มีรอบประเมิน</td></tr>`;
 
   container.innerHTML = `
     <!-- Back + Breadcrumb -->
@@ -919,7 +919,7 @@ function probUpdateAttendanceMonthUi(monthNo) {
     return;
   }
   if (warnings.length) {
-    statusEl.innerHTML = `<span class="badge text-dark" style="background:#fde68a;">ขาดเกินเกณฑ์</span>`;
+    statusEl.innerHTML = `<span class="badge text-dark" style="background:var(--warning-light);">ขาดเกินเกณฑ์</span>`;
     statusEl.title = warnings.join('\n');
     return;
   }
@@ -949,12 +949,12 @@ function probRenderAttendanceBanner() {
 
   const notices = [];
   if (invalidNotes.length) {
-    notices.push(`<div style="padding:10px 12px;border-radius:10px;background:#fee2e2;color:#991b1b;font-size:12.5px;">
+    notices.push(`<div style="padding:10px 12px;border-radius:10px;background:var(--danger-light);color:var(--danger);font-size:12.5px;">
       <i class="bi bi-exclamation-octagon me-2"></i>${escHtml(invalidNotes.join(' | '))}
     </div>`);
   }
   if (warningNotes.length) {
-    notices.push(`<div style="padding:10px 12px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:12.5px;">
+    notices.push(`<div style="padding:10px 12px;border-radius:10px;background:var(--warning-light);color:var(--warning);font-size:12.5px;">
       <i class="bi bi-exclamation-triangle me-2"></i>${escHtml(warningNotes.join(' | '))}
     </div>`);
   }
@@ -1072,7 +1072,7 @@ function _renderAttendanceTab(container, monthLabels) {
         </table>
       </div>
       ${!isPending ? `<div style="padding:12px 16px;background:var(--warning-light);border-top:1px solid var(--warning);
-        font-size:13px;color:#92400e;">
+        font-size:13px;color:var(--warning);">
         <i class="bi bi-lock me-2"></i>รอบนี้ได้รับการตัดสินใจแล้ว ไม่สามารถแก้ไขข้อมูลได้
       </div>` : ''}
     </div>
@@ -1179,7 +1179,7 @@ function _renderScoringTab(container, monthLabels) {
               ? `<input type="text" id="score_${c.criteria_id}" value="N/A" disabled
                   style="width:90px;text-align:center;padding:4px 8px;border:1.5px solid var(--gray-200);
                   border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;
-                  background:#f1f5f9;color:#94a3b8;font-style:italic;">`
+                  background:var(--gray-100);color:var(--gray-400);font-style:italic;">`
               : `<input type="number" id="score_${c.criteria_id}" value="${val}"
                   min="0" max="${parseFloat(c.max_score)}" step="1"
                   oninput="probValidateScore(this, ${parseFloat(c.max_score)})"
@@ -1193,12 +1193,12 @@ function _renderScoringTab(container, monthLabels) {
           <td class="prob-score-cell">
             <input type="text" id="score_remark_${c.criteria_id}"
               value="${isNa ? 'N/A' : escHtml(s.remark || '')}" placeholder="${isNa ? '' : 'หมายเหตุ'}"
-              style="width:140px;padding:4px 8px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:12.5px;${isNa ? 'background:#f1f5f9;color:#94a3b8;font-style:italic;' : ''}"
+              style="width:140px;padding:4px 8px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:12.5px;${isNa ? 'background:var(--gray-100);color:var(--gray-400);font-style:italic;' : ''}"
               ${!isPending || isNa ? 'disabled' : ''}>
           </td>
         </tr>`;
       }).join('')
-    : `<tr><td colspan="6" style="text-align:center;padding:30px;color:#94a3b8;">ยังไม่มีหัวข้อประเมิน</td></tr>`;
+    : `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--gray-400);">ยังไม่มีหัวข้อประเมิน</td></tr>`;
 
   container.innerHTML = `
     <div class="table-section">
@@ -1234,7 +1234,7 @@ function _renderScoringTab(container, monthLabels) {
         </table>
       </div>
       ${!isPending ? `<div style="padding:12px 16px;background:var(--warning-light);border-top:1px solid var(--warning);
-        font-size:13px;color:#92400e;">
+        font-size:13px;color:var(--warning);">
         <i class="bi bi-lock me-2"></i>รอบนี้ได้รับการตัดสินใจแล้ว ไม่สามารถแก้ไขข้อมูลได้
       </div>` : ''}
     </div>
@@ -1423,14 +1423,14 @@ function _renderSummaryTab(container, monthLabels) {
         </div>
       </div>` : `
       <div style="padding:14px 20px;background:var(--success-light);border-radius:12px;
-        border-left:3px solid var(--success);font-size:13px;color:#065f46;">
+        border-left:3px solid var(--success);font-size:13px;color:var(--success);">
         <i class="bi bi-check-circle-fill me-2"></i>
         รอบนี้ได้รับการตัดสินใจเรียบร้อยแล้ว
-        ${period.decision_note ? `<div style="margin-top:6px;color:#047857;">หมายเหตุ: ${escHtml(period.decision_note)}</div>` : ''}
+        ${period.decision_note ? `<div style="margin-top:6px;color:var(--success);">หมายเหตุ: ${escHtml(period.decision_note)}</div>` : ''}
       </div>
       ${period.decision === 'PASS' && _currentPeriodData.totalPresentDays != null ? `
-      <div style="margin-top:12px;padding:14px 20px;background:#f0fdf4;border-radius:12px;
-        border-left:3px solid #22c55e;font-size:13.5px;color:#15803d;font-weight:600;">
+      <div style="margin-top:12px;padding:14px 20px;background:var(--success-light);border-radius:12px;
+        border-left:3px solid var(--success);font-size:13.5px;color:var(--success);font-weight:600;">
         <i class="bi bi-calendar2-check me-2"></i>
         ผ่านทดลองงาน — มาทำงานจริงทั้งสิ้น <span style="font-size:18px;font-weight:800;">${_currentPeriodData.totalPresentDays}</span> วัน
       </div>` : ''}
@@ -1525,7 +1525,7 @@ export async function pcRefresh() {
 
 function pcRenderTableLoading() {
   const el = document.getElementById('pcTableBody');
-  if (el) el.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:#94a3b8;">
+  if (el) el.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--gray-400);">
     <div class="spinner" style="margin:0 auto 12px;"></div><div>กำลังโหลดข้อมูล...</div></td></tr>`;
 }
 
@@ -1548,7 +1548,7 @@ function pcRenderTable() {
   const tbody = document.getElementById('pcTableBody');
   if (!tbody) return;
   if (!filteredCriteria.length) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:#94a3b8;">
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--gray-400);">
       <i class="bi bi-inbox" style="font-size:32px;"></i><br>ไม่พบข้อมูล</td></tr>`;
     return;
   }

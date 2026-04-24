@@ -313,7 +313,7 @@ export function renderEmployeeTable(employees) {
         <td>
           <div class="action-btns" style="justify-content:center;">
             <button class="btn-action" title="ดูประวัติการอบรม"
-              style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;"
+              style="background:var(--primary-light);color:var(--primary);border:1px solid rgba(91,142,245,0.35);"
               onclick="openTrainingHistory('${escHtml(emp.Emp_ID)}', '${fullnameSafe}')">
               <i class="bi bi-journal-bookmark-fill"></i>
             </button>
@@ -322,7 +322,7 @@ export function renderEmployeeTable(employees) {
               <i class="bi bi-pencil-fill"></i>
             </button>` : `
             <button class="btn-action" title="ดูรายละเอียด"
-              style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;"
+              style="background:var(--success-light);color:var(--success);border:1px solid rgba(16,185,129,0.35);"
               onclick="openViewEmployee('${escHtml(emp.Emp_ID)}')">
               <i class="bi bi-eye-fill"></i>
             </button>`}

@@ -517,8 +517,8 @@ function renderParticipantSuggestions(rows, keyword = '') {
   const addBtnCursor = pendingCount > 0 ? 'pointer' : 'not-allowed';
 
   resultEl.innerHTML = `
-    <div style="padding:7px 12px;border-bottom:1px solid var(--gray-200);background:#f8fafc;display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:0;z-index:1;">
-      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;color:#475569;font-weight:600;user-select:none;margin:0;">
+    <div style="padding:7px 12px;border-bottom:1px solid var(--gray-200);background:var(--gray-100);display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:0;z-index:1;">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;color:var(--gray-600);font-weight:600;user-select:none;margin:0;">
         <input type="checkbox" ${allChecked ? 'checked' : ''} onchange="toggleAllPendingParticipants(this.checked)" onclick="event.stopPropagation()" style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary);">
         เลือกทั้งหมด
       </label>
@@ -536,7 +536,7 @@ function renderParticipantSuggestions(rows, keyword = '') {
         <div style="flex:1;min-width:0;">
           <div>
             <span class="suggest-id">${escHtml(String(emp.Emp_ID))}</span>
-            ${emp.Emp_Vsth ? `<span style="font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:6px;padding:1px 5px;margin-left:4px;">${escHtml(emp.Emp_Vsth)}</span>` : ''}
+            ${emp.Emp_Vsth ? `<span style="font-size:10px;background:var(--primary-light);color:var(--primary);border-radius:6px;padding:1px 5px;margin-left:4px;">${escHtml(emp.Emp_Vsth)}</span>` : ''}
             <span class="suggest-name">${escHtml(getEmployeeDisplayName(emp) || '-')}</span>
           </div>
           <div class="suggest-sub">${escHtml(emp.Sub_Name || 'ไม่ระบุแผนก')}</div>
@@ -685,8 +685,8 @@ export function renderParticipantsList() {
   const removeCursor = checkedCount > 0 ? 'pointer' : 'not-allowed';
 
   container.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--gray-100);background:#f8fafc;border-radius:8px 8px 0 0;margin-bottom:4px;">
-      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;color:#475569;font-weight:600;user-select:none;margin:0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--gray-100);background:var(--gray-100);border-radius:8px 8px 0 0;margin-bottom:4px;">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;color:var(--gray-600);font-weight:600;user-select:none;margin:0;">
         <input type="checkbox" ${allChecked ? 'checked' : ''} onchange="toggleAllParticipantsForRemoval(this.checked)" onclick="event.stopPropagation()" style="width:15px;height:15px;cursor:pointer;accent-color:#ef4444;">
         เลือกทั้งหมด (${selectedParticipants.length} คน)
       </label>
@@ -698,7 +698,7 @@ export function renderParticipantsList() {
     ${selectedParticipants.map(emp => {
       const isChecked = participantsToRemoveIds.has(String(emp.Emp_ID));
       return `
-      <div class="participant-row" style="${isChecked ? 'background:#fef2f2;' : ''}">
+      <div class="participant-row" style="${isChecked ? 'background:var(--danger-light);' : ''}">
         <div class="participant-info">
           <input type="checkbox" ${isChecked ? 'checked' : ''}
             onchange="toggleParticipantForRemoval('${escHtml(String(emp.Emp_ID))}', this.checked)"
@@ -843,8 +843,8 @@ export function loadTrainingList() {
 
   tableBody.innerHTML = rows.map(plan => {
     const typeTag = plan.Plan_TypeTraining === 'ภายใน'
-      ? '<span style="padding:3px 8px;border-radius:4px;font-size:11.5px;background:#dcfce7;color:#166534;">ภายใน</span>'
-      : '<span style="padding:3px 8px;border-radius:4px;font-size:11.5px;background:#dbeafe;color:#1e40af;">ภายนอก</span>';
+      ? '<span style="padding:3px 8px;border-radius:4px;font-size:11.5px;background:var(--success-light);color:#065f46;">ภายใน</span>'
+      : '<span style="padding:3px 8px;border-radius:4px;font-size:11.5px;background:var(--primary-light);color:var(--primary);">ภายนอก</span>';
     return `
     <tr>
       <td style="text-align:center;font-weight:600;color:var(--primary);">${escHtml(String(plan.Plan_ID))}</td>
@@ -859,12 +859,12 @@ export function loadTrainingList() {
       <td style="text-align:center;">
         <div class="action-btns" style="justify-content:center;">
           <button type="button" class="btn-action" title="ดูรายละเอียด"
-            style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;"
+            style="background:var(--primary-light);color:var(--primary);border:1px solid rgba(91,142,245,0.35);"
             onclick="viewTrainingDetails('${escHtml(String(plan.Plan_ID))}')">
             <i class="bi bi-eye"></i>
           </button>
           <button type="button" class="btn-action" title="ลบแผนการอบรม"
-            style="background:#fef2f2;color:#ef4444;border:1px solid #fecaca;"
+            style="background:var(--danger-light);color:var(--danger);border:1px solid rgba(239,68,68,0.3);"
             onclick="confirmDeleteTrainingPlan('${escHtml(String(plan.Plan_ID))}')">
             <i class="bi bi-trash3"></i>
           </button>
@@ -951,7 +951,7 @@ export async function viewTrainingDetails(planId) {
   const participantsRes = await window.api.getTrainingParticipants(planId);
   const participants = participantsRes.success ? participantsRes.data || [] : [];
 
-  const typeColor = plan.Plan_TypeTraining === 'ภายใน' ? 'background:#dcfce7;color:#166534' : 'background:#dbeafe;color:#1e40af';
+  const typeColor = plan.Plan_TypeTraining === 'ภายใน' ? 'background:var(--success-light);color:#065f46' : 'background:var(--primary-light);color:var(--primary)';
   const html = `
     <div class="form-section-title" style="margin-bottom:14px;">ข้อมูลการอบรม</div>
     <div class="form-row" style="margin-bottom:0;">

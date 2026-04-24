@@ -154,7 +154,7 @@ function renderExpenseTable() {
            <i class="bi bi-lock-fill"></i> ล็อก
          </span>`
       : `<button type="button" class="btn-action"
-           style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;"
+           style="background:var(--primary-light);color:var(--primary);border:1px solid rgba(91,142,245,0.35);"
            title="แก้ไข" onclick="openExpenseModal('${escHtml(String(row.Expenses_ID))}')">
            <i class="bi bi-pencil"></i>
          </button>`;
@@ -188,7 +188,7 @@ function renderExpenseTable() {
         ${fmtBaht(row.Expenses_Travel)}
       </td>
       <td class="exp-amount-cell" style="text-align:right;font-weight:700;
-        color:${total > 0 ? '#065f46' : 'var(--gray-500)'};">
+        color:${total > 0 ? 'var(--success)' : 'var(--gray-500)'};">
         ${fmtBaht(total)}
       </td>
       <td style="text-align:center;font-size:11.5px;color:var(--gray-500);">
@@ -367,7 +367,7 @@ export async function showExpPlanPickerModal() {
 
   overlay.style.display = 'flex';
   overlay.innerHTML = `
-    <div style="background:white;border-radius:16px;width:560px;max-width:94vw;max-height:80vh;
+    <div style="background:var(--gray-100);border-radius:16px;width:560px;max-width:94vw;max-height:80vh;
       display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.28);overflow:hidden;"
       onclick="event.stopPropagation()">
       <div style="padding:18px 22px 14px;border-bottom:1px solid var(--gray-100);flex-shrink:0;">

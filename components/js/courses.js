@@ -159,7 +159,7 @@ function csRenderTable() {
 
   const total = filteredCourses.length;
   if (total === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:#94a3b8;">
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--gray-400);">
       <i class="bi bi-search" style="font-size:28px;display:block;margin-bottom:8px;"></i>
       ไม่พบข้อมูลหลักสูตร
     </td></tr>`;
@@ -171,26 +171,26 @@ function csRenderTable() {
 
   tbody.innerHTML = pageRows.map((r, i) => {
     const rowNum = start + i + 1;
-    const bg = i % 2 === 1 ? '#f8fafc' : '#ffffff';
+    const bg = i % 2 === 1 ? 'var(--gray-50)' : 'var(--gray-100)';
     const hasPlans = Number(r.PlanCount) > 0;
     const planBadge = hasPlans
-      ? `<span style="background:#dbeafe;color:#1d4ed8;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:700;">${r.PlanCount} แผน</span>`
-      : `<span style="background:#f1f5f9;color:#94a3b8;padding:2px 9px;border-radius:20px;font-size:11.5px;">-</span>`;
+      ? `<span style="background:var(--primary-light);color:var(--primary);padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:700;">${r.PlanCount} แผน</span>`
+      : `<span style="background:var(--gray-100);color:var(--gray-400);padding:2px 9px;border-radius:20px;font-size:11.5px;">-</span>`;
 
     return `<tr style="background:${bg};transition:background .15s;"
-      onmouseenter="this.style.background='#eff6ff'"
+      onmouseenter="this.style.background='var(--primary-subtle)'"
       onmouseleave="this.style.background='${bg}'">
-      <td style="padding:9px 12px;font-size:12px;color:#94a3b8;text-align:center;font-weight:600;">${rowNum}</td>
+      <td style="padding:9px 12px;font-size:12px;color:var(--gray-400);text-align:center;font-weight:600;">${rowNum}</td>
       <td style="padding:9px 12px;font-size:12px;">
-        <span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:5px;font-weight:700;font-family:monospace;letter-spacing:0.5px;">
+        <span style="background:var(--primary-light);color:var(--primary);padding:2px 8px;border-radius:5px;font-weight:700;font-family:monospace;letter-spacing:0.5px;">
           ${escHtml(r.Courses_ID || '-')}
         </span>
       </td>
-      <td style="padding:9px 12px;font-size:13px;font-weight:500;color:#1e293b;max-width:320px;">
+      <td style="padding:9px 12px;font-size:13px;font-weight:500;color:var(--gray-900);max-width:320px;">
         ${escHtml(r.Courses_Name || '-')}
       </td>
-      <td style="padding:9px 12px;font-size:12.5px;color:#374151;white-space:nowrap;">${csFormatDate(r.Courses_Date)}</td>
-      <td style="padding:9px 12px;font-size:12px;color:#64748b;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+      <td style="padding:9px 12px;font-size:12.5px;color:var(--gray-700);white-space:nowrap;">${csFormatDate(r.Courses_Date)}</td>
+      <td style="padding:9px 12px;font-size:12px;color:var(--gray-500);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
         title="${escHtml(r.Courses_Remark || '')}">
         ${escHtml(r.Courses_Remark || '-')}
       </td>
@@ -198,15 +198,15 @@ function csRenderTable() {
       <td style="padding:9px 12px;text-align:center;">
         <div style="display:flex;gap:6px;justify-content:center;">
           <button title="แก้ไข" onclick="csOpenEditModal('${escHtml(r.Courses_ID)}')"
-            style="background:#dbeafe;color:#1d4ed8;border:none;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:13px;transition:background .15s;"
-            onmouseenter="this.style.background='#bfdbfe'"
-            onmouseleave="this.style.background='#dbeafe'">
+            style="background:var(--primary-light);color:var(--primary);border:none;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:13px;transition:background .15s;"
+            onmouseenter="this.style.background='var(--primary)';this.style.color='white'"
+            onmouseleave="this.style.background='var(--primary-light)';this.style.color='var(--primary)'">
             <i class="bi bi-pencil"></i>
           </button>
           <button title="ลบ" onclick="csOpenDeleteModal('${escHtml(r.Courses_ID)}')"
-            style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:13px;transition:background .15s;"
-            onmouseenter="this.style.background='#fecaca'"
-            onmouseleave="this.style.background='#fee2e2'">
+            style="background:var(--danger-light);color:var(--danger);border:none;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:13px;transition:background .15s;"
+            onmouseenter="this.style.background='var(--danger)';this.style.color='white'"
+            onmouseleave="this.style.background='var(--danger-light)';this.style.color='var(--danger)'">
             <i class="bi bi-trash3"></i>
           </button>
         </div>
@@ -222,10 +222,9 @@ function csRenderPagination() {
   if (total <= 1) { container.innerHTML = ''; return; }
 
   const btnStyle = (active) =>
-    `style="padding:5px 11px;border-radius:6px;border:1px solid ${active ? '#3b82f6' : '#e2e8f0'};
-    background:${active ? '#3b82f6' : '#fff'};color:${active ? '#fff' : '#374151'};
+    `style="padding:5px 11px;border-radius:6px;border:1px solid ${active ? 'var(--primary)' : 'var(--gray-200)'};
+    background:${active ? 'var(--primary)' : 'var(--gray-100)'};color:${active ? '#fff' : 'var(--gray-700)'};
     font-size:13px;cursor:pointer;font-weight:${active ? '700' : '400'};"`;
-
   let html = `<button ${btnStyle(false)} onclick="csGoPage(${csCurrentPage - 1})" ${csCurrentPage === 1 ? 'disabled' : ''}>&lsaquo;</button>`;
   const range = 2;
   for (let p = 1; p <= total; p++) {

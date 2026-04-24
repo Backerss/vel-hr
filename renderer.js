@@ -304,6 +304,9 @@ async function init() {
 
   // ตรวจ session ที่บันทึกไว้ ถ้ายังไม่หมดอายุ จะ auto-login เลย
   await initAutoLogin();
+
+  // Sync theme icon with saved preference (after topbar is loaded)
+  initDarkMode();
 }
 
 // ===================== DB CONFIG FUNCTIONS =====================
@@ -768,6 +771,29 @@ function initEnterKeyNavigation() {
   document.addEventListener('change', _handleSelectChange);
 }
 
+// ===================== DARK MODE =====================
+function toggleDarkMode() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  setDarkMode(!isDark);
+}
+
+function setDarkMode(dark) {
+  document.documentElement.classList.add('theme-transitioning');
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const icon = document.getElementById('themeIcon');
+  if (icon) icon.className = dark ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+  try { localStorage.setItem('hr_theme', dark ? 'dark' : 'light'); } catch (_) {}
+  setTimeout(() => document.documentElement.classList.remove('theme-transitioning'), 350);
+}
+
+function initDarkMode() {
+  let saved = 'light';
+  try { saved = localStorage.getItem('hr_theme') || 'light'; } catch (_) {}
+  document.documentElement.setAttribute('data-theme', saved);
+  const icon = document.getElementById('themeIcon');
+  if (icon) icon.className = saved === 'dark' ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+}
+
 // ===================== EXPOSE GLOBALS (for inline onclick in HTML) =====================
 // These are needed because HTML component files use onclick="..." which requires globals.
 Object.assign(window, {
@@ -856,6 +882,8 @@ Object.assign(window, {
   closeModal, showModal, showToast,
   // DB config
   dbConfigSave, dbConfigTest, dbConfigTogglePassword,
+  // Dark mode
+  toggleDarkMode,
 });
 
 // ===================== START =====================

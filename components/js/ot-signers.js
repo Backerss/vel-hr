@@ -125,14 +125,14 @@ function _renderPage(container) {
           <div class="form-group" style="margin-bottom:14px;">
             <label class="form-label">รหัสพนักงานที่เลือก</label>
             <input type="text" class="form-control" id="otsgEmpID" readonly
-              placeholder="เลือกจากรายการด้านบน" style="background:#f8fafc;">
+              placeholder="เลือกจากรายการด้านบน" style="background:var(--gray-50);">
           </div>
           <div class="form-group">
             <label class="form-label">ชื่อพนักงาน</label>
             <input type="text" class="form-control" id="otsgEmpName" readonly
-              style="background:#f8fafc;">
+              style="background:var(--gray-50);">
           </div>
-          <div style="margin-top:14px;padding:10px 14px;background:#fffbeb;border-radius:8px;border:1px solid #fde68a;font-size:12.5px;color:#92400e;">
+          <div style="margin-top:14px;padding:10px 14px;background:var(--warning-light);border-radius:8px;border:1px solid rgba(245,158,11,0.4);font-size:12.5px;color:var(--warning);">
             <i class="bi bi-info-circle-fill" style="margin-right:6px;"></i>
             ชื่อและตำแหน่งของพนักงานที่เลือกจะแสดงในแบบฟอร์ม OT ช่องลายเซ็นหัวหน้างาน
           </div>
@@ -179,10 +179,10 @@ export async function otsgEmpSearch() {
 
   const res = await window.api.searchEmployees({ keyword, limit: 15 });
   if (!res.success || !res.data?.length) {
-    dd.innerHTML = `<div style="padding:8px 12px;font-size:13px;color:var(--gray-400);background:#fff;border:1px solid var(--gray-200);border-radius:6px;margin-top:2px;">ไม่พบพนักงาน</div>`;
+    dd.innerHTML = `<div style="padding:8px 12px;font-size:13px;color:var(--gray-400);background:var(--gray-100);border:1px solid var(--gray-200);border-radius:6px;margin-top:2px;">ไม่พบพนักงาน</div>`;
     return;
   }
-  dd.innerHTML = `<div style="background:#fff;border:1px solid var(--gray-200);border-radius:6px;margin-top:2px;max-height:220px;overflow-y:auto;box-shadow:var(--shadow-md);">` +
+  dd.innerHTML = `<div style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:6px;margin-top:2px;max-height:220px;overflow-y:auto;box-shadow:var(--shadow-md);">` +
     res.data.map(e => {
       const full = `${e.Emp_Sname || ''}${e.Emp_Firstname || ''} ${e.Emp_Lastname || ''}`.trim();
       const sub  = e.Sub_Name || '';
@@ -191,7 +191,7 @@ export async function otsgEmpSearch() {
         style="padding:8px 14px;font-size:13px;cursor:pointer;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--gray-100);"
         onmouseenter="this.style.background='var(--primary-light,#eff6ff)'" onmouseleave="this.style.background=''">
         <span class="emp-id" style="font-size:11.5px;">${escHtml(e.Emp_ID)}</span>
-        ${e.Emp_Vsth ? `<span style="font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:6px;padding:1px 5px;">${escHtml(e.Emp_Vsth)}</span>` : ''}
+        ${e.Emp_Vsth ? `<span style="font-size:10px;background:var(--primary-light);color:var(--primary);border-radius:6px;padding:1px 5px;">${escHtml(e.Emp_Vsth)}</span>` : ''}
         <span>${escHtml(full)}</span>
         <span style="margin-left:auto;font-size:11.5px;color:var(--gray-400);">${escHtml(sub)}</span>
       </div>`;

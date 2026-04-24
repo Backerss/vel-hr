@@ -202,12 +202,12 @@ function hdRenderTable() {
       <td style="text-align:center;">
         <div class="action-btns" style="justify-content:center;">
           <button type="button" class="btn-action" title="แก้ไข"
-            style="background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;"
+            style="background:var(--primary-light);color:var(--primary);border:1px solid rgba(91,142,245,0.35);"
             onclick="hdOpenModal(${h.ID})">
             <i class="bi bi-pencil"></i>
           </button>
           <button type="button" class="btn-action" title="ลบ"
-            style="background:#fef2f2;color:#ef4444;border:1px solid #fecaca;"
+            style="background:var(--danger-light);color:var(--danger);border:1px solid rgba(239,68,68,0.3);"
             onclick="hdOpenDeleteModal(${h.ID}, '${escHtml(name)}')">
             <i class="bi bi-trash"></i>
           </button>

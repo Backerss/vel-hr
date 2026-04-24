@@ -1386,3 +1386,131 @@ body {
   color: white !important;
   font-weight: 600;
 }
+
+/* ===================== DARK THEME ===================== */
+
+/* ── CSS variable overrides ───────────────────────────── */
+[data-theme="dark"] {
+  --white:         #1a2438;
+  --gray-50:       #0f172a;
+  --gray-100:      #1a2438;
+  --gray-200:      #243349;
+  --gray-300:      #344860;
+  --gray-400:      #5a7295;
+  --gray-500:      #8499b4;
+  --gray-600:      #b0bfcf;
+  --gray-700:      #ccd6e0;
+  --gray-800:      #e2eaf2;
+  --gray-900:      #f0f5fa;
+
+  --primary:        #5b8ef5;
+  --primary-dark:   #4a7ae0;
+  --primary-light:  rgba(91, 142, 245, 0.18);
+  --primary-subtle: rgba(91, 142, 245, 0.10);
+
+  --success-light: rgba(16, 185, 129, 0.18);
+  --warning-light: rgba(245, 158, 11,  0.18);
+  --danger-light:  rgba(239, 68,  68,  0.18);
+
+  --shadow-sm: 0 1px 3px  rgba(0, 0, 0, 0.40);
+  --shadow:    0 4px 12px rgba(0, 0, 0, 0.40);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.50);
+}
+
+/* ── Layout surfaces ─────────────────────────────────── */
+[data-theme="dark"] .sidebar       { background: var(--gray-100); border-right-color: var(--gray-200); }
+[data-theme="dark"] .topbar        { background: var(--gray-100); border-bottom-color: var(--gray-200); }
+[data-theme="dark"] .stat-card     { background: var(--gray-100); border-color: var(--gray-200); }
+[data-theme="dark"] .table-section { background: var(--gray-100); border-color: var(--gray-200); }
+
+/* ── Table ───────────────────────────────────────────── */
+[data-theme="dark"] .data-table th { background: var(--gray-200); }
+
+/* ── Buttons ─────────────────────────────────────────── */
+[data-theme="dark"] .btn-icon                    { background: var(--gray-100); border-color: var(--gray-200); }
+[data-theme="dark"] .btn-icon:hover              { background: var(--gray-200); color: var(--primary); }
+[data-theme="dark"] .btn-outline-custom          { background: var(--gray-100); border-color: var(--gray-200); }
+[data-theme="dark"] .btn-outline-custom:hover    { background: var(--gray-200); }
+[data-theme="dark"] .leave-page-btn              { background: var(--gray-100); border-color: var(--gray-200); }
+[data-theme="dark"] .leave-page-btn.active       { background: var(--primary);  border-color: var(--primary); color: white; }
+
+/* ── Form controls ───────────────────────────────────── */
+[data-theme="dark"] .search-input,
+[data-theme="dark"] .filter-select,
+[data-theme="dark"] .form-control-custom,
+[data-theme="dark"] .form-control-m,
+[data-theme="dark"] .view-field,
+[data-theme="dark"] .db-config-input { background: var(--gray-200); border-color: var(--gray-300); color: var(--gray-700); }
+
+[data-theme="dark"] .search-input:focus,
+[data-theme="dark"] .form-control-custom:focus,
+[data-theme="dark"] .form-control-m:focus,
+[data-theme="dark"] .db-config-input:focus { background: var(--gray-200); }
+
+[data-theme="dark"] select option { background: var(--gray-100); color: var(--gray-700); }
+
+/* ── User card ───────────────────────────────────────── */
+[data-theme="dark"] .user-card       { background: var(--gray-200); }
+[data-theme="dark"] .user-card:hover { background: var(--gray-300); }
+
+/* ── Modals ──────────────────────────────────────────── */
+[data-theme="dark"] .modal-card,
+[data-theme="dark"] .modal-card-lg    { background: var(--gray-100); }
+[data-theme="dark"] .modal-close      { background: var(--gray-200); border-color: var(--gray-300); }
+[data-theme="dark"] .modal-close:hover{ background: var(--gray-300); }
+
+/* ── Badges — fix hardcoded dark text ────────────────── */
+[data-theme="dark"] .badge-status.activated  { color: #34d399; }
+[data-theme="dark"] .badge-status.terminated { color: #f87171; }
+
+/* ── Login card ──────────────────────────────────────── */
+[data-theme="dark"] .login-card { background: rgba(26, 36, 56, 0.97); }
+
+/* ── Toast ───────────────────────────────────────────── */
+[data-theme="dark"] .toast-item { background: var(--gray-100); box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+[data-theme="dark"] .toast-msg  { color: var(--gray-700); }
+
+/* ── Date / Time pickers ─────────────────────────────── */
+[data-theme="dark"] .tdp-popup,
+[data-theme="dark"] .ttp-popup         { background: var(--gray-100); box-shadow: 0 8px 32px rgba(0,0,0,0.40), 0 2px 8px rgba(0,0,0,0.25); }
+[data-theme="dark"] .tdp-nav-btn       { background: var(--gray-200); }
+[data-theme="dark"] .tdp-nav-btn:hover { background: var(--primary-light); color: var(--primary); }
+[data-theme="dark"] .tdp-day           { color: var(--gray-600); }
+[data-theme="dark"] .tdp-day.other     { color: var(--gray-300); }
+[data-theme="dark"] .tdp-today-btn     { border-color: var(--gray-300); color: var(--gray-500); }
+[data-theme="dark"] .tdp-today-btn:hover { background: var(--primary-light); border-color: var(--primary); }
+[data-theme="dark"] .ttp-item          { color: var(--gray-600); }
+[data-theme="dark"] .ttp-group-label   { border-top-color: var(--gray-200); }
+[data-theme="dark"] .ttp-scroll        { scrollbar-color: var(--gray-300) transparent; }
+
+/* ── DB config notice ────────────────────────────────── */
+[data-theme="dark"] .db-config-notice { border-color: rgba(245, 158, 11, 0.35); }
+
+/* ── Spinner ─────────────────────────────────────────── */
+[data-theme="dark"] .spinner { border-color: var(--gray-200); border-top-color: var(--primary); }
+
+/* ── Theme Toggle Button ─────────────────────────────── */
+.theme-toggle {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition);
+  color: var(--gray-500);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.theme-toggle:hover { background: var(--gray-100); border-color: var(--gray-300); color: var(--primary); }
+
+/* ── Smooth transition during theme switch ───────────── */
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition: background-color 0.25s ease, border-color 0.2s ease,
+              color 0.2s ease, box-shadow 0.25s ease !important;
+}

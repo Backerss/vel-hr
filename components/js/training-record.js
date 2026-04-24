@@ -96,7 +96,7 @@ function buildPageHTML() {
   </div>
 
   <!-- ── Step 1: Select Plan (overflow:visible to prevent dropdown clipping) ── -->
-  <div style="background:white;border-radius:var(--border-radius);border:1px solid var(--gray-200);
+  <div style="background:var(--gray-100);border-radius:var(--border-radius);border:1px solid var(--gray-200);
     box-shadow:var(--shadow-sm);padding:20px 24px;margin-bottom:14px;overflow:visible;position:relative;">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
       <span style="background:var(--primary);color:white;width:22px;height:22px;border-radius:50%;
@@ -116,7 +116,7 @@ function buildPageHTML() {
           oninput="onRecordPlanSearch()" onfocus="showRecordPlanDropdown()" onblur="hideRecordPlanDropdown()">
         <div id="recordPlanDropdown"
           style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;
-          background:white;border:1.5px solid var(--gray-200);border-radius:10px;
+          background:var(--gray-100);border:1.5px solid var(--gray-200);border-radius:10px;
           max-height:320px;overflow-y:auto;z-index:9999;
           box-shadow:0 12px 32px rgba(0,0,0,.18);">
         </div>
@@ -183,7 +183,7 @@ function buildPageHTML() {
               onblur="hideEmpDropdown()">
             <div id="empCheckinDropdown"
               style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;
-              background:white;border:1.5px solid var(--gray-200);border-radius:10px;
+              background:var(--gray-100);border:1.5px solid var(--gray-200);border-radius:10px;
               max-height:300px;overflow-y:auto;z-index:9999;
               box-shadow:0 12px 32px rgba(0,0,0,.18);">
             </div>
@@ -295,7 +295,7 @@ function renderRecordPlanDropdown(q) {
   dd.innerHTML = filtered.slice(0, 60).map(p => `
     <div style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--gray-100);transition:background .1s;"
       onmousedown="event.preventDefault();selectRecordPlan('${p.Plan_ID}');"
-      onmouseover="this.style.background='#f0f6ff'" onmouseout="this.style.background=''">
+      onmouseover="this.style.background='var(--primary-subtle)'" onmouseout="this.style.background=''">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
         <span style="font-size:12px;font-weight:700;color:var(--primary);background:var(--primary-light);
           padding:1px 7px;border-radius:20px;">#${escHtml(String(p.Plan_ID))}</span>
@@ -478,7 +478,7 @@ function renderEmpDropdown() {
       onmouseover="highlightEmpItem(${i})" onmouseout="this.style.background=''">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
         <span class="emp-id">${escHtml(e.Emp_ID)}</span>
-        ${e.Emp_Vsth ? `<span style="font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:6px;padding:1px 5px;">${escHtml(e.Emp_Vsth)}</span>` : ''}
+        ${e.Emp_Vsth ? `<span style="font-size:10px;background:var(--primary-light);color:var(--primary);border-radius:6px;padding:1px 5px;">${escHtml(e.Emp_Vsth)}</span>` : ''}
         ${badge}
       </div>
       <div style="font-size:13px;font-weight:600;color:var(--gray-800);margin-top:2px;">
@@ -494,7 +494,7 @@ export function highlightEmpItem(idx) {
   const dd = document.getElementById('empCheckinDropdown');
   if (!dd) return;
   dd.querySelectorAll('[data-idx]').forEach(el => {
-    el.style.background = Number(el.dataset.idx) === idx ? '#f0f6ff' : '';
+    el.style.background = Number(el.dataset.idx) === idx ? 'var(--primary-subtle)' : '';
   });
 }
 
@@ -604,7 +604,7 @@ function renderParticipantsTable() {
     const absIdx  = startIdx + i;
     const info    = stateInfo(p.his_state);
     const canUndo = p.his_state && p.his_state !== 'W' && p.his_state !== 'Pending';
-    const rowBg   = p.his_state === 'T' ? 'background:#f0fdf4;' : '';
+    const rowBg   = p.his_state === 'T' ? 'background:var(--success-light);' : '';
     return `
     <tr style="${rowBg}">
       <td style="text-align:center;color:var(--gray-400);font-size:12px;">${startIdx + i + 1}</td>
@@ -664,7 +664,7 @@ function renderPagination(totalPages) {
   html += `<div style="display:flex;align-items:center;gap:5px;">`;
   html += `<button onclick="goToRecordPage(${cur - 1})" ${cur <= 1 ? 'disabled' : ''}
     style="width:30px;height:30px;border-radius:6px;border:1.5px solid var(--gray-200);
-      background:white;cursor:${cur <= 1 ? 'default' : 'pointer'};color:var(--gray-500);
+      background:var(--gray-100);cursor:${cur <= 1 ? 'default' : 'pointer'};color:var(--gray-500);
       opacity:${cur <= 1 ? '.4' : '1'};font-size:13px;">
     <i class="bi bi-chevron-left"></i></button>`;
 
@@ -677,7 +677,7 @@ function renderPagination(totalPages) {
     html += `<button onclick="goToRecordPage(${pg})"
       style="min-width:30px;height:30px;padding:0 6px;border-radius:6px;
         border:1.5px solid ${active ? 'var(--primary)' : 'var(--gray-200)'};
-        background:${active ? 'var(--primary)' : 'white'};
+        background:${active ? 'var(--primary)' : 'var(--gray-100)'};
         color:${active ? 'white' : 'var(--gray-700)'};
         font-size:12.5px;font-weight:${active ? '700' : '500'};
         cursor:pointer;transition:all .12s;">
@@ -687,7 +687,7 @@ function renderPagination(totalPages) {
 
   html += `<button onclick="goToRecordPage(${cur + 1})" ${cur >= totalPages ? 'disabled' : ''}
     style="width:30px;height:30px;border-radius:6px;border:1.5px solid var(--gray-200);
-      background:white;cursor:${cur >= totalPages ? 'default' : 'pointer'};color:var(--gray-500);
+      background:var(--gray-100);cursor:${cur >= totalPages ? 'default' : 'pointer'};color:var(--gray-500);
       opacity:${cur >= totalPages ? '.4' : '1'};font-size:13px;">
     <i class="bi bi-chevron-right"></i></button>`;
 
@@ -712,13 +712,13 @@ function updateStatBadges() {
   });
   container.innerHTML = [
     count.T > 0 ? `<span style="font-size:11.5px;padding:2px 9px;border-radius:20px;font-weight:600;
-      background:#d1fae5;color:#065f46;"><i class="bi bi-patch-check-fill me-1"></i>ผ่าน ${count.T}</span>` : '',
+      background:var(--success-light);color:var(--success);"><i class="bi bi-patch-check-fill me-1"></i>ผ่าน ${count.T}</span>` : '',
     count.D > 0 ? `<span style="font-size:11.5px;padding:2px 9px;border-radius:20px;font-weight:600;
-      background:#dbeafe;color:#1a56db;"><i class="bi bi-sunrise me-1"></i>เช้า ${count.D}</span>` : '',
+      background:var(--primary-light);color:var(--primary);"><i class="bi bi-sunrise me-1"></i>เช้า ${count.D}</span>` : '',
     count.N > 0 ? `<span style="font-size:11.5px;padding:2px 9px;border-radius:20px;font-weight:600;
-      background:#fef3c7;color:#b45309;"><i class="bi bi-brightness-high me-1"></i>บ่าย ${count.N}</span>` : '',
+      background:var(--warning-light);color:var(--warning);"><i class="bi bi-brightness-high me-1"></i>บ่าย ${count.N}</span>` : '',
     count.W > 0 ? `<span style="font-size:11.5px;padding:2px 9px;border-radius:20px;font-weight:600;
-      background:#f1f5f9;color:#64748b;"><i class="bi bi-hourglass-split me-1"></i>รอ ${count.W}</span>` : '',
+      background:var(--gray-100);color:var(--gray-500);"><i class="bi bi-hourglass-split me-1"></i>รอ ${count.W}</span>` : '',
   ].filter(Boolean).join('');
 }
 

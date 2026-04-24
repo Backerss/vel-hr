@@ -15,9 +15,9 @@ function _trainingFormatD(d) {
 }
 
 function _trainingStateLabel(s) {
-  if (s === 'T') return '<span style="background:#dcfce7;color:#166534;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;">✓ ผ่าน</span>';
-  if (s === 'F') return '<span style="background:#fee2e2;color:#991b1b;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;">✗ ไม่ผ่าน</span>';
-  return '<span style="background:#fef9c3;color:#854d0e;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;">⏳ รอ</span>';
+  if (s === 'T') return '<span style="background:var(--success-light);color:#065f46;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;">✓ ผ่าน</span>';
+  if (s === 'F') return '<span style="background:var(--danger-light);color:#991b1b;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;">✗ ไม่ผ่าน</span>';
+  return '<span style="background:var(--warning-light);color:#854d0e;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;">⏳ รอ</span>';
 }
 
 export function trainingDTRender() {
@@ -50,40 +50,40 @@ export function trainingDTRender() {
     let arrow = '';
     if (_trainingSortCol === idx) arrow = _trainingSortAsc ? ' ▲' : ' ▼';
     return `style="padding:10px 12px;text-align:left;font-size:11.5px;font-weight:700;
-      color:#334155;white-space:nowrap;border-bottom:2px solid #e2e8f0;
-      background:#f1f5f9;cursor:pointer;user-select:none;" 
+      color:var(--gray-700);white-space:nowrap;border-bottom:2px solid var(--gray-200);
+      background:var(--gray-100);cursor:pointer;user-select:none;" 
       onclick="trainingDTSort(${idx})"`;
   };
 
   const tBodyHtml = pageRows.length === 0
-    ? `<tr><td colspan="12" style="text-align:center;padding:32px;color:#94a3b8;font-size:13px;">
+    ? `<tr><td colspan="12" style="text-align:center;padding:32px;color:var(--gray-400);font-size:13px;">
         <i class="bi bi-search me-2"></i>ไม่พบข้อมูลที่ค้นหา</td></tr>`
     : pageRows.map((r, i) => {
         const rowNum = start + i + 1;
-        const bg = i % 2 === 1 ? '#f8fafc' : '#ffffff';
+        const bg = i % 2 === 1 ? 'var(--gray-50)' : 'var(--gray-100)';
         return `<tr style="background:${bg};transition:background .15s;" 
-          onmouseenter="this.style.background='#eff6ff'" 
+          onmouseenter="this.style.background='var(--primary-subtle)'" 
           onmouseleave="this.style.background='${bg}'">
-          <td style="padding:9px 12px;font-size:12px;color:#94a3b8;text-align:center;font-weight:600;">${rowNum}</td>
+          <td style="padding:9px 12px;font-size:12px;color:var(--gray-400);text-align:center;font-weight:600;">${rowNum}</td>
           <td style="padding:9px 12px;font-size:11.5px;">
-            <span style="background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:5px;font-weight:700;">
+            <span style="background:var(--primary-light);color:var(--primary);padding:2px 7px;border-radius:5px;font-weight:700;">
               ${escHtml(r.Courses_ID||'-')}
             </span>
           </td>
-          <td style="padding:9px 12px;font-size:12.5px;font-weight:500;color:#1e293b;min-width:160px;">${escHtml(r.Courses_Name||'-')}</td>
-          <td style="padding:9px 12px;font-size:12px;color:#374151;white-space:nowrap;">${_trainingFormatD(r.Plan_StartDate)}</td>
-          <td style="padding:9px 12px;font-size:12px;color:#374151;white-space:nowrap;">${_trainingFormatD(r.Plan_EndDate)}</td>
-          <td style="padding:9px 12px;font-size:12px;color:#374151;text-align:center;white-space:nowrap;">${escHtml(r.Plan_TimeStart||'-')}</td>
-          <td style="padding:9px 12px;font-size:12px;color:#374151;text-align:center;white-space:nowrap;">${escHtml(r.Plan_TimeEnd||'-')}</td>
-          <td style="padding:9px 12px;font-size:12px;color:#374151;text-align:center;">
+          <td style="padding:9px 12px;font-size:12.5px;font-weight:500;color:var(--gray-800);min-width:160px;">${escHtml(r.Courses_Name||'-')}</td>
+          <td style="padding:9px 12px;font-size:12px;color:var(--gray-700);white-space:nowrap;">${_trainingFormatD(r.Plan_StartDate)}</td>
+          <td style="padding:9px 12px;font-size:12px;color:var(--gray-700);white-space:nowrap;">${_trainingFormatD(r.Plan_EndDate)}</td>
+          <td style="padding:9px 12px;font-size:12px;color:var(--gray-700);text-align:center;white-space:nowrap;">${escHtml(r.Plan_TimeStart||'-')}</td>
+          <td style="padding:9px 12px;font-size:12px;color:var(--gray-700);text-align:center;white-space:nowrap;">${escHtml(r.Plan_TimeEnd||'-')}</td>
+          <td style="padding:9px 12px;font-size:12px;color:var(--gray-700);text-align:center;">
             ${r.Plan_Hour!=null?`<strong>${r.Plan_Hour}</strong> ชม.`:'-'}
           </td>
-          <td style="padding:9px 12px;font-size:12px;color:#374151;min-width:120px;">${escHtml(r.Plan_Location||'-')}</td>
-          <td style="padding:9px 12px;font-size:12px;color:#374151;min-width:100px;">${escHtml(r.Plan_Lecturer||'-')}</td>
-          <td style="padding:9px 12px;font-size:12px;color:#64748b;min-width:100px;">${escHtml(r.Plan_Remark||'-')}</td>
+          <td style="padding:9px 12px;font-size:12px;color:var(--gray-700);min-width:120px;">${escHtml(r.Plan_Location||'-')}</td>
+          <td style="padding:9px 12px;font-size:12px;color:var(--gray-700);min-width:100px;">${escHtml(r.Plan_Lecturer||'-')}</td>
+          <td style="padding:9px 12px;font-size:12px;color:var(--gray-500);min-width:100px;">${escHtml(r.Plan_Remark||'-')}</td>
           <td style="padding:9px 12px;font-size:12px;text-align:center;white-space:nowrap;">${_trainingStateLabel(r.his_state)}</td>
           <td style="padding:9px 12px;font-size:11.5px;">
-            <span style="background:#f1f5f9;color:#475569;padding:2px 7px;border-radius:5px;font-size:11px;">
+            <span style="background:var(--gray-100);color:var(--gray-600);padding:2px 7px;border-radius:5px;font-size:11px;">
               ${escHtml(r.Plan_ID||'-')}
             </span>
           </td>
@@ -98,8 +98,8 @@ export function trainingDTRender() {
     let endP   = Math.min(pages, startP + maxBtns - 1);
     if (endP - startP < maxBtns - 1) startP = Math.max(1, endP - maxBtns + 1);
 
-    const btnStyle = (active) => `style="min-width:32px;height:32px;border:1px solid ${active?'#3b82f6':'#e2e8f0'};
-      background:${active?'#3b82f6':'#fff'};color:${active?'#fff':'#374151'};border-radius:6px;
+    const btnStyle = (active) => `style="min-width:32px;height:32px;border:1px solid ${active?'var(--primary)':'var(--gray-200)'};
+      background:${active?'var(--primary)':'var(--gray-100)'};color:${active?'#fff':'var(--gray-700)'};border-radius:6px;
       font-size:13px;cursor:${active?'default':'pointer'};font-weight:${active?'700':'400'};
       margin:0 2px;padding:0 6px;transition:all .15s;"`;
 
@@ -121,8 +121,8 @@ export function trainingDTRender() {
     <table style="width:100%;border-collapse:collapse;min-width:980px;">
       <thead>
         <tr>
-          <th style="padding:10px 12px;text-align:center;font-size:11.5px;font-weight:700;color:#334155;
-            background:#f1f5f9;border-bottom:2px solid #e2e8f0;white-space:nowrap;">#</th>
+          <th style="padding:10px 12px;text-align:center;font-size:11.5px;font-weight:700;color:var(--gray-700);
+            background:var(--gray-100);border-bottom:2px solid var(--gray-200);white-space:nowrap;">#</th>
           <th ${thS(0)}>รหัสหลักสูตร</th>
           <th ${thS(1)}>ชื่อหลักสูตร</th>
           <th ${thS(2)}>วันที่เริ่ม</th>
@@ -187,7 +187,7 @@ export async function openTrainingHistory(empId, fullname) {
   _trainingSortCol = -1; _trainingSortAsc = true;
 
   overlay.innerHTML = `
-    <div style="background:#fff;border-radius:16px;width:100%;max-width:1200px;
+    <div style="background:var(--gray-100);border-radius:16px;width:100%;max-width:1200px;
       box-shadow:0 30px 70px rgba(0,0,0,0.35);overflow:hidden;margin:auto;">
       <!-- HEADER -->
       <div style="background:linear-gradient(135deg,#1e40af 0%,#3b82f6 100%);padding:18px 24px;
@@ -212,7 +212,7 @@ export async function openTrainingHistory(empId, fullname) {
       <!-- BODY -->
       <div id="trainingHistoryBody" style="padding:40px 20px;text-align:center;">
         <div class="spinner" style="margin:0 auto 14px;"></div>
-        <div style="color:#64748b;font-size:13px;">กำลังโหลดข้อมูลการอบรม...</div>
+        <div style="color:var(--gray-500);font-size:13px;">กำลังโหลดข้อมูลการอบรม...</div>
       </div>
     </div>`;
 
@@ -236,12 +236,12 @@ export async function openTrainingHistory(empId, fullname) {
   if (_trainingAllRows.length === 0) {
     body.innerHTML = `
       <div style="padding:52px 20px;text-align:center;">
-        <div style="width:70px;height:70px;background:#f1f5f9;border-radius:50%;
+        <div style="width:70px;height:70px;background:var(--gray-100);border-radius:50%;
           margin:0 auto 14px;display:flex;align-items:center;justify-content:center;">
-          <i class="bi bi-journal-x" style="font-size:30px;color:#94a3b8;"></i>
+          <i class="bi bi-journal-x" style="font-size:30px;color:var(--gray-400);"></i>
         </div>
-        <div style="font-size:16px;font-weight:600;color:#475569;">ไม่พบประวัติการอบรม</div>
-        <div style="font-size:13px;color:#94a3b8;margin-top:6px;">
+        <div style="font-size:16px;font-weight:600;color:var(--gray-600);">ไม่พบประวัติการอบรม</div>
+        <div style="font-size:13px;color:var(--gray-400);margin-top:6px;">
           พนักงานรายนี้ยังไม่มีข้อมูลการอบรมในระบบ
         </div>
       </div>`;
@@ -253,31 +253,31 @@ export async function openTrainingHistory(empId, fullname) {
     <div style="padding:18px 20px 20px;">
       <!-- SUMMARY CARDS -->
       <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:140px;background:#eff6ff;border:1px solid #bfdbfe;
+        <div style="flex:1;min-width:140px;background:var(--primary-light);border:1px solid rgba(91,142,245,0.3);
           border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:10px;">
-          <i class="bi bi-mortarboard-fill" style="color:#3b82f6;font-size:22px;flex-shrink:0;"></i>
-          <div><div style="font-size:24px;font-weight:800;color:#1d4ed8;">${_trainingAllRows.length}</div>
-          <div style="font-size:11px;color:#64748b;font-weight:500;">หลักสูตรทั้งหมด</div></div>
+          <i class="bi bi-mortarboard-fill" style="color:var(--primary);font-size:22px;flex-shrink:0;"></i>
+          <div><div style="font-size:24px;font-weight:800;color:var(--primary);">${_trainingAllRows.length}</div>
+          <div style="font-size:11px;color:var(--gray-500);font-weight:500;">หลักสูตรทั้งหมด</div></div>
         </div>
-        <div style="flex:1;min-width:140px;background:#f0fdf4;border:1px solid #bbf7d0;
+        <div style="flex:1;min-width:140px;background:var(--success-light);border:1px solid rgba(16,185,129,0.3);
           border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:10px;">
-          <i class="bi bi-patch-check-fill" style="color:#16a34a;font-size:22px;flex-shrink:0;"></i>
-          <div><div style="font-size:24px;font-weight:800;color:#15803d;">${passedCount}</div>
-          <div style="font-size:11px;color:#64748b;font-weight:500;">ผ่านการอบรม</div></div>
+          <i class="bi bi-patch-check-fill" style="color:var(--success);font-size:22px;flex-shrink:0;"></i>
+          <div><div style="font-size:24px;font-weight:800;color:var(--success);">${passedCount}</div>
+          <div style="font-size:11px;color:var(--gray-500);font-weight:500;">ผ่านการอบรม</div></div>
         </div>
-        <div style="flex:1;min-width:140px;background:#fffbeb;border:1px solid #fde68a;
+        <div style="flex:1;min-width:140px;background:var(--warning-light);border:1px solid rgba(245,158,11,0.3);
           border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:10px;">
-          <i class="bi bi-clock-history" style="color:#d97706;font-size:22px;flex-shrink:0;"></i>
-          <div><div style="font-size:24px;font-weight:800;color:#b45309;">${totalHours.toFixed(0)}</div>
-          <div style="font-size:11px;color:#64748b;font-weight:500;">ชั่วโมงรวม</div></div>
+          <i class="bi bi-clock-history" style="color:var(--warning);font-size:22px;flex-shrink:0;"></i>
+          <div><div style="font-size:24px;font-weight:800;color:var(--warning);">${totalHours.toFixed(0)}</div>
+          <div style="font-size:11px;color:var(--gray-500);font-weight:500;">ชั่วโมงรวม</div></div>
         </div>
-        <div style="flex:1;min-width:140px;background:#fdf4ff;border:1px solid #e9d5ff;
+        <div style="flex:1;min-width:140px;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.25);
           border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:10px;">
           <i class="bi bi-percent" style="color:#7c3aed;font-size:22px;flex-shrink:0;"></i>
-          <div><div style="font-size:24px;font-weight:800;color:#6d28d9;">
+          <div><div style="font-size:24px;font-weight:800;color:#7c3aed;">
             ${_trainingAllRows.length>0?Math.round(passedCount/_trainingAllRows.length*100):0}%
           </div>
-          <div style="font-size:11px;color:#64748b;font-weight:500;">อัตราผ่าน</div></div>
+          <div style="font-size:11px;color:var(--gray-500);font-weight:500;">อัตราผ่าน</div></div>
         </div>
       </div>
 
@@ -285,44 +285,44 @@ export async function openTrainingHistory(empId, fullname) {
       <div style="display:flex;align-items:center;justify-content:space-between;
         gap:10px;margin-bottom:10px;flex-wrap:wrap;">
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:12.5px;color:#64748b;white-space:nowrap;">แสดงทีละ</span>
+          <span style="font-size:12.5px;color:var(--gray-500);white-space:nowrap;">แสดงทีละ</span>
           <select id="trDTPageSizeSelect" onchange="trainingDTSetPageSize(this.value)"
-            style="border:1px solid #e2e8f0;border-radius:7px;padding:5px 10px;font-size:13px;
-              background:#f8fafc;color:#374151;cursor:pointer;outline:none;">
+            style="border:1px solid var(--gray-200);border-radius:7px;padding:5px 10px;font-size:13px;
+              background:var(--gray-100);color:var(--gray-700);cursor:pointer;outline:none;">
             <option value="5" selected>5</option>
             <option value="10">10</option>
             <option value="15">15</option>
             <option value="20">20</option>
             <option value="25">25</option>
           </select>
-          <span style="font-size:12.5px;color:#64748b;white-space:nowrap;">รายการ</span>
+          <span style="font-size:12.5px;color:var(--gray-500);white-space:nowrap;">รายการ</span>
         </div>
-        <div style="display:flex;align-items:center;gap:6px;background:#f8fafc;
-          border:1px solid #e2e8f0;border-radius:8px;padding:5px 12px;min-width:200px;">
-          <i class="bi bi-search" style="color:#94a3b8;font-size:13px;"></i>
+        <div style="display:flex;align-items:center;gap:6px;background:var(--gray-100);
+          border:1px solid var(--gray-200);border-radius:8px;padding:5px 12px;min-width:200px;">
+          <i class="bi bi-search" style="color:var(--gray-400);font-size:13px;"></i>
           <input id="trDTSearch" type="text" placeholder="ค้นหาในตาราง..."
             oninput="trainingDTSearch()"
             style="border:none;background:transparent;outline:none;font-size:13px;
-              color:#374151;width:100%;"/>
+              color:var(--gray-700);width:100%;"/>
         </div>
       </div>
 
       <!-- TABLE WRAPPER -->
-      <div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+      <div style="border:1px solid var(--gray-200);border-radius:10px;overflow:hidden;">
         <div id="trDTTableWrap" style="overflow-x:auto;"></div>
       </div>
 
       <!-- DATATABLE FOOTER -->
       <div style="display:flex;align-items:center;justify-content:space-between;
         margin-top:12px;flex-wrap:wrap;gap:8px;">
-        <div id="trDTInfo" style="font-size:12.5px;color:#64748b;"></div>
+        <div id="trDTInfo" style="font-size:12.5px;color:var(--gray-500);"></div>
         <div id="trDTPaging" style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;"></div>
       </div>
 
       <!-- CLOSE BUTTON -->
       <div style="margin-top:16px;display:flex;justify-content:flex-end;">
         <button onclick="closeTrainingHistory()"
-          style="background:#1e40af;color:#fff;border:none;border-radius:8px;
+          style="background:var(--primary);color:#fff;border:none;border-radius:8px;
             padding:8px 22px;font-size:13.5px;font-weight:600;cursor:pointer;
             display:flex;align-items:center;gap:6px;">
           <i class="bi bi-x-circle"></i> ปิด
